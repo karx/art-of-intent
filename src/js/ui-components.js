@@ -368,7 +368,6 @@ async function loadProfile(userId) {
                             </span>
                         </div>`;
                     }).join('') : '<div class="profile-empty">No sessions yet</div>'}
-                    `).join('') : '<div class="leaderboard-empty">No sessions yet</div>'}
                 </div>
             </div>
         `;
