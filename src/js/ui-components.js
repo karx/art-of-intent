@@ -6,6 +6,20 @@ import { auth, db } from './firebase-config.js';
 import { collection, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Helper function to check if a session is a win
+ * Supports multiple field formats for backward compatibility
+ */
+function isSessionWin(session) {
+    return session.isWin === true || 
+           session.result === 'victory' || 
+           session.success === true;
+}
+
+// ============================================
 // LEADERBOARD
 // ============================================
 
@@ -132,10 +146,11 @@ async function getDailyLeaderboard() {
     // Filter and sort client-side
     const sessions = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(session => session.success === true)
+        .filter(session => isSessionWin(session))
         .sort((a, b) => (a.totalTokens || 0) - (b.totalTokens || 0))
         .slice(0, 10);
     
+    console.log('Daily leaderboard:', sessions.length, 'winners found');
     return sessions;
 }
 
@@ -156,10 +171,11 @@ async function getWeeklyLeaderboard() {
     // Filter and sort client-side
     const sessions = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(session => session.success === true)
+        .filter(session => isSessionWin(session))
         .sort((a, b) => (a.totalTokens || 0) - (b.totalTokens || 0))
         .slice(0, 10);
     
+    console.log('Weekly leaderboard:', sessions.length, 'winners found');
     return sessions;
 }
 
@@ -175,9 +191,11 @@ async function getAllTimeLeaderboard() {
     // Filter and sort client-side
     const sessions = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(session => session.success === true)
+        .filter(session => isSessionWin(session))
         .sort((a, b) => (a.totalTokens || 0) - (b.totalTokens || 0))
         .slice(0, 10);
+    
+    console.log('All-time leaderboard:', sessions.length, 'winners found');
     
     return sessions;
 }
@@ -262,13 +280,13 @@ async function loadProfile(userId) {
 
         // Calculate stats
         const totalGames = userData.gamesPlayed || sessions.length;
-        const wins = sessions.filter(s => s.success).length;
+        const wins = sessions.filter(s => isSessionWin(s)).length;
         const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
         const avgTokens = sessions.length > 0 
             ? Math.round(sessions.reduce((sum, s) => sum + (s.totalTokens || 0), 0) / sessions.length)
             : 0;
         const bestScore = sessions.length > 0
-            ? Math.min(...sessions.filter(s => s.success).map(s => s.totalTokens || Infinity))
+            ? Math.min(...sessions.filter(s => isSessionWin(s)).map(s => s.totalTokens || Infinity))
             : 0;
         const currentStreak = userData.currentStreak || 0;
         const longestStreak = userData.longestStreak || 0;
@@ -334,16 +352,19 @@ async function loadProfile(userId) {
             <div class="profile-section">
                 <div class="profile-section-title">Recent Sessions</div>
                 <div class="profile-sessions">
-                    ${sessions.length > 0 ? sessions.map(session => `
+                    ${sessions.length > 0 ? sessions.map(session => {
+                        const isWin = isSessionWin(session);
+                        return `
                         <div class="profile-session">
                             <span class="profile-session-date">${session.gameDate || 'Unknown'}</span>
-                            <span class="profile-session-result ${session.success ? 'win' : 'loss'}">
-                                ${session.success ? 'WIN' : 'LOSS'}
+                            <span class="profile-session-result ${isWin ? 'win' : 'loss'}">
+                                ${isWin ? 'WIN' : 'LOSS'}
                             </span>
                             <span class="profile-session-stats">
                                 ${session.totalTokens || 0} tokens | ${session.attempts || 0} attempts
                             </span>
-                        </div>
+                        </div>`;
+                    }).join('') : '<div class="profile-empty">No sessions yet</div>'}
                     `).join('') : '<div class="leaderboard-empty">No sessions yet</div>'}
                 </div>
             </div>
