@@ -1,0 +1,223 @@
+{
+  "@context": {
+    "@vocab": "https://schema.org/",
+    "aoi": "https://artofintent.game/schema#",
+    "Event": "https://schema.org/Event",
+    "GameSession": "aoi:GameSession",
+    "Attempt": "aoi:Attempt",
+    "KPI": "aoi:KPI",
+    "Metric": "aoi:Metric"
+  },
+  "@type": "GameSession",
+  "@id": "urn:session:session_1729789200000_abc123xyz",
+  "identifier": "session_1729789200000_abc123xyz",
+  "name": "Art of Intent - Haiku Challenge",
+  "description": "A game session where the player guides Arty the Haiku Bot to speak target words",
+  "startTime": "2025-01-24T10:30:00.000Z",
+  "endTime": "2025-01-24T10:45:23.456Z",
+  "duration": "PT923S",
+  "gameDate": "Fri Jan 24 2025",
+  "gameConfiguration": {
+    "@type": "aoi:GameConfiguration",
+    "targetWords": [
+      "mountain",
+      "peace",
+      "dawn"
+    ],
+    "blacklistWords": [
+      "river",
+      "night",
+      "shadow",
+      "bloom",
+      "winter"
+    ],
+    "targetWordCount": 3,
+    "blacklistWordCount": 5
+  },
+  "gameOutcome": {
+    "@type": "aoi:GameOutcome",
+    "status": "completed",
+    "result": "victory",
+    "completionReason": "all_words_matched"
+  },
+  "kpis": {
+    "@type": "KPI",
+    "successRate": {
+      "name": "Success Rate",
+      "value": 1,
+      "unit": "percentage",
+      "description": "Percentage of target words successfully matched"
+    },
+    "tokenEfficiency": {
+      "name": "Token Efficiency",
+      "value": 245,
+      "unit": "tokens_per_attempt",
+      "description": "Average tokens consumed per attempt"
+    },
+    "attemptEfficiency": {
+      "name": "Attempt Efficiency",
+      "value": 2.33,
+      "unit": "attempts_per_word",
+      "description": "Average attempts needed per matched word"
+    },
+    "completionScore": {
+      "name": "Completion Score",
+      "value": 241,
+      "unit": "score",
+      "description": "Overall efficiency score (lower is better)"
+    }
+  },
+  "metrics": {
+    "@type": "Metric",
+    "promptMetrics": {
+      "averageLength": 87,
+      "minLength": 45,
+      "maxLength": 132,
+      "totalPrompts": 7
+    },
+    "responseMetrics": {
+      "averageLength": 89,
+      "minLength": 85,
+      "maxLength": 95,
+      "totalResponses": 7
+    },
+    "tokenMetrics": {
+      "totalTokens": 1715,
+      "averagePerAttempt": 245,
+      "minPerAttempt": 198,
+      "maxPerAttempt": 312,
+      "promptTokensTotal": 1089,
+      "outputTokensTotal": 626
+    },
+    "timingMetrics": {
+      "sessionDuration": 923456,
+      "averageTimeBetweenAttempts": 132208
+    },
+    "eventMetrics": {
+      "totalEvents": 22,
+      "eventTypes": {
+        "session_start": 1,
+        "prompt_submitted": 7,
+        "api_response_received": 7,
+        "response_processed": 7
+      },
+      "apiCalls": 7,
+      "errors": 0
+    }
+  },
+  "attempts": [
+    {
+      "@type": "Attempt",
+      "@id": "urn:session:session_1729789200000_abc123xyz:attempt:1",
+      "attemptNumber": 1,
+      "timestamp": "2025-01-24T10:30:15.123Z",
+      "userPrompt": {
+        "@type": "aoi:UserPrompt",
+        "text": "Tell me about the highest peaks where serenity dwells at the break of day",
+        "length": 78,
+        "wordCount": 15
+      },
+      "aiResponse": {
+        "@type": "aoi:AIResponse",
+        "text": "Mountain peaks rise high,\nPeace descends at dawn's first light,\nSerenity reigns.",
+        "length": 89,
+        "wordCount": 13
+      },
+      "tokenUsage": {
+        "@type": "aoi:TokenUsage",
+        "promptTokens": 156,
+        "outputTokens": 42,
+        "totalTokens": 198
+      },
+      "wordMatching": {
+        "@type": "aoi:WordMatching",
+        "wordsFoundInResponse": [
+          "mountain",
+          "peace",
+          "dawn"
+        ],
+        "newWordsFound": 3,
+        "cumulativeMatches": 3,
+        "isViolation": false,
+        "violatedWords": []
+      }
+    }
+  ],
+  "events": [
+    {
+      "@type": "Event",
+      "@id": "urn:session:session_1729789200000_abc123xyz:event:0",
+      "eventType": "session_start",
+      "startTime": "2025-01-24T10:30:00.000Z",
+      "about": {
+        "reason": "new_day"
+      }
+    },
+    {
+      "@type": "Event",
+      "@id": "urn:session:session_1729789200000_abc123xyz:event:1",
+      "eventType": "prompt_submitted",
+      "startTime": "2025-01-24T10:30:15.123Z",
+      "about": {
+        "promptLength": 78,
+        "attemptNumber": 1
+      }
+    },
+    {
+      "@type": "Event",
+      "@id": "urn:session:session_1729789200000_abc123xyz:event:2",
+      "eventType": "api_response_received",
+      "startTime": "2025-01-24T10:30:17.456Z",
+      "about": {
+        "duration": 2333,
+        "hasResponse": true
+      }
+    },
+    {
+      "@type": "Event",
+      "@id": "urn:session:session_1729789200000_abc123xyz:event:3",
+      "eventType": "response_processed",
+      "startTime": "2025-01-24T10:30:17.567Z",
+      "about": {
+        "attemptNumber": 1,
+        "promptTokens": 156,
+        "outputTokens": 42,
+        "totalTokens": 198,
+        "foundWords": [
+          "mountain",
+          "peace",
+          "dawn"
+        ],
+        "newWordsFound": 3,
+        "totalMatches": 3,
+        "responseLength": 89
+      }
+    },
+    {
+      "@type": "Event",
+      "@id": "urn:session:session_1729789200000_abc123xyz:event:4",
+      "eventType": "game_over",
+      "startTime": "2025-01-24T10:30:17.678Z",
+      "about": {
+        "reason": "victory",
+        "finalAttempts": 1,
+        "finalTokens": 198,
+        "wordsMatched": 3,
+        "wordsTotal": 3,
+        "efficiencyScore": 29
+      }
+    }
+  ],
+  "aggregateStatistics": {
+    "@type": "aoi:AggregateStatistics",
+    "totalAttempts": 1,
+    "totalTokensConsumed": 198,
+    "averageTokensPerAttempt": 198,
+    "wordsMatched": 3,
+    "wordsRemaining": 0,
+    "matchPercentage": 100,
+    "efficiencyScore": 29
+  },
+  "generatedAt": "2025-01-24T10:45:30.000Z",
+  "schemaVersion": "1.0.0"
+}

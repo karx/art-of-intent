@@ -24,91 +24,73 @@ The score is calculated based on the minimum consumed token while using the LLM 
 
 
 ### Arty - the LLM Agent
-We would be leveraging Gemeni APIs to create Arty.
+We leverage the Gemini 2.0 Flash API to create Arty, a haiku-writing bot.
 
-```
+**Setup Instructions**: See [SETUP.md](./SETUP.md) for API key configuration.
+
+Example API call structure:
+```bash
 curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
   -H 'Content-Type: application/json' \
-  -H 'X-goog-api-key: AIzaSyDQ2-XLlRGgGxRchds1csk3ZTn2zY51Y1k' \
+  -H 'x-goog-api-key: $GEMINI_API_KEY' \
   -X POST \
   -d '{
-    "contents": [
-      {
-        "parts": [
-          {
-            "text": "Explain how AI works in a few words"
-          }
-        ]
-      }
-    ]
-  }'
-  ```
-
-```
-curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
-  -H "x-goog-api-key: $GEMINI_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{
     "system_instruction": {
-      "parts": [
-        {
-          "text": "You are a cat. Your name is Neko."
-        }
-      ]
+      "parts": [{"text": "You are Haiku Bot..."}]
     },
     "contents": [
-      {
-        "parts": [
-          {
-            "text": "Hello there"
-          }
-        ]
-      }
+      {"parts": [{"text": "Tell me about mountains"}]}
     ]
   }'
-
 ```
 
-```
-curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent" \
--H "x-goog-api-key: $GEMINI_API_KEY" \
--H 'Content-Type: application/json' \
--X POST \
--d '{
-  "contents": [
-    {
-      "parts": [
-        {
-          "text": "Provide a list of 3 famous physicists and their key contributions"
-        }
-      ]
-    }
-  ],
-  "generationConfig": {
-    "thinkingConfig": {
-          "thinkingBudget": 1024
-    }
-  }
-}'
-```
+Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
 
 ## The Scorecard
-Each response trail, contains a score card.
+Each response trail contains a score card showing:
+- **Attempts**: Number of prompts submitted
+- **Total Tokens**: Cumulative token consumption
+- **Matches**: Target words found (X/3)
 
-  It shows a minimalist view of the data
-```
-    print("Prompt tokens:",response.usage_metadata.prompt_token_count)
-    print("Thoughts tokens:",response.usage_metadata.thoughts_token_count,"/",thinking_budget)
-    print("Output tokens:",response.usage_metadata.candidates_token_count)
-    print("Total tokens:",response.usage_metadata.total_token_count)
-```
+Token breakdown per attempt:
+- Prompt tokens: Input text processing
+- Output tokens: Generated haiku
+- Total tokens: Combined usage
 
-Consumed in each turn. 
+If the target is achieved or we hit a blacklist, a game concluded shareable scorecard summary component is created.
 
-If the target is acheived or we hit a blacklist.
-A game concluded shareable scorecard summary component is created. 
+## Session Tracking & Analytics
 
-## Arty System Intructions for Agent Call
+The game implements comprehensive tracking of all user interactions, game events, and performance metrics. All data can be exported in JSON-LD format.
+
+### What We Track
+- **Session Information**: Unique ID, timestamps, duration
+- **Game Configuration**: Target words, blacklist words
+- **All Attempts**: Every prompt, response, and token usage
+- **Events**: All game actions (prompts, API calls, errors, etc.)
+- **KPIs**: Success rate, token efficiency, attempt efficiency
+- **Metrics**: Prompt/response statistics, timing data, event counts
+
+### Export Your Data
+Click the "Export Session Data" button in the score card to download a complete JSON-LD file containing:
+- All attempts with full details
+- Token usage breakdown
+- Event timeline
+- Performance metrics
+- Aggregate statistics
+
+See [TRACKING.md](./TRACKING.md) for complete documentation and [example-session.jsonld](./example-session.jsonld) for a sample export. 
+
+## Quick Start
+
+1. **Get API Key**: Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. **Configure**: Edit `config.js` and add your API key
+3. **Run**: `python3 -m http.server 8000`
+4. **Play**: Open http://localhost:8000
+
+For detailed setup instructions, see [SETUP.md](./SETUP.md).
+
+## Arty System Instructions for Agent Call
 ```
 <prompt>
     <role_and_goal>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art of Intent - Haiku Challenge</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Art of Intent</h1>
+            <p class="subtitle">Guide Arty the Haiku Bot to speak your target words</p>
+        </header>
+
+        <div class="game-info">
+            <div class="info-card target-card">
+                <h2>🎯 Target Words</h2>
+                <div id="targetWords" class="word-list"></div>
+            </div>
+
+            <div class="info-card blacklist-card">
+                <h2>🚫 Blacklist Words</h2>
+                <div id="blacklistWords" class="word-list"></div>
+            </div>
+
+            <div class="info-card score-card">
+                <h2>📊 Today's Score</h2>
+                <div class="score-display">
+                    <div class="score-item">
+                        <span class="score-label">Attempts:</span>
+                        <span id="attempts" class="score-value">0</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Total Tokens:</span>
+                        <span id="totalTokens" class="score-value">0</span>
+                    </div>
+                    <div class="score-item">
+                        <span class="score-label">Matches:</span>
+                        <span id="matches" class="score-value">0/3</span>
+                    </div>
+                </div>
+                <button id="exportBtn" class="export-btn" title="Export session data as JSON-LD">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export Session Data
+                </button>
+            </div>
+        </div>
+
+        <div class="response-trail">
+            <h2>📜 Response Trail</h2>
+            <div id="trailContainer" class="trail-container">
+                <div class="empty-state">No attempts yet. Start by entering your prompt below!</div>
+            </div>
+        </div>
+
+        <div class="input-section">
+            <div class="input-wrapper">
+                <textarea 
+                    id="promptInput" 
+                    class="code-editor-input" 
+                    placeholder="Enter your prompt to guide Arty..."
+                    rows="3"
+                ></textarea>
+                <div class="input-controls">
+                    <button id="voiceBtn" class="voice-btn" title="Voice Input">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </button>
+                    <button id="submitBtn" class="submit-btn">Send Prompt</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="gameOverModal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="modalTitle">🎉 Game Complete!</h2>
+                <div id="modalBody" class="modal-body"></div>
+                <div class="modal-actions">
+                    <button id="shareBtn" class="btn-primary">Share Score</button>
+                    <button id="closeModalBtn" class="btn-secondary">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
