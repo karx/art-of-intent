@@ -214,17 +214,20 @@
     }
     </script>
     
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dos-theme.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-content">
                 <div class="header-title">
-                    <h1>🎯 Art of Intent</h1>
+                    <h1>Art of Intent v0.2.0</h1>
                     <p class="subtitle">Guide Arty the Haiku Bot to speak your target words</p>
                 </div>
                 <div class="auth-section">
+                    <a href="about.html" class="btn-auth">About</a>
+                    <button id="leaderboardBtn" class="btn-auth">Leaderboard</button>
+                    <button id="profileBtn" class="btn-auth">Profile</button>
                     <div id="userInfo" class="user-info hidden">
                         <img id="userPhoto" class="user-photo" src="" alt="User">
                         <span id="userName" class="user-name"></span>
@@ -250,17 +253,17 @@
 
         <div class="game-info">
             <div class="info-card target-card">
-                <h2>🎯 Target Words</h2>
+                <h2>Target Words</h2>
                 <div id="targetWords" class="word-list"></div>
             </div>
 
             <div class="info-card blacklist-card">
-                <h2>🚫 Blacklist Words</h2>
+                <h2>Blacklist Words</h2>
                 <div id="blacklistWords" class="word-list"></div>
             </div>
 
             <div class="info-card score-card">
-                <h2>📊 Today's Score</h2>
+                <h2>Today's Score</h2>
                 <div class="score-display">
                     <div class="score-item">
                         <span class="score-label">Attempts:</span>
@@ -275,21 +278,20 @@
                         <span id="matches" class="score-value">0/3</span>
                     </div>
                 </div>
-                <button id="exportBtn" class="export-btn" title="Export session data as JSON-LD">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Export Session Data
-                </button>
             </div>
         </div>
 
         <div class="response-trail">
-            <h2>📜 Response Trail</h2>
+            <h2>Response Trail</h2>
             <div id="trailContainer" class="trail-container">
                 <div class="empty-state">No attempts yet. Start by entering your prompt below!</div>
+            </div>
+        </div>
+
+        <!-- Live Stats -->
+        <div id="liveStats" class="live-stats-section hidden">
+            <div class="live-stats-content">
+                Loading stats...
             </div>
         </div>
 
@@ -317,11 +319,46 @@
 
         <div id="gameOverModal" class="modal hidden">
             <div class="modal-content">
-                <h2 id="modalTitle">🎉 Game Complete!</h2>
+                <h2 id="modalTitle">Game Complete!</h2>
                 <div id="modalBody" class="modal-body"></div>
                 <div class="modal-actions">
-                    <button id="shareBtn" class="btn-primary">Share Score</button>
+                    <button id="shareBtn" class="btn-primary">Share</button>
+                    <button id="shareSMSBtn" class="btn-primary">SMS</button>
+                    <button id="copyTrailBtn" class="btn-primary">Copy Trail</button>
                     <button id="closeModalBtn" class="btn-secondary">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Modal -->
+        <div id="leaderboardModal" class="modal hidden">
+            <div class="modal-content leaderboard-modal">
+                <h2>Daily Leaderboard</h2>
+                <div class="leaderboard-filters">
+                    <button class="filter-btn active" data-filter="daily">Daily</button>
+                    <button class="filter-btn" data-filter="weekly">Weekly</button>
+                    <button class="filter-btn" data-filter="alltime">All-Time</button>
+                </div>
+                <div id="leaderboardContent" class="leaderboard-content">
+                    <div class="loading">Loading leaderboard data...</div>
+                </div>
+                <div class="modal-actions">
+                    <button id="closeLeaderboardBtn" class="btn-secondary">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Profile Modal -->
+        <div id="profileModal" class="modal hidden">
+            <div class="modal-content profile-modal">
+                <h2>User Profile</h2>
+                <div id="profileContent" class="profile-content">
+                    <div class="loading">Loading profile data...</div>
+                </div>
+                <div class="modal-actions">
+                    <button id="exportSessionBtn" class="btn-primary">Export Session</button>
+                    <button id="exportProfileBtn" class="btn-primary">Export Profile</button>
+                    <button id="closeProfileBtn" class="btn-secondary">Close</button>
                 </div>
             </div>
         </div>
@@ -333,10 +370,19 @@
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="firebase-auth.js"></script>
     <script type="module" src="firebase-db.js"></script>
+    <script type="module" src="ui-components.js"></script>
     
     <!-- Firebase Integration -->
     <script src="firebase-integration.js"></script>
     
     <script src="game.js"></script>
+    
+    <!-- Initialize UI Components -->
+    <script type="module">
+        import { initializeUIComponents } from './ui-components.js';
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeUIComponents();
+        });
+    </script>
 </body>
 </html>

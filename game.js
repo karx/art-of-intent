@@ -1,4 +1,113 @@
+// ============================================
+// ASCII Chart Utilities
+// ============================================
+
+// Track if last input was via voice
+let lastInputWasVoice = false;
+
+// Text-to-Speech function
+function speakText(text) {
+    if (!('speechSynthesis' in window)) {
+        console.log('Text-to-speech not supported');
+        return;
+    }
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    
+    window.speechSynthesis.speak(utterance);
+}
+
+function generateProgressBar(value, max, width = 10) {
+    const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+    const filled = Math.round((percentage / 100) * width);
+    const empty = width - filled;
+    return '█'.repeat(filled) + '░'.repeat(empty);
+}
+
+function generateTrailStats(stats) {
+    const { promptTokens = 0, outputTokens = 0, totalTokens = 0 } = stats;
+    const maxTokens = 100;
+    
+    const promptBar = generateProgressBar(promptTokens, maxTokens, 5);
+    const outputBar = generateProgressBar(outputTokens, maxTokens, 5);
+    const totalBar = generateProgressBar(totalTokens, maxTokens, 10);
+    
+    return `
+        <span>P:${promptTokens} [${promptBar}]</span>
+        <span>O:${outputTokens} [${outputBar}]</span>
+        <span>T:${totalTokens} [${totalBar}]</span>
+    `;
+}
+
+function updateLiveStats() {
+    const liveStatsSection = document.getElementById('liveStats');
+    const liveStatsContent = liveStatsSection.querySelector('.live-stats-content');
+    
+    if (gameState.attempts === 0) {
+        liveStatsSection.classList.add('hidden');
+        return;
+    }
+    
+    liveStatsSection.classList.remove('hidden');
+    
+    const matchedCount = gameState.matchedWords.size;
+    const avgPerAttempt = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : 0;
+    const projectedTotal = gameState.attempts > 0 ? Math.round((gameState.totalTokens / gameState.attempts) * 10) : 0;
+    const completionPct = Math.round((matchedCount / gameState.targetWords.length) * 100);
+    
+    // Efficiency rating
+    let efficiencyRating = 'NEEDS WORK';
+    let efficiencyColor = 'error';
+    let efficiencySymbol = '☆☆☆';
+    
+    if (avgPerAttempt < 40) {
+        efficiencyRating = 'EXCELLENT';
+        efficiencyColor = 'success';
+        efficiencySymbol = '★★★';
+    } else if (avgPerAttempt < 50) {
+        efficiencyRating = 'GOOD';
+        efficiencyColor = 'info';
+        efficiencySymbol = '★★☆';
+    } else if (avgPerAttempt < 60) {
+        efficiencyRating = 'AVERAGE';
+        efficiencyColor = 'warning';
+        efficiencySymbol = '★☆☆';
+    }
+    
+    const attemptsBar = generateProgressBar(gameState.attempts, 10, 10);
+    const tokensBar = generateProgressBar(gameState.totalTokens, projectedTotal, 10);
+    const matchesBar = generateProgressBar(matchedCount, gameState.targetWords.length, 3);
+    
+    liveStatsContent.innerHTML = `
+        <div class="live-stat">
+            <span class="live-label">Current Attempt:</span>
+            <span class="live-value">${gameState.attempts}/10</span>
+        </div>
+        <div class="live-stat">
+            <span class="live-label">Session Tokens:</span>
+            <span class="live-value">${gameState.totalTokens} [${tokensBar}] (pace: ${projectedTotal})</span>
+        </div>
+        <div class="live-stat">
+            <span class="live-label">Avg per Attempt:</span>
+            <span class="live-value text-${efficiencyColor}">${avgPerAttempt} ${efficiencySymbol} (${efficiencyRating})</span>
+        </div>
+        <div class="live-stat">
+            <span class="live-label">Matches Found:</span>
+            <span class="live-value">${matchedCount}/${gameState.targetWords.length} [${matchesBar}] (${completionPct}% complete)</span>
+        </div>
+    `;
+}
+
+// ============================================
 // Game State
+// ============================================
+
 const gameState = {
     targetWords: [],
     blacklistWords: [],
@@ -55,6 +164,11 @@ function initializeGame() {
     }
     
     updateUI();
+    
+    // Check if game is already over and morph input to share buttons
+    if (gameState.gameOver) {
+        morphInputToShare();
+    }
 }
 
 function generateDailyWords() {
@@ -167,7 +281,8 @@ function setupEventListeners() {
     const voiceBtn = document.getElementById('voiceBtn');
     const closeModalBtn = document.getElementById('closeModalBtn');
     const shareBtn = document.getElementById('shareBtn');
-    const exportBtn = document.getElementById('exportBtn');
+    const shareSMSBtn = document.getElementById('shareSMSBtn');
+    const copyTrailBtn = document.getElementById('copyTrailBtn');
     
     submitBtn.addEventListener('click', handleSubmit);
     promptInput.addEventListener('keydown', (e) => {
@@ -179,7 +294,8 @@ function setupEventListeners() {
     voiceBtn.addEventListener('click', handleVoiceInput);
     closeModalBtn.addEventListener('click', closeModal);
     shareBtn.addEventListener('click', shareScore);
-    exportBtn.addEventListener('click', exportSessionData);
+    shareSMSBtn.addEventListener('click', shareViaSMS);
+    copyTrailBtn.addEventListener('click', copyWithTrail);
 }
 
 async function handleSubmit() {
@@ -393,6 +509,12 @@ function processResponse(prompt, apiResponse) {
     saveGameState();
     updateUI();
     
+    // If voice input was used, read the response back
+    if (lastInputWasVoice) {
+        speakText(responseText);
+        lastInputWasVoice = false; // Reset flag
+    }
+    
     // Check win condition
     if (gameState.matchedWords.size === gameState.targetWords.length) {
         handleGameWin();
@@ -450,34 +572,75 @@ function handleGameWin() {
     showGameOverModal(true);
 }
 
+function morphInputToShare() {
+    const inputSection = document.querySelector('.input-section');
+    
+    inputSection.innerHTML = `
+        <div style="text-align: center; padding: var(--spacing-lg);">
+            <h3 style="color: var(--dos-cyan); text-transform: uppercase; margin-bottom: var(--spacing-md); font-size: 14px;">
+                > Game Complete - Share Your Score
+            </h3>
+            <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
+                <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share</button>
+                <button id="shareSMSScoreBtn" class="btn-primary" style="min-width: 120px;">SMS</button>
+                <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Trail</button>
+            </div>
+            <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
+                Come back tomorrow for a new challenge!
+            </p>
+        </div>
+    `;
+    
+    // Wire up the new buttons
+    document.getElementById('shareScoreBtn').addEventListener('click', shareScore);
+    document.getElementById('shareSMSScoreBtn').addEventListener('click', shareViaSMS);
+    document.getElementById('copyTrailScoreBtn').addEventListener('click', copyWithTrail);
+}
+
 function showGameOverModal(isWin, violatedWords = []) {
     const modal = document.getElementById('gameOverModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalBody = document.getElementById('modalBody');
     
+    const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : 0;
+    const efficiencyBar = generateProgressBar(efficiency, 100, 10);
+    
     if (isWin) {
-        modalTitle.textContent = '🎉 Victory!';
+        modalTitle.textContent = 'VICTORY!';
         modalBody.innerHTML = `
-            <p>You successfully guided Arty to speak all target words!</p>
-            <div style="margin: 20px 0; padding: 15px; background: var(--bg-tertiary); border-radius: 8px;">
-                <div style="margin-bottom: 10px;"><strong>Attempts:</strong> ${gameState.attempts}</div>
-                <div style="margin-bottom: 10px;"><strong>Total Tokens:</strong> ${gameState.totalTokens}</div>
-                <div><strong>Efficiency Score:</strong> ${calculateEfficiencyScore()}</div>
+            <p style="text-align: center; color: var(--success-color); margin-bottom: var(--spacing-md);">
+                You successfully guided Arty to speak all target words!
+            </p>
+            <div style="background: var(--bg-primary); border: 1px solid var(--success-color); padding: var(--spacing-md); font-family: inherit; font-size: 12px;">
+                <div style="margin-bottom: var(--spacing-xs);">ATTEMPTS: ${gameState.attempts}/10</div>
+                <div style="margin-bottom: var(--spacing-xs);">TOKENS: ${gameState.totalTokens}</div>
+                <div style="margin-bottom: var(--spacing-xs);">EFFICIENCY: ${efficiency} tok/att [${efficiencyBar}]</div>
+                <div>SCORE: ${calculateEfficiencyScore()}</div>
             </div>
-            <p>Come back tomorrow for a new challenge!</p>
+            <p style="text-align: center; color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px;">
+                Come back tomorrow for a new challenge!
+            </p>
         `;
     } else {
-        modalTitle.textContent = '❌ Game Over';
+        modalTitle.textContent = 'GAME OVER';
         modalBody.innerHTML = `
-            <p>You used a blacklisted word: <strong>${violatedWords.join(', ')}</strong></p>
-            <div style="margin: 20px 0; padding: 15px; background: var(--bg-tertiary); border-radius: 8px;">
-                <div style="margin-bottom: 10px;"><strong>Attempts:</strong> ${gameState.attempts}</div>
-                <div style="margin-bottom: 10px;"><strong>Words Found:</strong> ${gameState.matchedWords.size}/${gameState.targetWords.length}</div>
-                <div><strong>Total Tokens:</strong> ${gameState.totalTokens}</div>
+            <p style="text-align: center; color: var(--error-color); margin-bottom: var(--spacing-md);">
+                Blacklist violation: ${violatedWords.join(', ').toUpperCase()}
+            </p>
+            <div style="background: var(--bg-primary); border: 1px solid var(--error-color); padding: var(--spacing-md); font-family: inherit; font-size: 12px;">
+                <div style="margin-bottom: var(--spacing-xs);">ATTEMPTS: ${gameState.attempts}/10</div>
+                <div style="margin-bottom: var(--spacing-xs);">WORDS FOUND: ${gameState.matchedWords.size}/${gameState.targetWords.length}</div>
+                <div style="margin-bottom: var(--spacing-xs);">TOKENS: ${gameState.totalTokens}</div>
+                <div>EFFICIENCY: ${efficiency} tok/att [${efficiencyBar}]</div>
             </div>
-            <p>Try again tomorrow with a fresh challenge!</p>
+            <p style="text-align: center; color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px;">
+                Try again tomorrow with a fresh challenge!
+            </p>
         `;
     }
+    
+    // Morph input section to share buttons
+    morphInputToShare();
     
     modal.classList.remove('hidden');
 }
@@ -493,29 +656,72 @@ function calculateEfficiencyScore() {
     return score;
 }
 
-function shareScore() {
+function generateShareText(includeTrail = false) {
     const isWin = gameState.matchedWords.size === gameState.targetWords.length;
-    const status = isWin ? '✅ Victory!' : '❌ Game Over';
+    const status = isWin ? 'WIN' : 'LOSS';
     const score = isWin ? calculateEfficiencyScore() : 'DNF';
+    const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : 0;
+    const date = new Date().toLocaleDateString();
     
-    const shareText = `Art of Intent - ${new Date().toLocaleDateString()}
-${status}
-Attempts: ${gameState.attempts}
-Words Found: ${gameState.matchedWords.size}/${gameState.targetWords.length}
-Tokens Used: ${gameState.totalTokens}
-Score: ${score}
+    let shareText = `╔═══════════════════════════════════╗
+║   ART OF INTENT - ${date.padEnd(10)}  ║
+╠═══════════════════════════════════╣
+║ STATUS:    ${status.padEnd(23)} ║
+║ ATTEMPTS:  ${gameState.attempts.toString().padEnd(23)} ║
+║ MATCHES:   ${gameState.matchedWords.size}/${gameState.targetWords.length}${' '.repeat(21)} ║
+║ TOKENS:    ${gameState.totalTokens.toString().padEnd(23)} ║
+║ EFFICIENCY: ${efficiency} tok/att${' '.repeat(12)} ║
+║ SCORE:     ${score.toString().padEnd(23)} ║
+╚═══════════════════════════════════╝
 
-Can you guide Arty better?`;
+Can you guide Arty better?
+Play at: https://art-of-intent.netlify.app`;
+
+    if (includeTrail && gameState.responseTrail.length > 0) {
+        shareText += '\n\n--- CONVERSATION TRAIL ---\n';
+        gameState.responseTrail.forEach((item, index) => {
+            shareText += `\n#${index + 1} (${item.totalTokens} tokens)\n`;
+            shareText += `> ${item.prompt}\n`;
+            shareText += `< ${item.response}\n`;
+            if (item.foundWords && item.foundWords.length > 0) {
+                shareText += `  Found: ${item.foundWords.join(', ')}\n`;
+            }
+        });
+    }
+    
+    return shareText;
+}
+
+function shareScore() {
+    const shareText = generateShareText(false);
     
     if (navigator.share) {
         navigator.share({
             title: 'Art of Intent',
             text: shareText
+        }).catch(err => {
+            console.log('Share cancelled or failed:', err);
         });
     } else {
         navigator.clipboard.writeText(shareText);
         alert('Score copied to clipboard!');
     }
+}
+
+function shareViaSMS() {
+    const shareText = generateShareText(false);
+    const smsUrl = `sms:?body=${encodeURIComponent(shareText)}`;
+    window.location.href = smsUrl;
+}
+
+function copyWithTrail() {
+    const shareText = generateShareText(true);
+    navigator.clipboard.writeText(shareText).then(() => {
+        alert('Score and conversation trail copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+    });
 }
 
 function handleVoiceInput() {
@@ -543,6 +749,7 @@ function handleVoiceInput() {
         const transcript = event.results[0][0].transcript;
         const confidence = event.results[0][0].confidence;
         promptInput.value = transcript;
+        lastInputWasVoice = true; // Mark that voice input was used
         
         trackEvent('voice_input_completed', {
             transcriptLength: transcript.length,
@@ -573,6 +780,7 @@ function updateUI() {
     updateBlacklistWords();
     updateScore();
     updateResponseTrail();
+    updateLiveStats();
     updateSchemaMetadata();
 }
 
@@ -629,18 +837,11 @@ function updateResponseTrail() {
                     </div>
                 ` : ''}
                 <div class="trail-stats">
-                    <div class="stat-item">
-                        <span>Prompt:</span>
-                        <span class="stat-value">${item.promptTokens}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Output:</span>
-                        <span class="stat-value">${item.outputTokens}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>Total:</span>
-                        <span class="stat-value">${item.totalTokens}</span>
-                    </div>
+                    ${generateTrailStats({
+                        promptTokens: item.promptTokens,
+                        outputTokens: item.outputTokens,
+                        totalTokens: item.totalTokens
+                    })}
                 </div>
             </div>
         `;

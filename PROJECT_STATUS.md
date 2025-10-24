@@ -69,15 +69,17 @@
 #### Firebase Integration
 - ✅ Firebase project created and configured
 - ✅ Authentication enabled (Anonymous + Google)
-- ✅ Firestore database created
+- ✅ Firestore 'alpha' database created and connected
 - ✅ Security rules deployed
-- ✅ Database indexes configured
+- ✅ Database indexes deployed
 - ✅ Auth UI integrated in game
-- ✅ User profiles and statistics
+- ✅ User profiles and statistics system
 - ✅ Session persistence to Firestore
 - ✅ Achievement system
 - ✅ Offline support with sync
 - ✅ Real-time data updates
+- ✅ Firebase connection test page
+- ✅ Firebase integration tested and verified
 - ✅ Comprehensive documentation (4 files, 3,800+ lines)
 
 ---
@@ -86,15 +88,35 @@
 
 ### High Priority
 
+#### UI Enhancements
+- [ ] **Build Leaderboard UI**
+  - Display daily top scores
+  - Show user rank
+  - Real-time updates
+  - Filter by date range
+  - Pagination for large datasets
+
+- [ ] **User Profile Page**
+  - Statistics dashboard with charts
+  - Session history view
+  - Achievement showcase
+  - Personal best scores
+
+- [ ] **Achievement Notifications**
+  - Toast notifications when unlocked
+  - Achievement progress tracking
+  - Rarity indicators
+  - Share achievements
+
 #### Security & Configuration
 - [ ] **Environment variable management**
-  - Move API key to .env file
+  - Move Gemini API key to .env file
   - Add .env.example template
   - Update game.js to read from environment
   - Document setup in README
 
 - [ ] **API Key Security**
-  - Implement backend proxy to hide API key
+  - Implement backend proxy to hide Gemini API key
   - Add rate limiting
   - Consider serverless function (Vercel/Netlify)
 
@@ -152,11 +174,11 @@
   - Attempt distribution graph
   - Word difficulty heatmap
 
-- [ ] **Leaderboard**
-  - Daily leaderboard
-  - Weekly/monthly rankings
+- [ ] **Enhanced Leaderboard**
+  - Weekly/monthly rankings (daily already implemented)
   - Filter by difficulty level
-  - Anonymous or authenticated
+  - Global vs friends leaderboard
+  - Leaderboard animations
 
 ### Medium Priority
 
@@ -205,18 +227,18 @@
   - Copy formatted text
   - Generate image card
 
-- [ ] **Achievements System**
-  - First win badge
-  - Perfect score (minimal tokens)
-  - Speed demon (fast completion)
-  - Wordsmith (creative prompts)
-  - Streak keeper (consecutive days)
+- [ ] **Enhanced Achievements UI**
+  - Achievement notifications (system already implemented)
+  - Achievement showcase page
+  - Progress tracking for locked achievements
+  - Rarity indicators
 
-- [ ] **Profile System**
-  - User accounts (optional)
-  - Statistics dashboard
-  - Achievement showcase
+- [ ] **Enhanced Profile System**
+  - Profile page UI (system already implemented)
+  - Statistics dashboard with charts
+  - Session history view
   - Custom avatars
+  - Profile sharing
 
 ### Low Priority
 
@@ -318,20 +340,34 @@
 
 ## Metrics
 
-- **Lines of Code**: ~1,500 (JS: 800, CSS: 400, HTML: 150, MD: 150)
-- **Files**: 10 core files
-- **Features**: 25+ implemented
-- **Documentation**: 4 comprehensive docs
+- **Lines of Code**: ~7,000+ (JS: 3,500+, CSS: 400, HTML: 300, MD: 2,800+)
+- **Files**: 20+ core files
+- **Features**: 40+ implemented
+- **Documentation**: 12 comprehensive docs (8,000+ lines)
 - **Test Coverage**: 0% (needs implementation)
+- **Firebase Collections**: 5 (users, sessions, sessionEvents, leaderboards, dailyChallenge)
 
 ---
 
 ## Version History
 
-### v0.1.0 (Current - Initial Release)
+### v0.2.0 (Current - Firebase Integration)
+- Firebase Authentication (Anonymous + Google)
+- Firestore database with 'alpha' instance
+- User profiles and statistics
+- Session persistence
+- Achievement system
+- Real-time leaderboards
+- Offline support with sync
+- Security rules and indexes
+- Comprehensive Firebase documentation
+
+### v0.1.0 (Initial Release)
 - Core game mechanics
 - Gemini API integration
 - Comprehensive tracking
 - JSON-LD export
+- Schema.org structured data
+- Open Graph tags
 - Dark theme UI
 - Voice input support

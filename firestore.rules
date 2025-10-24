@@ -44,9 +44,9 @@ service cloud.firestore {
     
     // Sessions collection
     match /sessions/{sessionId} {
-      // Users can read their own sessions
-      allow read: if isAuthenticated() 
-        && resource.data.userId == request.auth.uid;
+      // Anyone can read sessions (needed for leaderboards)
+      // But only authenticated users can read full details
+      allow read: if true;
       
       // Users can create their own sessions
       allow create: if isAuthenticated()

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Art of Intent</title>
+    <meta name="description" content="Learn about Art of Intent, the rules, gameplay, and creator information.">
+    <link rel="stylesheet" href="dos-theme.css">
+    <style>
+        .about-container {
+            max-width: 900px;
+            margin: var(--spacing-lg) auto;
+            padding: 0 var(--spacing-md);
+        }
+        
+        .about-section {
+            margin-bottom: var(--spacing-xl);
+            padding: var(--spacing-lg);
+            border: 2px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+        
+        .about-section h2 {
+            font-size: 16px;
+            color: var(--dos-cyan);
+            text-transform: uppercase;
+            margin-bottom: var(--spacing-md);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .about-section h2::before {
+            content: '> ';
+            color: var(--dos-yellow);
+        }
+        
+        .about-section h3 {
+            font-size: 14px;
+            color: var(--dos-green);
+            text-transform: uppercase;
+            margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+        }
+        
+        .about-section h3::before {
+            content: '>> ';
+            color: var(--text-dim);
+        }
+        
+        .about-section p {
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin-bottom: var(--spacing-md);
+            font-size: 13px;
+        }
+        
+        .about-section ul {
+            list-style: none;
+            padding-left: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .about-section li {
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin-bottom: var(--spacing-xs);
+            font-size: 13px;
+        }
+        
+        .about-section li::before {
+            content: '• ';
+            color: var(--dos-cyan);
+        }
+        
+        .about-section code {
+            background: var(--bg-primary);
+            color: var(--dos-yellow);
+            padding: 2px 6px;
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+        }
+        
+        .back-btn {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            background: var(--bg-primary);
+            color: var(--dos-cyan);
+            border: 1px solid var(--dos-cyan);
+            font-family: inherit;
+            font-size: 12px;
+            text-transform: uppercase;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .back-btn::before {
+            content: '[ ← ';
+        }
+        
+        .back-btn::after {
+            content: ' ]';
+        }
+        
+        .back-btn:hover {
+            background: var(--dos-cyan);
+            color: var(--dos-black);
+        }
+        
+        .license-box {
+            background: var(--bg-primary);
+            border: 1px solid var(--error-color);
+            padding: var(--spacing-md);
+            margin-top: var(--spacing-md);
+            color: var(--text-primary);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .license-box strong {
+            color: var(--error-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="about-container">
+        <a href="index.html" class="back-btn">Back to Game</a>
+        
+        <div class="about-section">
+            <h2>About Art of Intent</h2>
+            <p>
+                Art of Intent is a daily word puzzle game that challenges your prompt engineering skills. 
+                Guide Arty, an AI haiku bot, to speak three target words without using any blacklisted words. 
+                Your score is based on token efficiency - the fewer tokens you use, the better your score.
+            </p>
+            <p>
+                This game combines creative writing, strategic thinking, and AI interaction in a unique 
+                DOS-themed interface reminiscent of early 1990s computing.
+            </p>
+        </div>
+
+        <div class="about-section">
+            <h2>Game Rules</h2>
+            
+            <h3>Objective</h3>
+            <p>
+                Guide Arty the Haiku Bot to respond with all three target words before running out of attempts.
+            </p>
+            
+            <h3>How to Play</h3>
+            <ul>
+                <li>Each day presents 3 new target words and 5-7 blacklist words</li>
+                <li>You have 10 attempts to make Arty say all target words</li>
+                <li>Type prompts to guide Arty's haiku responses</li>
+                <li>If Arty uses a blacklist word, you lose immediately</li>
+                <li>Match all 3 target words to win</li>
+            </ul>
+            
+            <h3>Scoring</h3>
+            <ul>
+                <li>Your score is the total number of tokens used (lower is better)</li>
+                <li>Tokens include both your prompts and Arty's responses</li>
+                <li>Efficient prompts lead to better scores</li>
+                <li>Compare your score on the daily leaderboard</li>
+            </ul>
+            
+            <h3>Daily Challenge</h3>
+            <ul>
+                <li>New words are generated at midnight (your local time)</li>
+                <li>Everyone gets the same words each day</li>
+                <li>One attempt per day to compete on the leaderboard</li>
+                <li>Your progress is saved throughout the day</li>
+            </ul>
+            
+            <h3>Tips & Strategy</h3>
+            <ul>
+                <li>Be specific with your prompts - vague requests use more tokens</li>
+                <li>Think about haiku themes: nature, seasons, emotions, time</li>
+                <li>Avoid directly asking for target words - be subtle</li>
+                <li>Watch your token usage - aim for under 40 tokens per attempt</li>
+                <li>Learn from the response trail to refine your approach</li>
+            </ul>
+        </div>
+
+        <div class="about-section">
+            <h2>Features</h2>
+            
+            <h3>Core Gameplay</h3>
+            <ul>
+                <li>Daily word challenges with consistent seeding</li>
+                <li>AI-powered haiku generation using Gemini 2.0 Flash</li>
+                <li>Real-time token tracking and efficiency metrics</li>
+                <li>Visual progress indicators with ASCII art</li>
+                <li>Voice input support for hands-free play</li>
+            </ul>
+            
+            <h3>User Features</h3>
+            <ul>
+                <li>Anonymous play or sign in with Google</li>
+                <li>User profiles with statistics and achievements</li>
+                <li>Session history and performance tracking</li>
+                <li>Daily, weekly, and all-time leaderboards</li>
+                <li>Data export in JSON-LD format</li>
+            </ul>
+            
+            <h3>DOS Aesthetic</h3>
+            <ul>
+                <li>Authentic MS-DOS console theme (early 1990s)</li>
+                <li>IBM VGA 16-color palette</li>
+                <li>ASCII borders and box-drawing characters</li>
+                <li>CRT scanline effects</li>
+                <li>Monospace typography throughout</li>
+            </ul>
+        </div>
+
+        <div class="about-section">
+            <h2>Technology</h2>
+            <p>
+                Art of Intent is built with modern web technologies while maintaining a retro aesthetic:
+            </p>
+            <ul>
+                <li><strong>Frontend:</strong> Vanilla JavaScript, HTML5, CSS3</li>
+                <li><strong>AI:</strong> Google Gemini 2.0 Flash API</li>
+                <li><strong>Backend:</strong> Firebase (Authentication, Firestore, Analytics)</li>
+                <li><strong>Hosting:</strong> Netlify with continuous deployment</li>
+                <li><strong>Data:</strong> Schema.org structured data, JSON-LD export</li>
+            </ul>
+        </div>
+
+        <div class="about-section">
+            <h2>Creator</h2>
+            <p>
+                Art of Intent was created by <strong>Kartik (karx)</strong>, a developer passionate about 
+                AI interaction design, retro computing aesthetics, and creative word games.
+            </p>
+            <p>
+                The game was designed to explore the intersection of prompt engineering, creative writing, 
+                and game design, wrapped in a nostalgic DOS-era interface.
+            </p>
+            <p>
+                <strong>Contact:</strong> For feedback, bug reports, or collaboration inquiries, 
+                reach out via GitHub at <code>github.com/karx</code>
+            </p>
+        </div>
+
+        <div class="about-section">
+            <h2>License & Rights</h2>
+            <p>
+                Art of Intent is proprietary software created and owned by Kartik (karx).
+            </p>
+            
+            <div class="license-box">
+                <strong>© 2025 Kartik (karx). All Rights Reserved.</strong>
+                <br><br>
+                <strong>Terms of Use:</strong>
+                <ul style="margin-top: 8px;">
+                    <li>This game, its rules, mechanics, and design are the intellectual property of Kartik (karx)</li>
+                    <li>Personal use and gameplay are permitted and encouraged</li>
+                    <li>Modification, duplication, or commercial use without written permission is prohibited</li>
+                    <li>Derivative works require explicit written consent from the creator</li>
+                    <li>The game concept, scoring system, and UI design are protected</li>
+                    <li>Sharing links to the official game is encouraged</li>
+                </ul>
+                <br>
+                <strong>Prohibited Actions:</strong>
+                <ul style="margin-top: 8px;">
+                    <li>Creating clones or similar games without permission</li>
+                    <li>Redistributing the source code or assets</li>
+                    <li>Commercial exploitation of the game or its mechanics</li>
+                    <li>Removing or modifying copyright notices</li>
+                    <li>Reverse engineering for competitive purposes</li>
+                </ul>
+                <br>
+                For licensing inquiries or permission requests, contact the creator directly.
+            </div>
+            
+            <p style="margin-top: var(--spacing-md);">
+                <strong>Third-Party Services:</strong> This game uses Google Gemini API and Firebase services, 
+                which are subject to their respective terms of service.
+            </p>
+        </div>
+
+        <div class="about-section">
+            <h2>Version History</h2>
+            <p><strong>v0.2.0</strong> - Current Version</p>
+            <ul>
+                <li>MS-DOS console theme implementation</li>
+                <li>Firebase integration (Auth, Firestore, Analytics)</li>
+                <li>User profiles and statistics</li>
+                <li>Leaderboard system (daily, weekly, all-time)</li>
+                <li>Achievement system</li>
+                <li>Enhanced analytics with ASCII charts</li>
+                <li>Live stats overlay</li>
+                <li>Session persistence and history</li>
+            </ul>
+            
+            <p><strong>v0.1.0</strong> - Initial Release</p>
+            <ul>
+                <li>Core game mechanics</li>
+                <li>Gemini API integration</li>
+                <li>Daily word generation</li>
+                <li>Token tracking</li>
+                <li>JSON-LD export</li>
+                <li>Schema.org structured data</li>
+                <li>Voice input support</li>
+            </ul>
+        </div>
+
+        <div class="about-section">
+            <h2>Acknowledgments</h2>
+            <ul>
+                <li><strong>Google Gemini:</strong> AI haiku generation</li>
+                <li><strong>Firebase:</strong> Backend infrastructure</li>
+                <li><strong>Netlify:</strong> Hosting and deployment</li>
+                <li><strong>IBM VGA Font:</strong> Authentic DOS typography</li>
+                <li><strong>Early Computing Era:</strong> Design inspiration</li>
+            </ul>
+        </div>
+
+        <a href="index.html" class="back-btn">Back to Game</a>
+    </div>
+</body>
+</html>
