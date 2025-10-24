@@ -28,14 +28,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyAypVsGFaTeTZAKyJCGvtSY3wFeRwr2Ayc",
+    apiKey: "AIzaSyCbjBSXYA75T7RWByOk3d10ofoMps145-M",
     authDomain: "art-of-intent.firebaseapp.com",
     projectId: "art-of-intent",
     storageBucket: "art-of-intent.firebasestorage.app",
     messagingSenderId: "401277869938",
-    appId: "1:401277869938:web:d6e84de8cb67d56c8ac7eb",
-    measurementId: "G-F8FR1HMPKV"
+    appId: "1:401277869938:web:9d2a35d06e24ff7e8ac7eb",
+    measurementId: "G-4FJ7J37XH8"
 };
 
 // Initialize Firebase
