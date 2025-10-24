@@ -102,7 +102,34 @@ Real-time counters updated as you play:
 
 The schema is dynamically updated in the HTML `<head>` as the game progresses, making all interactions discoverable by search engines, assistants, and analytics tools.
 
-See [SCHEMA_ORG.md](./SCHEMA_ORG.md) for complete implementation details. 
+See [SCHEMA_ORG.md](./SCHEMA_ORG.md) for complete implementation details.
+
+## Open Graph & Social Media
+
+The game includes comprehensive Open Graph and Twitter Card metadata for rich social media previews:
+
+### Social Platforms Supported
+- **Facebook** - Large image preview with title and description
+- **Twitter** - Summary card with large image
+- **LinkedIn** - Professional preview
+- **Discord** - Rich embed with image
+- **Slack** - Link unfurling with preview
+- **WhatsApp** - Link preview with thumbnail
+
+### Meta Tags Included
+- Open Graph (og:) tags for Facebook, LinkedIn, Discord
+- Twitter Card (twitter:) tags for Twitter
+- Game-specific metadata (scoring, difficulty, player count)
+- PWA manifest for app installation
+- Favicon and app icons
+
+### Image Assets
+Preview images are configured for optimal display:
+- **OG Image**: 1200x630px for Facebook/LinkedIn
+- **Twitter Image**: 1200x675px for Twitter cards
+- **App Icons**: Multiple sizes for PWA installation
+
+See [OPENGRAPH.md](./OPENGRAPH.md) for implementation details and [IMAGES.md](./IMAGES.md) for image creation guide. 
 
 ## Quick Start
 
