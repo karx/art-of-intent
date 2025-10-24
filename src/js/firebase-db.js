@@ -65,7 +65,7 @@ export async function saveSession(sessionData) {
             matchedWords: Array.from(sessionData.matchedWords || []),
             matchedWordsCount: sessionData.matchedWords?.size || 0,
             efficiencyScore: sessionData.gameOver && sessionData.matchedWords?.size === sessionData.targetWords?.length
-                ? calculateEfficiencyScore()
+                ? (sessionData.attempts * 10) + Math.floor(sessionData.totalTokens / 10)
                 : null,
             
             // Attempts data (limited to save space)

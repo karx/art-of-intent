@@ -3,8 +3,13 @@
   "version": "1.0.0-alpha",
   "description": "Guide Arty the Haiku Bot to speak target words without using blacklisted words. A daily word puzzle game with AI interaction.",
   "main": "index.html",
+  "type": "module",
   "scripts": {
-    "test": "node tests/share-card-generator.test.js && node tests/leaderboard-card-generator.test.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:analytics": "NODE_OPTIONS=--experimental-vm-modules jest tests/analytics.test.js",
+    "test:legacy": "node tests/share-card-generator.test.js && node tests/leaderboard-card-generator.test.js",
     "test:share": "node tests/share-card-generator.test.js",
     "test:leaderboard": "node tests/leaderboard-card-generator.test.js",
     "generate:og": "node generate-og-image.js",
@@ -28,6 +33,21 @@
   "author": "karx",
   "license": "MIT",
   "homepage": "https://art-of-intent.netlify.app",
-  "devDependencies": {},
-  "dependencies": {}
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {},
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/js/**/*.js",
+      "!src/js/firebase-config.js"
+    ],
+    "coverageDirectory": "coverage",
+    "verbose": true
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "jest": "^30.2.0"
+  }
 }

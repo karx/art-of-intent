@@ -13,6 +13,7 @@ import {
     updateDoc,
     serverTimestamp
 } from './firebase-config.js';
+import { UserAnalytics } from './analytics.js';
 
 // Current user state
 let currentUser = null;
@@ -35,11 +36,8 @@ export function initAuth() {
             notifyAuthStateChange(user, userProfile);
             
             // Track login event
-            trackEvent('user_login', {
-                userId: user.uid,
-                isAnonymous: user.isAnonymous,
-                provider: user.providerData[0]?.providerId || 'anonymous'
-            });
+            const provider = user.isAnonymous ? 'anonymous' : (user.providerData[0]?.providerId || 'unknown');
+            UserAnalytics.authLogin(provider);
         } else {
             console.log('❌ User signed out');
             currentUser = null;
@@ -83,6 +81,7 @@ export async function signInWithGoogle() {
 export async function signOutUser() {
     try {
         await signOut(auth);
+        UserAnalytics.authLogout();
         console.log('Sign-out successful');
     } catch (error) {
         console.error('Sign-out error:', error);
