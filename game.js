@@ -281,7 +281,7 @@ function setupEventListeners() {
     const voiceBtn = document.getElementById('voiceBtn');
     const closeModalBtn = document.getElementById('closeModalBtn');
     const shareBtn = document.getElementById('shareBtn');
-    const shareSMSBtn = document.getElementById('shareSMSBtn');
+    const previewCardBtn = document.getElementById('previewCardBtn');
     const copyTrailBtn = document.getElementById('copyTrailBtn');
     const soundToggleBtn = document.getElementById('soundToggleBtn');
     
@@ -295,7 +295,7 @@ function setupEventListeners() {
     voiceBtn.addEventListener('click', handleVoiceInput);
     closeModalBtn.addEventListener('click', closeModal);
     shareBtn.addEventListener('click', shareScore);
-    shareSMSBtn.addEventListener('click', shareViaSMS);
+    previewCardBtn.addEventListener('click', previewShareCard);
     copyTrailBtn.addEventListener('click', copyWithTrail);
     
     // Sound toggle
@@ -619,9 +619,9 @@ function morphInputToShare() {
                     > Game Complete - Share Your Score
                 </h3>
                 <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
-                    <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share</button>
-                    <button id="shareSMSScoreBtn" class="btn-primary" style="min-width: 120px;">SMS</button>
-                    <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Trail</button>
+                    <button id="previewCardScoreBtn" class="btn-primary" style="min-width: 120px;">Preview</button>
+                    <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share Image</button>
+                    <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Text</button>
                 </div>
                 <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
                     Come back tomorrow for a new challenge!
@@ -630,8 +630,8 @@ function morphInputToShare() {
         `;
         
         // Wire up the new buttons
+        document.getElementById('previewCardScoreBtn').addEventListener('click', previewShareCard);
         document.getElementById('shareScoreBtn').addEventListener('click', shareScore);
-        document.getElementById('shareSMSScoreBtn').addEventListener('click', shareViaSMS);
         document.getElementById('copyTrailScoreBtn').addEventListener('click', copyWithTrail);
         
         // Remove morphing class and add morphed class for fade in
@@ -735,26 +735,93 @@ Play at: https://art-of-intent.netlify.app`;
     return shareText;
 }
 
-function shareScore() {
-    const shareText = generateShareText(false);
+async function shareScore() {
+    if (typeof shareCardGenerator === 'undefined') {
+        // Fallback to text sharing
+        const shareText = generateShareText(false);
+        if (navigator.share) {
+            navigator.share({
+                title: 'Art of Intent',
+                text: shareText
+            }).catch(err => console.log('Share cancelled:', err));
+        } else {
+            navigator.clipboard.writeText(shareText);
+            alert('Score copied to clipboard!');
+        }
+        return;
+    }
     
-    if (navigator.share) {
-        navigator.share({
-            title: 'Art of Intent',
-            text: shareText
-        }).catch(err => {
-            console.log('Share cancelled or failed:', err);
-        });
-    } else {
+    try {
+        // Get user info
+        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+        const userName = user?.displayName || user?.email || 'Guest';
+        const userPhoto = user?.photoURL || null;
+        
+        // Generate share card data
+        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
+        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
+        
+        const cardData = {
+            result: isWin ? 'WIN' : 'LOSS',
+            attempts: gameState.attempts,
+            tokens: gameState.totalTokens,
+            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+            efficiency: efficiency,
+            date: new Date().toLocaleDateString(),
+            userName: userName,
+            userPhoto: userPhoto
+        };
+        
+        // Generate SVG
+        const svg = shareCardGenerator.generateSVG(cardData);
+        
+        // Share image
+        await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
+        
+    } catch (error) {
+        console.error('Error sharing image:', error);
+        // Fallback to text
+        const shareText = generateShareText(false);
         navigator.clipboard.writeText(shareText);
-        alert('Score copied to clipboard!');
+        alert('Image share failed. Score copied to clipboard!');
     }
 }
 
-function shareViaSMS() {
-    const shareText = generateShareText(false);
-    const smsUrl = `sms:?body=${encodeURIComponent(shareText)}`;
-    window.location.href = smsUrl;
+function previewShareCard() {
+    if (typeof shareCardGenerator === 'undefined') {
+        alert('Share card generator not available');
+        return;
+    }
+    
+    try {
+        // Get user info
+        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+        const userName = user?.displayName || user?.email || 'Guest';
+        const userPhoto = user?.photoURL || null;
+        
+        // Generate share card data
+        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
+        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
+        
+        const cardData = {
+            result: isWin ? 'WIN' : 'LOSS',
+            attempts: gameState.attempts,
+            tokens: gameState.totalTokens,
+            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+            efficiency: efficiency,
+            date: new Date().toLocaleDateString(),
+            userName: userName,
+            userPhoto: userPhoto
+        };
+        
+        // Generate and preview SVG
+        const svg = shareCardGenerator.generateSVG(cardData);
+        shareCardGenerator.previewImage(svg);
+        
+    } catch (error) {
+        console.error('Error previewing card:', error);
+        alert('Error generating preview');
+    }
 }
 
 function copyWithTrail() {
