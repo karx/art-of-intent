@@ -43,15 +43,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// Enable offline persistence
+// Connect to the 'alpha' database
+const db = getFirestore(app, 'alpha');
+
+// Enable offline persistence (optional - disable if causing issues)
 enableIndexedDbPersistence(db)
+    .then(() => {
+        console.log('✅ Offline persistence enabled');
+    })
     .catch((err) => {
         if (err.code === 'failed-precondition') {
-            console.warn('Persistence failed: Multiple tabs open');
+            console.warn('⚠️ Persistence failed: Multiple tabs open');
         } else if (err.code === 'unimplemented') {
-            console.warn('Persistence not available in this browser');
+            console.warn('⚠️ Persistence not available in this browser');
+        } else {
+            console.error('❌ Persistence error:', err);
         }
     });
 

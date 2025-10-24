@@ -131,7 +131,7 @@
         try {
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
-            db = getFirestore(app);
+            db = getFirestore(app, 'alpha'); // Connect to 'alpha' database
             
             document.getElementById('initStatus').className = 'status success';
             document.getElementById('initStatus').textContent = '✅ Firebase initialized successfully';
