@@ -3,6 +3,10 @@
 **Version:** v1.0.0-alpha 🟡  
 **Status:** Alpha Release - Active Development
 
+🎮 **Play Now:** [art-of-intent.netlify.app](https://art-of-intent.netlify.app)  
+💬 **Join Discord:** [discord.gg/9XV4HYKZqG](https://discord.gg/9XV4HYKZqG)  
+🐙 **GitHub:** [github.com/karx/art-of-intent](https://github.com/karx/art-of-intent)
+
 ## Rule Book
 Its small text based game setup via a webpage.
 

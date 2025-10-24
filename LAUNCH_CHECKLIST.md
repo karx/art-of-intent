@@ -102,8 +102,10 @@
    - [ ] Share article link on all platforms
    - [ ] Cross-post to Medium/Dev.to if applicable
 
-8. **Discord/Slack Communities**
-   - [ ] Share in relevant servers
+8. **Discord Community**
+   - [ ] Share invite link: https://discord.gg/9XV4HYKZqG
+   - [ ] Post announcement in your server
+   - [ ] Share in other relevant servers
    - [ ] Engage with feedback
    - [ ] Answer questions
 
@@ -191,6 +193,7 @@
 ## Quick Links
 
 - **Game**: https://art-of-intent.netlify.app
+- **Discord**: https://discord.gg/9XV4HYKZqG
 - **GitHub**: https://github.com/karx/art-of-intent
 - **Firebase Console**: https://console.firebase.google.com/project/art-of-intent
 - **Analytics Dashboard**: Firebase Console > Analytics

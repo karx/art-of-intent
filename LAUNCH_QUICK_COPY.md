@@ -18,6 +18,9 @@ Guide Arty the Haiku Bot to speak target words WITHOUT using forbidden words. It
 Try it now (it's free!):
 👉 https://art-of-intent.netlify.app
 
+💬 Join the community:
+👉 https://discord.gg/9XV4HYKZqG
+
 ⚠️ Alpha release - your feedback shapes the game!
 
 ---
@@ -53,6 +56,8 @@ Current Status:
 🎨 Optimized for social sharing
 
 Try it out: https://art-of-intent.netlify.app
+
+Join our Discord community: https://discord.gg/9XV4HYKZqG
 
 Would love to hear your thoughts, especially from AI/ML practitioners, game designers, educators, and word puzzle enthusiasts!
 
@@ -115,6 +120,7 @@ Looking for:
 • UX improvements
 
 Join the journey: https://art-of-intent.netlify.app
+Discord: https://discord.gg/9XV4HYKZqG
 
 #PromptEngineering #AIGames #IndieGameDev
 
@@ -132,6 +138,7 @@ Guide an AI haiku bot to say target words WITHOUT using forbidden ones. It's pro
 🆓 Free to play
 
 Try it: https://art-of-intent.netlify.app
+Discord: https://discord.gg/9XV4HYKZqG
 
 #AIGame #PromptEngineering
 
@@ -150,6 +157,7 @@ Try it: https://art-of-intent.netlify.app
 ## 🎯 Key URLs
 
 - **Game**: https://art-of-intent.netlify.app
+- **Discord**: https://discord.gg/9XV4HYKZqG
 - **GitHub**: https://github.com/karx/art-of-intent
 - **Version**: v1.0.0-alpha
 
