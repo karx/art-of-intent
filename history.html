@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session History - Art of Intent</title>
+    <link rel="stylesheet" href="dos-theme.css">
+    <style>
+        .history-container {
+            max-width: 1200px;
+            margin: var(--spacing-lg) auto;
+            padding: 0 var(--spacing-md);
+        }
+        
+        .history-filters {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: var(--spacing-xs) var(--spacing-md);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            font-family: inherit;
+            font-size: 12px;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+        
+        .filter-btn::before {
+            content: '[ ';
+        }
+        
+        .filter-btn::after {
+            content: ' ]';
+        }
+        
+        .filter-btn.active {
+            background: var(--dos-cyan);
+            color: var(--dos-black);
+            border-color: var(--dos-cyan);
+        }
+        
+        .filter-btn:hover:not(.active) {
+            background: var(--text-dim);
+            color: var(--dos-black);
+        }
+        
+        .session-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+        
+        .session-card {
+            padding: var(--spacing-md);
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        .session-card:hover {
+            border-color: var(--dos-cyan);
+        }
+        
+        .session-card.win {
+            border-left: 3px solid var(--success-color);
+        }
+        
+        .session-card.loss {
+            border-left: 3px solid var(--error-color);
+        }
+        
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .session-date {
+            color: var(--dos-cyan);
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        
+        .session-result {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .session-result.win {
+            color: var(--success-color);
+        }
+        
+        .session-result.loss {
+            color: var(--error-color);
+        }
+        
+        .session-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--spacing-sm);
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+        
+        .session-stat-value {
+            color: var(--text-bright);
+            font-weight: bold;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-xl);
+            color: var(--text-dim);
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+        }
+    </style>
+</head>
+<body>
+    <div class="history-container">
+        <header style="margin-bottom: var(--spacing-lg); padding: var(--spacing-md); border: 2px solid var(--border-color); background: var(--bg-secondary);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1 style="color: var(--dos-cyan); font-size: 16px; text-transform: uppercase;">
+                    > Session History
+                </h1>
+                <a href="index.html" class="btn-auth">Back to Game</a>
+            </div>
+        </header>
+        
+        <div class="history-filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="wins">Wins</button>
+            <button class="filter-btn" data-filter="losses">Losses</button>
+            <button class="filter-btn" data-filter="today">Today</button>
+            <button class="filter-btn" data-filter="week">This Week</button>
+            <button class="filter-btn" data-filter="month">This Month</button>
+        </div>
+        
+        <div id="sessionList" class="session-list">
+            <div class="empty-state">Loading session history...</div>
+        </div>
+        
+        <div class="pagination">
+            <button id="prevBtn" class="btn-secondary" disabled>Previous</button>
+            <span id="pageInfo" style="color: var(--text-dim); font-size: 12px; line-height: 32px;"></span>
+            <button id="nextBtn" class="btn-secondary" disabled>Next</button>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { auth, db } from './firebase-config.js';
+        import { collection, query, where, orderBy, limit, getDocs, startAfter } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        let currentFilter = 'all';
+        let currentPage = 1;
+        const pageSize = 10;
+        let lastDoc = null;
+        let sessions = [];
+        
+        // Load sessions on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupFilters();
+            await loadSessions();
+        });
+        
+        function setupFilters() {
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    currentPage = 1;
+                    loadSessions();
+                });
+            });
+        }
+        
+        async function loadSessions() {
+            const sessionList = document.getElementById('sessionList');
+            sessionList.innerHTML = '<div class="empty-state">Loading...</div>';
+            
+            try {
+                const user = auth.currentUser;
+                if (!user) {
+                    sessionList.innerHTML = '<div class="empty-state">Please sign in to view history</div>';
+                    return;
+                }
+                
+                const sessionsRef = collection(db, 'sessions');
+                let q = query(
+                    sessionsRef,
+                    where('userId', '==', user.uid),
+                    orderBy('createdAt', 'desc'),
+                    limit(pageSize)
+                );
+                
+                const snapshot = await getDocs(q);
+                sessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Apply filters
+                sessions = filterSessions(sessions);
+                
+                if (sessions.length === 0) {
+                    sessionList.innerHTML = '<div class="empty-state">No sessions found</div>';
+                    return;
+                }
+                
+                renderSessions(sessions);
+                updatePagination();
+                
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+                sessionList.innerHTML = '<div class="empty-state">Error loading sessions</div>';
+            }
+        }
+        
+        function filterSessions(sessions) {
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            return sessions.filter(session => {
+                if (currentFilter === 'wins') return session.success === true;
+                if (currentFilter === 'losses') return session.success === false;
+                if (currentFilter === 'today') return session.gameDate === today;
+                if (currentFilter === 'week') return session.gameDate >= weekAgo;
+                if (currentFilter === 'month') return session.gameDate >= monthAgo;
+                return true; // 'all'
+            });
+        }
+        
+        function renderSessions(sessions) {
+            const sessionList = document.getElementById('sessionList');
+            
+            sessionList.innerHTML = sessions.map(session => {
+                const resultClass = session.success ? 'win' : 'loss';
+                const resultText = session.success ? 'WIN' : 'LOSS';
+                const efficiency = session.attempts > 0 ? (session.totalTokens / session.attempts).toFixed(1) : 0;
+                
+                return `
+                    <div class="session-card ${resultClass}" onclick="viewSession('${session.id}')">
+                        <div class="session-header">
+                            <span class="session-date">${session.gameDate || 'Unknown'}</span>
+                            <span class="session-result ${resultClass}">${resultText}</span>
+                        </div>
+                        <div class="session-stats">
+                            <div>
+                                <span>Attempts:</span>
+                                <span class="session-stat-value">${session.attempts || 0}</span>
+                            </div>
+                            <div>
+                                <span>Tokens:</span>
+                                <span class="session-stat-value">${session.totalTokens || 0}</span>
+                            </div>
+                            <div>
+                                <span>Matches:</span>
+                                <span class="session-stat-value">${session.matchedWords?.length || 0}/${session.targetWords?.length || 3}</span>
+                            </div>
+                            <div>
+                                <span>Efficiency:</span>
+                                <span class="session-stat-value">${efficiency} tok/att</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updatePagination() {
+            const pageInfo = document.getElementById('pageInfo');
+            pageInfo.textContent = `Page ${currentPage}`;
+        }
+        
+        window.viewSession = function(sessionId) {
+            window.location.href = `replay.html?session=${sessionId}`;
+        };
+    </script>
+</body>
+</html>

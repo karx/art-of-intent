@@ -227,10 +227,8 @@ All reported issues have been addressed:
 
 ### Optional Enhancements
 1. Add animation to input section morph
-2. Add confetti effect on victory
-3. Add sound effects for game events
-4. Implement achievement notifications
-5. Add session replay feature
+2. Add optional sound effects for game events
+3. Add session replay feature
 
 ---
 

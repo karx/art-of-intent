@@ -617,6 +617,24 @@ header::after {
     padding: var(--spacing-md);
     border: 2px solid var(--border-color);
     background: var(--bg-secondary);
+    transition: all 0.3s ease;
+}
+
+.input-section.morphing {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.input-section.morphed {
+    opacity: 1;
+    transform: scale(1);
+    border-color: var(--dos-cyan);
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: var(--dos-cyan); }
+    50% { border-color: var(--success-color); }
 }
 
 .input-wrapper {

@@ -283,6 +283,7 @@ function setupEventListeners() {
     const shareBtn = document.getElementById('shareBtn');
     const shareSMSBtn = document.getElementById('shareSMSBtn');
     const copyTrailBtn = document.getElementById('copyTrailBtn');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
     
     submitBtn.addEventListener('click', handleSubmit);
     promptInput.addEventListener('keydown', (e) => {
@@ -296,11 +297,28 @@ function setupEventListeners() {
     shareBtn.addEventListener('click', shareScore);
     shareSMSBtn.addEventListener('click', shareViaSMS);
     copyTrailBtn.addEventListener('click', copyWithTrail);
+    
+    // Sound toggle
+    if (soundToggleBtn && typeof soundManager !== 'undefined') {
+        updateSoundIcon();
+        soundToggleBtn.addEventListener('click', () => {
+            soundManager.toggle();
+            updateSoundIcon();
+        });
+    }
+}
+
+function updateSoundIcon() {
+    const soundIcon = document.getElementById('soundIcon');
+    if (soundIcon && typeof soundManager !== 'undefined') {
+        soundIcon.textContent = soundManager.isEnabled() ? '🔊' : '🔇';
+    }
 }
 
 async function handleSubmit() {
     if (gameState.gameOver) {
         alert('Game is over! Wait for tomorrow\'s challenge.');
+        if (typeof soundManager !== 'undefined') soundManager.playError();
         return;
     }
     
@@ -309,8 +327,12 @@ async function handleSubmit() {
     
     if (!prompt) {
         alert('Please enter a prompt!');
+        if (typeof soundManager !== 'undefined') soundManager.playError();
         return;
     }
+    
+    // Play submit sound
+    if (typeof soundManager !== 'undefined') soundManager.playSubmit();
     
     trackEvent('prompt_submitted', { 
         promptLength: prompt.length,
@@ -479,6 +501,11 @@ function processResponse(prompt, apiResponse) {
     foundWords.forEach(word => gameState.matchedWords.add(word));
     const newMatchCount = gameState.matchedWords.size;
     
+    // Play sound for new matches
+    if (newMatchCount > previousMatchCount && typeof soundManager !== 'undefined') {
+        soundManager.playMatch();
+    }
+    
     // Track response processing
     trackEvent('response_processed', {
         attemptNumber: gameState.attempts,
@@ -526,6 +553,9 @@ function handleBlacklistViolation(prompt, violatedWords) {
     gameState.gameOver = true;
     gameState.sessionEndTime = new Date().toISOString();
     
+    // Play defeat sound
+    if (typeof soundManager !== 'undefined') soundManager.playDefeat();
+    
     trackEvent('game_over', {
         reason: 'blacklist_violation',
         violatedWords,
@@ -559,6 +589,9 @@ function handleGameWin() {
     gameState.gameOver = true;
     gameState.sessionEndTime = new Date().toISOString();
     
+    // Play victory sound
+    if (typeof soundManager !== 'undefined') soundManager.playVictory();
+    
     trackEvent('game_over', {
         reason: 'victory',
         finalAttempts: gameState.attempts,
@@ -575,26 +608,36 @@ function handleGameWin() {
 function morphInputToShare() {
     const inputSection = document.querySelector('.input-section');
     
-    inputSection.innerHTML = `
-        <div style="text-align: center; padding: var(--spacing-lg);">
-            <h3 style="color: var(--dos-cyan); text-transform: uppercase; margin-bottom: var(--spacing-md); font-size: 14px;">
-                > Game Complete - Share Your Score
-            </h3>
-            <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
-                <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share</button>
-                <button id="shareSMSScoreBtn" class="btn-primary" style="min-width: 120px;">SMS</button>
-                <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Trail</button>
-            </div>
-            <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
-                Come back tomorrow for a new challenge!
-            </p>
-        </div>
-    `;
+    // Add morphing class for fade out
+    inputSection.classList.add('morphing');
     
-    // Wire up the new buttons
-    document.getElementById('shareScoreBtn').addEventListener('click', shareScore);
-    document.getElementById('shareSMSScoreBtn').addEventListener('click', shareViaSMS);
-    document.getElementById('copyTrailScoreBtn').addEventListener('click', copyWithTrail);
+    // Wait for fade out animation
+    setTimeout(() => {
+        inputSection.innerHTML = `
+            <div style="text-align: center; padding: var(--spacing-lg);">
+                <h3 style="color: var(--dos-cyan); text-transform: uppercase; margin-bottom: var(--spacing-md); font-size: 14px;">
+                    > Game Complete - Share Your Score
+                </h3>
+                <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
+                    <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share</button>
+                    <button id="shareSMSScoreBtn" class="btn-primary" style="min-width: 120px;">SMS</button>
+                    <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Trail</button>
+                </div>
+                <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
+                    Come back tomorrow for a new challenge!
+                </p>
+            </div>
+        `;
+        
+        // Wire up the new buttons
+        document.getElementById('shareScoreBtn').addEventListener('click', shareScore);
+        document.getElementById('shareSMSScoreBtn').addEventListener('click', shareViaSMS);
+        document.getElementById('copyTrailScoreBtn').addEventListener('click', copyWithTrail);
+        
+        // Remove morphing class and add morphed class for fade in
+        inputSection.classList.remove('morphing');
+        inputSection.classList.add('morphed');
+    }, 300); // Match CSS transition duration
 }
 
 function showGameOverModal(isWin, violatedWords = []) {
