@@ -67,6 +67,8 @@ body {
     padding: 0;
     margin: 0;
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
     
     /* CRT Effect - Scanlines */
     background-image: 
@@ -95,9 +97,12 @@ body {
    CONTAINER & LAYOUT
    ============================================ */
 .container {
-    max-width: 1200px;
-    margin: var(--spacing-md) auto;
-    padding: 0 var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 /* DOS-Style Full Screen Border */
@@ -117,55 +122,39 @@ body {
    HEADER
    ============================================ */
 header {
-    margin-bottom: var(--spacing-lg);
-    padding: var(--spacing-md);
+    padding: var(--spacing-xs) var(--spacing-sm);
     background: var(--bg-secondary);
-    border: 2px double var(--border-color);
-    position: relative;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
-header::before {
-    content: '╔═══════════════════════════════════════════════════════════════════════════════╗';
-    position: absolute;
-    top: -2px;
-    left: 0;
-    right: 0;
-    color: var(--border-color);
-    font-size: 12px;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
+header::before,
 header::after {
-    content: '╚═══════════════════════════════════════════════════════════════════════════════╝';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    right: 0;
-    color: var(--border-color);
-    font-size: 12px;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
+    display: none; /* Hide ASCII borders on mobile */
 }
 
 .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm) 0;
+    gap: var(--spacing-xs);
+}
+
+.header-title {
+    flex: 1;
+    min-width: 0;
 }
 
 .header-title h1 {
-    font-size: 16px;
+    font-size: 11px;
     font-weight: bold;
     color: var(--dos-cyan);
     text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: var(--spacing-xs);
-    text-shadow: 0 0 4px var(--dos-cyan);
+    letter-spacing: 1px;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-title h1::before {
@@ -174,9 +163,7 @@ header::after {
 }
 
 .subtitle {
-    color: var(--text-dim);
-    font-size: 12px;
-    text-transform: uppercase;
+    display: none; /* Hide on mobile */
 }
 
 /* ============================================
@@ -185,7 +172,8 @@ header::after {
 .auth-section {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    gap: 4px;
+    flex-wrap: wrap;
 }
 
 .user-info {
@@ -216,17 +204,18 @@ header::after {
 }
 
 .btn-auth {
-    padding: var(--spacing-xs) var(--spacing-md);
+    padding: 4px 8px;
     background: var(--bg-primary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     font-family: inherit;
-    font-size: 12px;
+    font-size: 9px;
     text-transform: uppercase;
     cursor: pointer;
     transition: none;
     text-decoration: none;
     display: inline-block;
+    white-space: nowrap;
 }
 
 .btn-auth:hover {
@@ -249,13 +238,101 @@ header::after {
 }
 
 /* ============================================
-   GAME INFO CARDS
+   GAME WORDS SECTION (Top - Fixed)
+   ============================================ */
+.game-words-section {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding: var(--spacing-sm);
+}
+
+.words-container {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.words-group {
+    flex: 1;
+}
+
+.words-group h3 {
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: var(--spacing-xs);
+    letter-spacing: 1px;
+}
+
+.target-group h3 {
+    color: var(--success-color);
+}
+
+.blacklist-group h3 {
+    color: var(--error-color);
+}
+
+.words-divider {
+    color: var(--border-color);
+    font-size: 12px;
+    padding: 0 var(--spacing-xs);
+}
+
+.word-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.word-badge {
+    padding: 2px 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.target-group .word-badge {
+    color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.target-group .word-badge.found {
+    background: var(--success-color);
+    color: var(--dos-black);
+    font-weight: bold;
+}
+
+.blacklist-group .word-badge {
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+
+.score-compact {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: var(--spacing-xs) 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.score-compact strong {
+    color: var(--dos-cyan);
+    font-weight: bold;
+}
+
+/* ============================================
+   GAME INFO CARDS (Legacy - Hidden on Mobile)
    ============================================ */
 .game-info {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
+    display: none;
 }
 
 .info-card {
@@ -437,36 +514,24 @@ header::after {
 }
 
 /* ============================================
-   RESPONSE TRAIL
+   RESPONSE TRAIL (Middle - Scrollable Canvas)
    ============================================ */
 .response-trail {
-    margin-bottom: var(--spacing-lg);
-    padding: var(--spacing-md);
-    border: 2px solid var(--border-color);
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
     background: var(--bg-secondary);
-    min-height: 300px;
+    min-height: 0; /* Important for flex scrolling */
 }
 
 .response-trail h2 {
-    font-size: 14px;
-    font-weight: bold;
-    color: var(--dos-cyan);
-    text-transform: uppercase;
-    margin-bottom: var(--spacing-md);
-    padding-bottom: var(--spacing-xs);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.response-trail h2::before {
-    content: '> CONVERSATION LOG: ';
+    display: none; /* Hide header on mobile */
 }
 
 .trail-container {
-    max-height: 400px;
+    height: 100%;
     overflow-y: auto;
-    padding: var(--spacing-sm);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
+    padding: var(--spacing-xs);
 }
 
 /* Custom Scrollbar */
@@ -500,10 +565,11 @@ header::after {
    TRAIL ITEMS
    ============================================ */
 .trail-item {
-    margin-bottom: var(--spacing-md);
-    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-xs);
     border-left: 2px solid var(--border-color);
-    padding-left: var(--spacing-md);
+    padding-left: var(--spacing-sm);
+    background: var(--bg-primary);
 }
 
 .trail-header {
@@ -561,31 +627,10 @@ header::after {
 }
 
 /* ============================================
-   LIVE STATS
+   LIVE STATS (Hidden on Mobile - Info in Top Bar)
    ============================================ */
 .live-stats-section {
-    margin-bottom: var(--spacing-md);
-    padding: var(--spacing-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-}
-
-.live-stats-section::before {
-    content: '┌─ LIVE STATS ──────────────────────────────────────────────────────────────────┐';
-    display: block;
-    color: var(--dos-cyan);
-    font-size: 10px;
-    line-height: 1;
-    margin-bottom: var(--spacing-xs);
-}
-
-.live-stats-section::after {
-    content: '└────────────────────────────────────────────────────────────────────────────────┘';
-    display: block;
-    color: var(--dos-cyan);
-    font-size: 10px;
-    line-height: 1;
-    margin-top: var(--spacing-xs);
+    display: none;
 }
 
 .live-stats-content {
@@ -610,13 +655,15 @@ header::after {
 }
 
 /* ============================================
-   INPUT SECTION
+   INPUT SECTION (Bottom - Fixed)
    ============================================ */
 .input-section {
-    margin-bottom: var(--spacing-lg);
-    padding: var(--spacing-md);
-    border: 2px solid var(--border-color);
-    background: var(--bg-secondary);
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    padding: var(--spacing-sm);
+    border-top: 2px solid var(--border-color);
+    background: var(--bg-primary);
     transition: all 0.3s ease;
 }
 

@@ -254,33 +254,25 @@
             </div>
         </header>
 
-        <div class="game-info">
-            <div class="info-card target-card">
-                <h2>Target Words</h2>
-                <div id="targetWords" class="word-list"></div>
-            </div>
-
-            <div class="info-card blacklist-card">
-                <h2>Blacklist Words</h2>
-                <div id="blacklistWords" class="word-list"></div>
-            </div>
-
-            <div class="info-card score-card">
-                <h2>Today's Score</h2>
-                <div class="score-display">
-                    <div class="score-item">
-                        <span class="score-label">Attempts:</span>
-                        <span id="attempts" class="score-value">0</span>
-                    </div>
-                    <div class="score-item">
-                        <span class="score-label">Total Tokens:</span>
-                        <span id="totalTokens" class="score-value">0</span>
-                    </div>
-                    <div class="score-item">
-                        <span class="score-label">Matches:</span>
-                        <span id="matches" class="score-value">0/3</span>
-                    </div>
+        <!-- Top Section: Target & Blacklist Combined -->
+        <div class="game-words-section">
+            <div class="words-container">
+                <div class="words-group target-group">
+                    <h3>TARGET</h3>
+                    <div id="targetWords" class="word-list"></div>
                 </div>
+                <div class="words-divider">│</div>
+                <div class="words-group blacklist-group">
+                    <h3>BLACKLIST</h3>
+                    <div id="blacklistWords" class="word-list"></div>
+                </div>
+            </div>
+            <div class="score-compact">
+                <span>ATT: <strong id="attempts">0</strong>/10</span>
+                <span>│</span>
+                <span>TOK: <strong id="totalTokens">0</strong></span>
+                <span>│</span>
+                <span>MAT: <strong id="matches">0/3</strong></span>
             </div>
         </div>
 
