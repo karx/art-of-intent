@@ -24,9 +24,6 @@ Guide Arty the Haiku Bot to speak target words WITHOUT using forbidden words. It
 Try it now (it's free!):
 👉 https://art-of-intent.netlify.app
 
-💬 Join our Discord community:
-👉 https://discord.gg/9XV4HYKZqG
-
 ⚠️ Alpha release - your feedback shapes the game!
 
 #AIGame #WordPuzzle #PromptEngineering #IndieGame

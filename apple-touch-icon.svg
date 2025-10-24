@@ -1,0 +1,41 @@
+<svg width="180" height="180" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <style>
+            .icon-text {
+                font-family: 'Courier New', monospace;
+                font-weight: 700;
+                font-size: 98.4375px;
+                fill: #FFFF55;
+                text-anchor: middle;
+                dominant-baseline: central;
+            }
+            .icon-border {
+                fill: none;
+                stroke: #55FFFF;
+                stroke-width: 2.8125;
+            }
+            .icon-corner {
+                fill: #55FFFF;
+            }
+        </style>
+        <pattern id="scanlines-icon" patternUnits="userSpaceOnUse" width="100%" height="4">
+            <rect width="100%" height="2" fill="#000000"/>
+            <rect y="2" width="100%" height="2" fill="rgba(0,0,0,0.3)"/>
+        </pattern>
+    </defs>
+    <rect width="512" height="512" fill="#000000"/>
+    <rect width="512" height="512" fill="url(#scanlines-icon)" opacity="0.5"/>
+    <rect x="32" y="32" width="448" height="448" class="icon-border" rx="8"/>
+    <path d="M 48 48 L 48 96 M 48 48 L 96 48" class="icon-border"/>
+    <circle cx="48" cy="48" r="6" class="icon-corner"/>
+    <path d="M 464 48 L 464 96 M 464 48 L 416 48" class="icon-border"/>
+    <circle cx="464" cy="48" r="6" class="icon-corner"/>
+    <path d="M 48 464 L 48 416 M 48 464 L 96 464" class="icon-border"/>
+    <circle cx="48" cy="464" r="6" class="icon-corner"/>
+    <path d="M 464 464 L 464 416 M 464 464 L 416 464" class="icon-border"/>
+    <circle cx="464" cy="464" r="6" class="icon-corner"/>
+    <text x="256" y="230" class="icon-text">AI</text>
+    <text x="256" y="280" style="font-family: 'Courier New', monospace; font-size: 24.609375px; fill: #55FFFF; text-anchor: middle; font-weight: 400;">of</text>
+    <line x1="180" y1="330" x2="332" y2="330" stroke="#55FF55" stroke-width="2.8125" stroke-linecap="round"/>
+    <text x="140" y="390" style="font-family: 'Courier New', monospace; font-size: 39.375px; fill: #55FF55; font-weight: 700;">&gt;</text>
+</svg>

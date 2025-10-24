@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icon Generator - Art of Intent</title>
+    <link rel="stylesheet" href="src/css/dos-theme.css">
+    <style>
+        .generator-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .preview-item {
+            border: 2px solid var(--dos-cyan);
+            padding: 20px;
+            background: var(--bg-secondary);
+            text-align: center;
+        }
+        
+        .preview-item h3 {
+            color: var(--dos-cyan);
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .preview-item img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--dos-cyan);
+            background: var(--bg-primary);
+        }
+        
+        .icon-type-selector {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid var(--dos-yellow);
+            background: var(--bg-secondary);
+        }
+        
+        .icon-type-selector label {
+            display: block;
+            margin: 10px 0;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+        
+        .icon-type-selector input[type="radio"] {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Icon Generator</h1>
+            <p class="subtitle">Generate icons for Art of Intent</p>
+        </header>
+        
+        <div class="generator-container">
+            <div class="icon-type-selector">
+                <strong style="color: var(--dos-yellow);">Select Icon Style:</strong>
+                <label>
+                    <input type="radio" name="iconType" value="ai" checked>
+                    AI Monogram (Default) - Bold "AI" with DOS frame
+                </label>
+                <label>
+                    <input type="radio" name="iconType" value="haiku">
+                    Haiku Lines - 5-7-5 syllable pattern
+                </label>
+                <label>
+                    <input type="radio" name="iconType" value="minimal">
+                    Minimal - Simple "AI" for small sizes
+                </label>
+            </div>
+            
+            <div class="controls">
+                <button id="generateBtn" class="btn-primary">Generate All Icons</button>
+                <button id="downloadAllBtn" class="btn-primary" disabled>Download All (ZIP)</button>
+            </div>
+            
+            <div id="status" class="status">
+                Ready to generate icons...
+            </div>
+            
+            <div class="preview-grid" id="previewGrid">
+                <!-- Previews will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="src/js/icon-generator.js"></script>
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const statusEl = document.getElementById('status');
+        const previewGrid = document.getElementById('previewGrid');
+        
+        const iconSizes = [
+            { size: 16, name: 'favicon-16x16' },
+            { size: 32, name: 'favicon-32x32' },
+            { size: 180, name: 'apple-touch-icon' },
+            { size: 192, name: 'android-chrome-192x192' },
+            { size: 512, name: 'android-chrome-512x512' }
+        ];
+        
+        let generatedIcons = [];
+        
+        function getSelectedIconType() {
+            return document.querySelector('input[name="iconType"]:checked').value;
+        }
+        
+        generateBtn.addEventListener('click', async () => {
+            statusEl.textContent = 'Generating icons...';
+            generateBtn.disabled = true;
+            previewGrid.innerHTML = '';
+            generatedIcons = [];
+            
+            const iconType = getSelectedIconType();
+            
+            try {
+                for (const { size, name } of iconSizes) {
+                    let svg;
+                    
+                    // Generate appropriate icon based on type and size
+                    if (iconType === 'minimal' || size <= 32) {
+                        svg = iconGenerator.generateMinimalIcon(size);
+                    } else if (iconType === 'haiku') {
+                        svg = iconGenerator.generateHaikuIcon(size);
+                    } else {
+                        svg = iconGenerator.generateIcon(size);
+                    }
+                    
+                    const dataURL = iconGenerator.svgToDataURL(svg);
+                    
+                    // Store for download
+                    generatedIcons.push({ svg, size, name });
+                    
+                    // Create preview
+                    const previewItem = document.createElement('div');
+                    previewItem.className = 'preview-item';
+                    previewItem.innerHTML = `
+                        <h3>${name} (${size}x${size})</h3>
+                        <img src="${dataURL}" alt="${name}" style="width: ${Math.min(size, 128)}px; height: ${Math.min(size, 128)}px;">
+                        <div style="margin-top: 10px;">
+                            <button class="btn-primary" onclick="downloadIcon(${generatedIcons.length - 1}, 'svg')">SVG</button>
+                            <button class="btn-primary" onclick="downloadIcon(${generatedIcons.length - 1}, 'png')">PNG</button>
+                        </div>
+                    `;
+                    previewGrid.appendChild(previewItem);
+                }
+                
+                statusEl.textContent = `✅ Generated ${iconSizes.length} icons! Click individual buttons to download.`;
+                downloadAllBtn.disabled = false;
+            } catch (error) {
+                statusEl.textContent = `❌ Error: ${error.message}`;
+                console.error(error);
+            } finally {
+                generateBtn.disabled = false;
+            }
+        });
+        
+        window.downloadIcon = async function(index, format) {
+            const icon = generatedIcons[index];
+            if (!icon) return;
+            
+            try {
+                if (format === 'svg') {
+                    iconGenerator.downloadSVG(icon.svg, `${icon.name}.svg`);
+                } else {
+                    await iconGenerator.downloadPNG(icon.svg, icon.size, `${icon.name}.png`);
+                }
+                statusEl.textContent = `✅ Downloaded ${icon.name}.${format}`;
+            } catch (error) {
+                statusEl.textContent = `❌ Error downloading: ${error.message}`;
+                console.error(error);
+            }
+        };
+        
+        downloadAllBtn.addEventListener('click', async () => {
+            statusEl.textContent = 'Downloading all icons as PNG...';
+            downloadAllBtn.disabled = true;
+            
+            try {
+                for (let i = 0; i < generatedIcons.length; i++) {
+                    const icon = generatedIcons[i];
+                    await iconGenerator.downloadPNG(icon.svg, icon.size, `${icon.name}.png`);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Delay between downloads
+                }
+                statusEl.textContent = '✅ All icons downloaded! Check your downloads folder.';
+            } catch (error) {
+                statusEl.textContent = `❌ Error: ${error.message}`;
+                console.error(error);
+            } finally {
+                downloadAllBtn.disabled = false;
+            }
+        });
+        
+        // Auto-generate on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            generateBtn.click();
+        });
+        
+        // Regenerate when icon type changes
+        document.querySelectorAll('input[name="iconType"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                generateBtn.click();
+            });
+        });
+    </script>
+</body>
+</html>
