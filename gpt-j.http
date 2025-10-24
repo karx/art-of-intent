@@ -1,0 +1,9 @@
+ POST http://api.vicgalle.net:5000/docs#/default/generate_generate_post
+ 
+ {
+    "context": "In a shocking finding, scientists discovered a herd of unicorns living in a remote, previously unexplored valley, in the Andes Mountains. Even more surprising to the researchers was the fact that the unicorns spoke perfect English.",
+    "token_max_length": 512,
+    "temperature": 1.0,
+    "top_p": 0.9,
+    "stop_sequence": ""
+}
