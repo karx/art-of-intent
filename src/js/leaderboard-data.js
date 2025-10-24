@@ -294,11 +294,11 @@ function formatTime(seconds) {
  */
 function getMockLeaderboardData() {
     return {
-        date: new Date().toLocaleDateString(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         topPlayers: [
             {
                 rank: 1,
-                name: 'PLAYER_ONE',
+                name: 'HAIKU_MASTER',
                 tokens: 187,
                 attempts: 4,
                 efficiency: 46.8,
@@ -306,7 +306,7 @@ function getMockLeaderboardData() {
             },
             {
                 rank: 2,
-                name: 'GUEST_42',
+                name: 'WORD_WIZARD',
                 tokens: 203,
                 attempts: 5,
                 efficiency: 40.6,
@@ -314,7 +314,7 @@ function getMockLeaderboardData() {
             },
             {
                 rank: 3,
-                name: 'WORDSMITH',
+                name: 'PROMPT_NINJA',
                 tokens: 245,
                 attempts: 7,
                 efficiency: 35.0,
@@ -322,7 +322,7 @@ function getMockLeaderboardData() {
             },
             {
                 rank: 4,
-                name: 'HAIKU_MASTER',
+                name: 'GUEST_42',
                 tokens: 289,
                 attempts: 8,
                 efficiency: 36.1,
@@ -330,7 +330,7 @@ function getMockLeaderboardData() {
             },
             {
                 rank: 5,
-                name: 'PROMPT_NINJA',
+                name: 'WORDSMITH',
                 tokens: 312,
                 attempts: 9,
                 efficiency: 34.7,

@@ -7,6 +7,7 @@ const APP_VERSION = {
     major: 1,
     minor: 0,
     patch: 0,
+    prerelease: 'alpha',
     
     // Formatted version string
     get full() {
@@ -15,7 +16,9 @@ const APP_VERSION = {
     
     // Version with 'v' prefix
     get display() {
-        return `v${this.full}`;
+        return this.prerelease 
+            ? `v${this.full}-${this.prerelease}`
+            : `v${this.full}`;
     },
     
     // Semantic version for comparisons

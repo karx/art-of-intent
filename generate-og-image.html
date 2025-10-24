@@ -57,6 +57,9 @@
         <header>
             <h1>OG Image Generator</h1>
             <p class="subtitle">Generate leaderboard image for Open Graph</p>
+            <p class="subtitle" style="color: var(--dos-yellow);">
+                <span id="versionDisplay">Loading version...</span>
+            </p>
         </header>
         
         <div class="generator-container">
@@ -283,8 +286,19 @@
             }
         });
         
+        // Display version
+        function displayVersion() {
+            const versionEl = document.getElementById('versionDisplay');
+            if (window.APP_VERSION) {
+                versionEl.textContent = `Version: ${window.APP_VERSION.display} | Template: Top 2 Players`;
+            } else {
+                versionEl.textContent = 'Version: Unknown';
+            }
+        }
+        
         // Auto-load mock data on page load
         window.addEventListener('DOMContentLoaded', () => {
+            displayVersion();
             checkFirebaseStatus();
             useMockDataBtn.click();
         });

@@ -1,4 +1,8 @@
 # The Art of Intent
+
+**Version:** v1.0.0-alpha 🟡  
+**Status:** Alpha Release - Active Development
+
 ## Rule Book
 Its small text based game setup via a webpage.
 
