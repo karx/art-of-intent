@@ -4,6 +4,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { collection, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { UserAnalytics } from './analytics.js';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -32,6 +33,7 @@ export function initializeLeaderboard() {
     const filterBtns = document.querySelectorAll('.filter-btn');
 
     leaderboardBtn.addEventListener('click', () => {
+        UserAnalytics.leaderboardView(currentFilter);
         openLeaderboard();
     });
 
@@ -44,6 +46,7 @@ export function initializeLeaderboard() {
             filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentFilter = btn.dataset.filter;
+            UserAnalytics.leaderboardView(currentFilter);
             loadLeaderboard(currentFilter);
         });
     });

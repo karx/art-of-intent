@@ -2,6 +2,9 @@
 // ASCII Chart Utilities
 // ============================================
 
+// Import analytics
+import { GameAnalytics, UserAnalytics } from './analytics.js';
+
 // Track if last input was via voice
 let lastInputWasVoice = false;
 
@@ -155,6 +158,7 @@ function initializeGame() {
         resetGameState();
         localStorage.setItem('gameDate', today);
         trackEvent('session_start', { reason: 'new_day' });
+        GameAnalytics.gameStart(today);
     } else {
         loadSavedGame();
         trackEvent('session_resume', { 
@@ -272,6 +276,7 @@ function trackEvent(eventType, data = {}) {
     gameState.events.push(event);
     saveGameState();
     
+    // Note: Analytics now handled by specific GameAnalytics/UserAnalytics calls
     console.log('Event tracked:', event);
 }
 
@@ -339,6 +344,9 @@ async function handleSubmit() {
         attemptNumber: gameState.attempts + 1 
     });
     
+    // Track prompt submission
+    GameAnalytics.promptSubmit(prompt.length, 0); // Token count updated after API response
+    
     // Check for blacklist words in user prompt
     const promptLower = prompt.toLowerCase();
     const violatedWords = gameState.blacklistWords.filter(word => 
@@ -350,6 +358,7 @@ async function handleSubmit() {
             violatedWords: violatedWords,
             promptLength: prompt.length 
         });
+        GameAnalytics.blacklistViolation(violatedWords[0], gameState.attempts + 1);
         handleBlacklistViolation(prompt, violatedWords);
         return;
     }
@@ -377,6 +386,7 @@ async function handleSubmit() {
             error: error.message,
             duration: Date.now() - apiCallStart 
         });
+        GameAnalytics.apiError('api_call_failed', error.message);
         alert('Error communicating with Arty. Please try again.');
     } finally {
         submitBtn.disabled = false;
@@ -565,6 +575,14 @@ function handleBlacklistViolation(prompt, violatedWords) {
         wordsTotal: gameState.targetWords.length
     });
     
+    // Track game completion
+    GameAnalytics.gameComplete('defeat', {
+        totalTokens: gameState.totalTokens,
+        attempts: gameState.attempts,
+        duration: calculateDuration(),
+        efficiency: 0
+    });
+    
     const trailItem = {
         number: gameState.attempts,
         timestamp: new Date().toLocaleTimeString(),
@@ -601,8 +619,23 @@ function handleGameWin() {
         efficiencyScore: calculateEfficiencyScore()
     });
     
+    // Track game completion
+    GameAnalytics.gameComplete('victory', {
+        totalTokens: gameState.totalTokens,
+        attempts: gameState.attempts,
+        duration: calculateDuration(),
+        efficiency: calculateEfficiencyScore()
+    });
+    
     saveGameState();
     showGameOverModal(true);
+}
+
+function calculateDuration() {
+    if (!gameState.sessionStartTime || !gameState.sessionEndTime) return 0;
+    const start = new Date(gameState.sessionStartTime);
+    const end = new Date(gameState.sessionEndTime);
+    return Math.floor((end - start) / 1000); // Duration in seconds
 }
 
 function morphInputToShare() {
@@ -738,6 +771,9 @@ Play at: https://art-of-intent.netlify.app`;
 }
 
 async function shareScore() {
+    // Track share click
+    UserAnalytics.shareClick('image');
+    
     if (typeof shareCardGenerator === 'undefined') {
         // Fallback to text sharing
         const shareText = generateShareText(false);
@@ -827,6 +863,9 @@ function previewShareCard() {
 }
 
 async function shareWithText() {
+    // Track share click
+    UserAnalytics.shareClick('text');
+    
     if (typeof shareCardGenerator === 'undefined') {
         // Fallback to text only
         const shareText = generateShareText(false);
