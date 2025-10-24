@@ -63,6 +63,7 @@
             <div class="controls">
                 <button id="fetchDataBtn" class="btn-primary">Fetch Live Data</button>
                 <button id="useMockDataBtn" class="btn-primary">Use Mock Data</button>
+                <button id="inspectDbBtn" class="btn-primary">Inspect Database</button>
                 <button id="generateBtn" class="btn-primary" disabled>Generate Image</button>
                 <button id="downloadBtn" class="btn-primary" disabled>Download PNG</button>
                 <button id="previewBtn" class="btn-primary" disabled>Preview</button>
@@ -74,6 +75,13 @@
             
             <div id="firebaseStatus" class="status" style="border-color: var(--dos-gray);">
                 <strong>Firebase Status:</strong> <span id="firebaseStatusText">Checking...</span>
+            </div>
+            
+            <div class="status" style="border-color: var(--dos-gray);">
+                <label>
+                    <input type="checkbox" id="debugMode" />
+                    Enable Debug Mode (check browser console)
+                </label>
             </div>
             
             <div class="data-display">
@@ -114,6 +122,7 @@
         
         const fetchDataBtn = document.getElementById('fetchDataBtn');
         const useMockDataBtn = document.getElementById('useMockDataBtn');
+        const inspectDbBtn = document.getElementById('inspectDbBtn');
         const generateBtn = document.getElementById('generateBtn');
         const downloadBtn = document.getElementById('downloadBtn');
         const previewBtn = document.getElementById('previewBtn');
@@ -153,6 +162,18 @@
             dataDisplay.textContent = JSON.stringify(currentData, null, 2);
             statusEl.textContent = '✅ Mock data loaded!';
             generateBtn.disabled = false;
+        });
+        
+        // Inspect database
+        inspectDbBtn.addEventListener('click', async () => {
+            if (!window.db) {
+                statusEl.textContent = '❌ Firebase not connected';
+                return;
+            }
+            
+            statusEl.textContent = '🔍 Inspecting database... (check console)';
+            await inspectFirestore();
+            statusEl.textContent = '✅ Database inspection complete (check console)';
         });
         
         // Generate image
@@ -209,11 +230,16 @@
             const statusEl = document.getElementById('firebaseStatusText');
             
             // Wait a bit for Firebase to initialize
-            setTimeout(() => {
+            setTimeout(async () => {
                 if (window.db) {
                     statusEl.textContent = '✅ Connected - Live data available';
                     statusEl.style.color = 'var(--success-color)';
                     fetchDataBtn.disabled = false;
+                    
+                    // Debug: Check what collections exist
+                    if (document.getElementById('debugMode')?.checked) {
+                        await inspectFirestore();
+                    }
                 } else {
                     statusEl.textContent = '⚠️ Not connected - Mock data only';
                     statusEl.style.color = 'var(--warning-color)';
@@ -221,6 +247,41 @@
                 }
             }, 1000);
         }
+        
+        // Debug function to inspect Firestore
+        async function inspectFirestore() {
+            if (!window.db || !window.firestoreModules) return;
+            
+            console.log('🔍 Inspecting Firestore collections...');
+            const { collection, getDocs, query, limit } = window.firestoreModules;
+            
+            const collections = ['leaderboard', 'leaderboards', 'sessions', 'users'];
+            
+            for (const collName of collections) {
+                try {
+                    const q = query(collection(window.db, collName), limit(5));
+                    const snapshot = await getDocs(q);
+                    console.log(`📊 ${collName}:`, snapshot.size, 'documents');
+                    
+                    if (snapshot.size > 0) {
+                        snapshot.forEach((doc, i) => {
+                            if (i === 0) {
+                                console.log(`   Sample document:`, doc.data());
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.warn(`   ❌ ${collName}: ${error.message}`);
+                }
+            }
+        }
+        
+        // Enable debug mode
+        document.getElementById('debugMode')?.addEventListener('change', (e) => {
+            if (e.target.checked && window.db) {
+                inspectFirestore();
+            }
+        });
         
         // Auto-load mock data on page load
         window.addEventListener('DOMContentLoaded', () => {
