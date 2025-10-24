@@ -31,9 +31,12 @@ export async function saveSession(sessionData) {
         const firestoreSession = {
             sessionId: sessionData.sessionId,
             userId: user.uid,
+            userName: user.displayName || user.email || 'Guest',
+            displayName: user.displayName || user.email || 'Guest',
             
             // Game configuration
             gameDate: new Date().toISOString().split('T')[0],
+            date: new Date().toISOString().split('T')[0], // Alias for easier querying
             targetWords: sessionData.targetWords || gameState.targetWords,
             blacklistWords: sessionData.blacklistWords || gameState.blacklistWords,
             
@@ -49,6 +52,7 @@ export async function saveSession(sessionData) {
             result: sessionData.matchedWords?.size === sessionData.targetWords?.length 
                 ? 'victory' 
                 : sessionData.gameOver ? 'defeat' : null,
+            isWin: sessionData.matchedWords?.size === sessionData.targetWords?.length,
             completionReason: sessionData.gameOver 
                 ? (sessionData.matchedWords?.size === sessionData.targetWords?.length 
                     ? 'all_words_matched' 
@@ -88,6 +92,7 @@ export async function saveSession(sessionData) {
             // Metadata
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            lastActivity: serverTimestamp(), // For tracking active users
             isPublic: true
         };
         

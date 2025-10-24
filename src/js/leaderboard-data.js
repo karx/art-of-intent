@@ -68,14 +68,15 @@ async function fetchLeaderboardData() {
         if (!leaderboardSnapshot || leaderboardSnapshot.empty) {
             console.log('No leaderboard data, trying sessions...');
             try {
+                // Try with result field (actual field name)
                 const sessionsQuery = query(
                     collection(db, 'sessions'),
-                    where('isWin', '==', true),
+                    where('result', '==', 'victory'),
                     orderBy('totalTokens', 'asc'),
                     limit(5)
                 );
                 const sessionsSnapshot = await getDocs(sessionsQuery);
-                console.log('Sessions found:', sessionsSnapshot.size);
+                console.log('Victory sessions found:', sessionsSnapshot.size);
                 
                 sessionsSnapshot.forEach((doc, index) => {
                     const data = doc.data();
@@ -89,7 +90,33 @@ async function fetchLeaderboardData() {
                     });
                 });
             } catch (error) {
-                console.warn('Sessions query failed:', error.message);
+                console.warn('Sessions query with result failed:', error.message);
+                
+                // Final fallback: just get recent completed sessions
+                try {
+                    const recentQuery = query(
+                        collection(db, 'sessions'),
+                        where('status', '==', 'completed'),
+                        orderBy('totalTokens', 'asc'),
+                        limit(5)
+                    );
+                    const recentSnapshot = await getDocs(recentQuery);
+                    console.log('Completed sessions found:', recentSnapshot.size);
+                    
+                    recentSnapshot.forEach((doc, index) => {
+                        const data = doc.data();
+                        topPlayers.push({
+                            rank: index + 1,
+                            name: data.userName || data.displayName || 'GUEST',
+                            tokens: data.totalTokens || 0,
+                            attempts: data.attempts || 0,
+                            efficiency: data.attempts > 0 ? (data.totalTokens / data.attempts).toFixed(1) : 0,
+                            time: formatTime(data.duration || 0)
+                        });
+                    });
+                } catch (e) {
+                    console.warn('Recent sessions query failed:', e.message);
+                }
             }
         } else {
             // Parse leaderboard data
@@ -165,11 +192,11 @@ async function fetchAggregateStats(today) {
             }
         }
         
-        // Games today - try with date field
+        // Games today - try with gameDate field (actual field name in sessions)
         try {
             const todayQuery = query(
                 collection(db, 'sessions'),
-                where('date', '==', today)
+                where('gameDate', '==', today)
             );
             const todaySnapshot = await getDocs(todayQuery);
             gamesToday = todaySnapshot.size;
@@ -179,12 +206,13 @@ async function fetchAggregateStats(today) {
                 const data = doc.data();
                 totalTokens += data.totalTokens || 0;
                 totalAttempts += data.attempts || 0;
-                if (data.isWin) wins++;
+                // Check for victory result (actual field value)
+                if (data.result === 'victory' || data.isWin === true) wins++;
             });
             
-            console.log('Games today:', gamesToday);
+            console.log('Games today:', gamesToday, 'wins:', wins);
         } catch (error) {
-            console.warn('Could not fetch today sessions:', error.message);
+            console.warn('Could not fetch today sessions with gameDate:', error.message);
             
             // Fallback: get recent sessions
             try {
