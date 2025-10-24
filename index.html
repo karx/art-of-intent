@@ -14,10 +14,10 @@
     <meta property="og:url" content="https://art-of-intent.netlify.app/">
     <meta property="og:title" content="Art of Intent - Haiku Challenge">
     <meta property="og:description" content="Guide Arty the Haiku Bot to speak target words without using blacklisted words. A daily word puzzle game with AI interaction and token-based scoring.">
-    <meta property="og:image" content="https://art-of-intent.netlify.app/og-image.png">
+    <meta property="og:image" content="https://art-of-intent.netlify.app/src/assets/og_image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Art of Intent - Daily Haiku Challenge Game">
+    <meta property="og:image:alt" content="Art of Intent - Daily Leaderboard and Game Statistics">
     <meta property="og:site_name" content="Art of Intent">
     <meta property="og:locale" content="en_US">
     
@@ -31,8 +31,8 @@
     <meta name="twitter:url" content="https://art-of-intent.netlify.app/">
     <meta name="twitter:title" content="Art of Intent - Haiku Challenge">
     <meta name="twitter:description" content="Guide Arty the Haiku Bot to speak target words without using blacklisted words. Daily word puzzle with AI interaction.">
-    <meta name="twitter:image" content="https://art-of-intent.netlify.app/twitter-image.png">
-    <meta name="twitter:image:alt" content="Art of Intent - Daily Haiku Challenge Game">
+    <meta name="twitter:image" content="https://art-of-intent.netlify.app/src/assets/og_image.png">
+    <meta name="twitter:image:alt" content="Art of Intent - Daily Leaderboard and Game Statistics">
     <meta name="twitter:creator" content="@artofintent">
     <meta name="twitter:site" content="@artofintent">
     
@@ -214,14 +214,14 @@
     }
     </script>
     
-    <link rel="stylesheet" href="dos-theme.css">
+    <link rel="stylesheet" href="src/css/dos-theme.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-content">
                 <div class="header-title">
-                    <h1>Art of Intent v0.2.0</h1>
+                    <h1>Art of Intent <span id="appVersion">v1.0.0</span></h1>
                     <p class="subtitle">Guide Arty the Haiku Bot to speak your target words</p>
                 </div>
                 <div class="auth-section">
@@ -319,7 +319,7 @@
                 <div class="modal-actions">
                     <button id="previewCardBtn" class="btn-primary">Preview Card</button>
                     <button id="shareBtn" class="btn-primary">Share Image</button>
-                    <button id="copyTrailBtn" class="btn-primary">Copy Text</button>
+                    <button id="shareWithTextBtn" class="btn-primary">Share to Social</button>
                     <button id="closeModalBtn" class="btn-secondary">Close</button>
                 </div>
             </div>
@@ -359,28 +359,39 @@
         </div>
     </div>
 
-    <script src="config.js"></script>
+    <!-- Version -->
+    <script src="src/js/version.js"></script>
+    
+    <script src="src/js/config.js"></script>
     
     <!-- Sound Effects -->
-    <script src="sound-effects.js"></script>
+    <script src="src/js/sound-effects.js"></script>
     
     <!-- Share Card Generator -->
-    <script src="share-card-generator.js"></script>
+    <script src="src/js/share-card-generator.js"></script>
     
     <!-- Firebase Modules -->
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="firebase-auth.js"></script>
-    <script type="module" src="firebase-db.js"></script>
-    <script type="module" src="ui-components.js"></script>
+    <script type="module" src="src/js/firebase-config.js"></script>
+    <script type="module" src="src/js/firebase-auth.js"></script>
+    <script type="module" src="src/js/firebase-db.js"></script>
+    <script type="module" src="src/js/ui-components.js"></script>
     
     <!-- Firebase Integration -->
-    <script src="firebase-integration.js"></script>
+    <script src="src/js/firebase-integration.js"></script>
     
-    <script src="game.js"></script>
+    <script src="src/js/game.js"></script>
     
     <!-- Initialize UI Components -->
     <script type="module">
-        import { initializeUIComponents } from './ui-components.js';
+        import { initializeUIComponents } from './src/js/ui-components.js';
+        
+        // Set version in UI
+        document.addEventListener('DOMContentLoaded', () => {
+            const versionEl = document.getElementById('appVersion');
+            if (versionEl && window.APP_VERSION) {
+                versionEl.textContent = window.APP_VERSION.display;
+            }
+        });
         window.addEventListener('DOMContentLoaded', () => {
             initializeUIComponents();
         });

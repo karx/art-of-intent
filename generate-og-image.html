@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate OG Image - Art of Intent</title>
+    <link rel="stylesheet" href="src/css/dos-theme.css">
+    <style>
+        .generator-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        
+        .preview-area {
+            margin: 20px 0;
+            border: 2px solid var(--dos-cyan);
+            padding: 20px;
+            background: var(--bg-secondary);
+        }
+        
+        .preview-image {
+            width: 100%;
+            max-width: 1200px;
+            border: 1px solid var(--dos-cyan);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--dos-cyan);
+            background: var(--bg-primary);
+        }
+        
+        .data-display {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid var(--dos-gray);
+            background: var(--bg-primary);
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OG Image Generator</h1>
+            <p class="subtitle">Generate leaderboard image for Open Graph</p>
+        </header>
+        
+        <div class="generator-container">
+            <div class="controls">
+                <button id="fetchDataBtn" class="btn-primary">Fetch Live Data</button>
+                <button id="useMockDataBtn" class="btn-primary">Use Mock Data</button>
+                <button id="generateBtn" class="btn-primary" disabled>Generate Image</button>
+                <button id="downloadBtn" class="btn-primary" disabled>Download PNG</button>
+                <button id="previewBtn" class="btn-primary" disabled>Preview</button>
+            </div>
+            
+            <div id="status" class="status">
+                Ready to generate OG image...
+            </div>
+            
+            <div class="data-display">
+                <strong>Current Data:</strong>
+                <div id="dataDisplay">No data loaded</div>
+            </div>
+            
+            <div class="preview-area">
+                <h3>Preview</h3>
+                <div id="previewContainer">
+                    <p style="color: var(--text-dim);">Generate an image to see preview</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="src/js/version.js"></script>
+    <script src="src/js/leaderboard-card-generator.js"></script>
+    <script src="src/js/leaderboard-data.js"></script>
+    
+    <!-- Firebase (optional for live data) -->
+    <script type="module" src="src/js/firebase-config.js"></script>
+    
+    <script>
+        let currentData = null;
+        let currentSVG = null;
+        
+        const fetchDataBtn = document.getElementById('fetchDataBtn');
+        const useMockDataBtn = document.getElementById('useMockDataBtn');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const previewBtn = document.getElementById('previewBtn');
+        const statusEl = document.getElementById('status');
+        const dataDisplay = document.getElementById('dataDisplay');
+        const previewContainer = document.getElementById('previewContainer');
+        
+        // Fetch live data
+        fetchDataBtn.addEventListener('click', async () => {
+            statusEl.textContent = 'Fetching live data from Firebase...';
+            fetchDataBtn.disabled = true;
+            
+            try {
+                currentData = await fetchLeaderboardData();
+                dataDisplay.textContent = JSON.stringify(currentData, null, 2);
+                statusEl.textContent = '✅ Live data loaded successfully!';
+                generateBtn.disabled = false;
+            } catch (error) {
+                statusEl.textContent = `❌ Error: ${error.message}`;
+                console.error(error);
+            } finally {
+                fetchDataBtn.disabled = false;
+            }
+        });
+        
+        // Use mock data
+        useMockDataBtn.addEventListener('click', () => {
+            currentData = getMockLeaderboardData();
+            dataDisplay.textContent = JSON.stringify(currentData, null, 2);
+            statusEl.textContent = '✅ Mock data loaded!';
+            generateBtn.disabled = false;
+        });
+        
+        // Generate image
+        generateBtn.addEventListener('click', () => {
+            if (!currentData) {
+                statusEl.textContent = '❌ No data loaded!';
+                return;
+            }
+            
+            statusEl.textContent = 'Generating SVG...';
+            
+            try {
+                currentSVG = leaderboardCardGenerator.generateSVG(currentData);
+                
+                // Show preview
+                const dataURL = leaderboardCardGenerator.svgToDataURL(currentSVG);
+                previewContainer.innerHTML = `<img src="${dataURL}" class="preview-image" alt="Generated OG Image">`;
+                
+                statusEl.textContent = '✅ Image generated successfully!';
+                downloadBtn.disabled = false;
+                previewBtn.disabled = false;
+            } catch (error) {
+                statusEl.textContent = `❌ Error generating: ${error.message}`;
+                console.error(error);
+            }
+        });
+        
+        // Download PNG
+        downloadBtn.addEventListener('click', async () => {
+            if (!currentSVG) return;
+            
+            statusEl.textContent = 'Converting to PNG and downloading...';
+            downloadBtn.disabled = true;
+            
+            try {
+                await leaderboardCardGenerator.downloadImage(currentSVG, 'og-image.png');
+                statusEl.textContent = '✅ Image downloaded! Replace src/assets/og_image.png with this file.';
+            } catch (error) {
+                statusEl.textContent = `❌ Error downloading: ${error.message}`;
+                console.error(error);
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        });
+        
+        // Preview in modal
+        previewBtn.addEventListener('click', () => {
+            if (!currentSVG) return;
+            leaderboardCardGenerator.previewImage(currentSVG);
+        });
+        
+        // Auto-load mock data on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            useMockDataBtn.click();
+        });
+    </script>
+</body>
+</html>

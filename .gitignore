@@ -10,6 +10,7 @@ ui-debug.log
 
 # Node modules
 node_modules/
+package-lock.json
 
 # Build outputs
 dist/
@@ -32,6 +33,20 @@ npm-debug.log*
 # Temporary files
 *.tmp
 .cache/
+*.bak
+
+# Test outputs
+coverage/
+.nyc_output/
 
 # Config files (if containing secrets)
 config.local.js
+src/js/config.local.js
+
+# Assets (temporary/generated)
+src/assets/*.tmp
+src/assets/temp/
+
+# Documentation drafts
+docs/**/*.draft.md
+docs/**/*.wip.md

@@ -282,7 +282,7 @@ function setupEventListeners() {
     const closeModalBtn = document.getElementById('closeModalBtn');
     const shareBtn = document.getElementById('shareBtn');
     const previewCardBtn = document.getElementById('previewCardBtn');
-    const copyTrailBtn = document.getElementById('copyTrailBtn');
+    const shareWithTextBtn = document.getElementById('shareWithTextBtn');
     const soundToggleBtn = document.getElementById('soundToggleBtn');
     
     submitBtn.addEventListener('click', handleSubmit);
@@ -296,7 +296,7 @@ function setupEventListeners() {
     closeModalBtn.addEventListener('click', closeModal);
     shareBtn.addEventListener('click', shareScore);
     previewCardBtn.addEventListener('click', previewShareCard);
-    copyTrailBtn.addEventListener('click', copyWithTrail);
+    shareWithTextBtn.addEventListener('click', shareWithText);
     
     // Sound toggle
     if (soundToggleBtn && typeof soundManager !== 'undefined') {
@@ -621,6 +621,7 @@ function morphInputToShare() {
                 <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
                     <button id="previewCardScoreBtn" class="btn-primary" style="min-width: 120px;">Preview</button>
                     <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share Image</button>
+                    <button id="shareWithTextScoreBtn" class="btn-primary" style="min-width: 120px;">Share to Social</button>
                     <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Text</button>
                 </div>
                 <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
@@ -632,6 +633,7 @@ function morphInputToShare() {
         // Wire up the new buttons
         document.getElementById('previewCardScoreBtn').addEventListener('click', previewShareCard);
         document.getElementById('shareScoreBtn').addEventListener('click', shareScore);
+        document.getElementById('shareWithTextScoreBtn').addEventListener('click', shareWithText);
         document.getElementById('copyTrailScoreBtn').addEventListener('click', copyWithTrail);
         
         // Remove morphing class and add morphed class for fade in
@@ -821,6 +823,95 @@ function previewShareCard() {
     } catch (error) {
         console.error('Error previewing card:', error);
         alert('Error generating preview');
+    }
+}
+
+async function shareWithText() {
+    if (typeof shareCardGenerator === 'undefined') {
+        // Fallback to text only
+        const shareText = generateShareText(false);
+        if (navigator.share) {
+            navigator.share({
+                title: 'Art of Intent',
+                text: shareText
+            }).catch(err => console.log('Share cancelled:', err));
+        } else {
+            navigator.clipboard.writeText(shareText);
+            alert('Score copied to clipboard!');
+        }
+        return;
+    }
+    
+    try {
+        // Get user info
+        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+        const userName = user?.displayName || user?.email || 'Guest';
+        const userPhoto = user?.photoURL || null;
+        
+        // Generate share card data
+        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
+        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
+        
+        const cardData = {
+            result: isWin ? 'WIN' : 'LOSS',
+            attempts: gameState.attempts,
+            tokens: gameState.totalTokens,
+            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+            efficiency: efficiency,
+            date: new Date().toLocaleDateString(),
+            userName: userName,
+            userPhoto: userPhoto
+        };
+        
+        // Generate SVG and convert to PNG
+        const svg = shareCardGenerator.generateSVG(cardData);
+        const blob = await shareCardGenerator.svgToPNG(svg);
+        const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
+        
+        // Create hook text
+        const hookText = isWin 
+            ? `🎯 I just won Art of Intent! Guided Arty to say all target words in ${gameState.attempts} attempts using ${gameState.totalTokens} tokens. Can you beat my score?`
+            : `🎮 Played Art of Intent today! Made it to ${gameState.matchedWords.size}/${gameState.targetWords.length} words. This haiku bot is tricky! Can you do better?`;
+        
+        const shareUrl = 'https://art-of-intent.netlify.app';
+        const fullText = `${hookText}\n\nPlay now: ${shareUrl}`;
+        
+        // Try Web Share API with both image and text
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Art of Intent - Haiku Challenge',
+                    text: fullText,
+                    files: [file]
+                });
+            } catch (shareError) {
+                // If sharing with files fails, try text only
+                if (shareError.name !== 'AbortError') {
+                    try {
+                        await navigator.share({
+                            title: 'Art of Intent - Haiku Challenge',
+                            text: fullText
+                        });
+                    } catch (textShareError) {
+                        if (textShareError.name !== 'AbortError') {
+                            throw textShareError;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Fallback: download image and copy text
+            await shareCardGenerator.downloadImage(svg);
+            navigator.clipboard.writeText(fullText);
+            alert('Image downloaded and text copied to clipboard! You can now share them manually.');
+        }
+        
+    } catch (error) {
+        console.error('Error sharing:', error);
+        // Fallback to text only
+        const shareText = generateShareText(false);
+        navigator.clipboard.writeText(shareText);
+        alert('Share failed. Score copied to clipboard!');
     }
 }
 

@@ -1,0 +1,33 @@
+{
+  "name": "art-of-intent",
+  "version": "1.0.0",
+  "description": "Guide Arty the Haiku Bot to speak target words without using blacklisted words. A daily word puzzle game with AI interaction.",
+  "main": "index.html",
+  "scripts": {
+    "test": "node tests/share-card-generator.test.js && node tests/leaderboard-card-generator.test.js",
+    "test:share": "node tests/share-card-generator.test.js",
+    "test:leaderboard": "node tests/leaderboard-card-generator.test.js",
+    "generate:og": "node generate-og-image.js",
+    "serve": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karx/art-of-intent.git"
+  },
+  "keywords": [
+    "word-game",
+    "haiku",
+    "ai-game",
+    "puzzle",
+    "daily-challenge",
+    "prompt-engineering",
+    "llm-game",
+    "dos-aesthetic"
+  ],
+  "author": "karx",
+  "license": "MIT",
+  "homepage": "https://art-of-intent.netlify.app",
+  "devDependencies": {},
+  "dependencies": {}
+}
