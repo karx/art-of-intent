@@ -79,7 +79,30 @@ Click the "Export Session Data" button in the score card to download a complete 
 - Performance metrics
 - Aggregate statistics
 
-See [TRACKING.md](./TRACKING.md) for complete documentation and [example-session.jsonld](./example-session.jsonld) for a sample export. 
+See [TRACKING.md](./TRACKING.md) for complete documentation and [example-session.jsonld](./example-session.jsonld) for a sample export.
+
+## Schema.org Integration
+
+The game implements comprehensive Schema.org markup to expose all user interactions and statistics as structured data:
+
+### Available Actions (potentialAction)
+- **Submit Prompt**: Send text to guide Arty (CommunicateAction)
+- **Voice Input**: Use speech recognition (InteractAction)
+- **Export Session**: Download analytics data (DownloadAction)
+- **Share Score**: Share your results (ShareAction)
+- **View Trail**: See conversation history (ViewAction)
+
+### Interaction Counters (interactionStatistic)
+Real-time counters updated as you play:
+- Total Attempts (prompts submitted)
+- Total Tokens (API consumption)
+- Words Matched (target words found)
+- Voice Input Uses
+- Session Exports
+
+The schema is dynamically updated in the HTML `<head>` as the game progresses, making all interactions discoverable by search engines, assistants, and analytics tools.
+
+See [SCHEMA_ORG.md](./SCHEMA_ORG.md) for complete implementation details. 
 
 ## Quick Start
 

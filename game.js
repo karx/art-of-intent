@@ -33,6 +33,7 @@ const getConfig = () => window.CONFIG || {
 document.addEventListener('DOMContentLoaded', () => {
     initializeGame();
     setupEventListeners();
+    updateSchemaMetadata();
 });
 
 function initializeGame() {
@@ -572,6 +573,7 @@ function updateUI() {
     updateBlacklistWords();
     updateScore();
     updateResponseTrail();
+    updateSchemaMetadata();
 }
 
 function updateTargetWords() {
@@ -649,6 +651,83 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Schema.org Metadata Management
+function updateSchemaMetadata() {
+    const schemaScript = document.getElementById('game-schema');
+    if (!schemaScript) return;
+    
+    try {
+        const schema = JSON.parse(schemaScript.textContent);
+        
+        // Update interaction counters
+        const counters = schema.interactionStatistic;
+        
+        // Attempts counter
+        const attemptsCounter = counters.find(c => c['@id'] === '#attempts-counter');
+        if (attemptsCounter) {
+            attemptsCounter.userInteractionCount = gameState.attempts;
+        }
+        
+        // Tokens counter
+        const tokensCounter = counters.find(c => c['@id'] === '#tokens-counter');
+        if (tokensCounter) {
+            tokensCounter.userInteractionCount = gameState.totalTokens;
+        }
+        
+        // Matches counter
+        const matchesCounter = counters.find(c => c['@id'] === '#matches-counter');
+        if (matchesCounter) {
+            matchesCounter.userInteractionCount = gameState.matchedWords.size;
+        }
+        
+        // Voice uses counter
+        const voiceCounter = counters.find(c => c['@id'] === '#voice-uses-counter');
+        if (voiceCounter) {
+            const voiceEvents = gameState.events.filter(e => e.eventType === 'voice_input_completed');
+            voiceCounter.userInteractionCount = voiceEvents.length;
+        }
+        
+        // Exports counter
+        const exportsCounter = counters.find(c => c['@id'] === '#exports-counter');
+        if (exportsCounter) {
+            const exportEvents = gameState.events.filter(e => e.eventType === 'session_exported');
+            exportsCounter.userInteractionCount = exportEvents.length;
+        }
+        
+        // Update aggregate rating based on efficiency score
+        if (gameState.gameOver && gameState.matchedWords.size === gameState.targetWords.length) {
+            const efficiencyScore = calculateEfficiencyScore();
+            // Convert efficiency score to rating (lower is better, so invert)
+            // Max score ~500, min score ~20, convert to 0-100 scale
+            const rating = Math.max(0, Math.min(100, 100 - (efficiencyScore / 5)));
+            schema.aggregateRating.ratingValue = rating.toFixed(1);
+            schema.aggregateRating.reviewCount = "1";
+        }
+        
+        // Update the script content
+        schemaScript.textContent = JSON.stringify(schema, null, 2);
+        
+        // Track metadata update
+        console.log('Schema.org metadata updated:', {
+            attempts: gameState.attempts,
+            tokens: gameState.totalTokens,
+            matches: gameState.matchedWords.size
+        });
+        
+    } catch (error) {
+        console.error('Error updating Schema.org metadata:', error);
+    }
+}
+
+// Track schema metadata updates as events
+function trackSchemaUpdate() {
+    trackEvent('schema_metadata_updated', {
+        attempts: gameState.attempts,
+        tokens: gameState.totalTokens,
+        matches: gameState.matchedWords.size
+    });
 }
 
 // JSON-LD Export Functionality
@@ -883,6 +962,9 @@ function exportSessionData() {
         attempts: gameState.attempts,
         totalTokens: gameState.totalTokens
     });
+    
+    // Update schema metadata to reflect export
+    updateSchemaMetadata();
     
     console.log('Session data exported:', jsonld);
 }

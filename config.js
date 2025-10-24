@@ -5,7 +5,7 @@ const CONFIG = {
     // Gemini API Configuration
     // IMPORTANT: For production, use a backend proxy to hide the API key
     // Current setup exposes the key in client-side code (development only)
-    GEMINI_API_KEY: window.ENV?.GEMINI_API_KEY || 'REPLACE_WITH_YOUR_API_KEY',
+    GEMINI_API_KEY: window.ENV?.GEMINI_API_KEY || 'AIzaSyCCl_gcHDLqIfORp7ZkP66TscNWUEZ1BU4',
     GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     
     // Game Configuration

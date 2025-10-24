@@ -4,6 +4,171 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Art of Intent - Haiku Challenge</title>
+    <meta name="description" content="Guide Arty the Haiku Bot to speak target words without using blacklisted words. A daily word puzzle game with AI interaction.">
+    <meta name="keywords" content="word game, haiku, AI game, puzzle, daily challenge">
+    
+    <!-- Schema.org JSON-LD for Game Actions and Interactions -->
+    <script type="application/ld+json" id="game-schema">
+    {
+      "@context": "https://schema.org",
+      "@type": "Game",
+      "@id": "https://artofintent.game",
+      "name": "Art of Intent - Haiku Challenge",
+      "description": "A text-based game where players guide an AI haiku bot to speak target words without using blacklisted words. Score based on token efficiency.",
+      "genre": "Word Puzzle",
+      "gameMode": "SinglePlayer",
+      "playMode": "SinglePlayer",
+      "numberOfPlayers": {
+        "@type": "QuantitativeValue",
+        "value": 1
+      },
+      "gamePlatform": "Web Browser",
+      "applicationCategory": "Game",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "potentialAction": [
+        {
+          "@type": "CommunicateAction",
+          "@id": "#submit-prompt-action",
+          "name": "Submit Prompt",
+          "description": "Submit a text prompt to guide Arty the Haiku Bot",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://artofintent.game",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ],
+            "httpMethod": "POST",
+            "contentType": "text/plain"
+          },
+          "object": {
+            "@type": "Message",
+            "description": "User's prompt to guide the AI"
+          },
+          "result": {
+            "@type": "Message",
+            "description": "AI-generated haiku response"
+          }
+        },
+        {
+          "@type": "InteractAction",
+          "@id": "#voice-input-action",
+          "name": "Voice Input",
+          "description": "Use voice recognition to input your prompt",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://artofintent.game",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          },
+          "instrument": {
+            "@type": "SoftwareApplication",
+            "name": "Web Speech API"
+          }
+        },
+        {
+          "@type": "DownloadAction",
+          "@id": "#export-session-action",
+          "name": "Export Session Data",
+          "description": "Download complete session data in JSON-LD format",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://artofintent.game",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          },
+          "result": {
+            "@type": "DataDownload",
+            "encodingFormat": "application/ld+json",
+            "description": "Complete session analytics with KPIs and metrics"
+          }
+        },
+        {
+          "@type": "ShareAction",
+          "@id": "#share-score-action",
+          "name": "Share Score",
+          "description": "Share your game score and statistics",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://artofintent.game",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          }
+        },
+        {
+          "@type": "ViewAction",
+          "@id": "#view-trail-action",
+          "name": "View Response Trail",
+          "description": "View complete conversation history with Arty",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://artofintent.game#trailContainer"
+          }
+        }
+      ],
+      "interactionStatistic": [
+        {
+          "@type": "InteractionCounter",
+          "@id": "#attempts-counter",
+          "interactionType": "https://schema.org/CommentAction",
+          "name": "Total Attempts",
+          "userInteractionCount": 0,
+          "description": "Number of prompts submitted in current session"
+        },
+        {
+          "@type": "InteractionCounter",
+          "@id": "#tokens-counter",
+          "interactionType": "https://schema.org/ConsumeAction",
+          "name": "Total Tokens",
+          "userInteractionCount": 0,
+          "description": "Total API tokens consumed in current session"
+        },
+        {
+          "@type": "InteractionCounter",
+          "@id": "#matches-counter",
+          "interactionType": "https://schema.org/AchieveAction",
+          "name": "Words Matched",
+          "userInteractionCount": 0,
+          "description": "Number of target words successfully matched"
+        },
+        {
+          "@type": "InteractionCounter",
+          "@id": "#voice-uses-counter",
+          "interactionType": "https://schema.org/InteractAction",
+          "name": "Voice Input Uses",
+          "userInteractionCount": 0,
+          "description": "Number of times voice input was used"
+        },
+        {
+          "@type": "InteractionCounter",
+          "@id": "#exports-counter",
+          "interactionType": "https://schema.org/DownloadAction",
+          "name": "Session Exports",
+          "userInteractionCount": 0,
+          "description": "Number of times session data was exported"
+        }
+      ],
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "0",
+        "reviewCount": "0",
+        "bestRating": "100",
+        "worstRating": "0"
+      }
+    }
+    </script>
+    
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
