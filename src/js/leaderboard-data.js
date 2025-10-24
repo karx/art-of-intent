@@ -10,14 +10,22 @@
 async function fetchLeaderboardData() {
     try {
         // Check if Firebase is available
-        if (typeof db === 'undefined') {
+        if (typeof window !== 'undefined' && !window.db) {
             console.warn('Firebase not available, using mock data');
             return getMockLeaderboardData();
         }
         
-        const { collection, query, where, orderBy, limit, getDocs, getCountFromServer } = 
-            await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        // Use globally available modules or import them
+        let collection, query, where, orderBy, limit, getDocs, getCountFromServer;
         
+        if (typeof window !== 'undefined' && window.firestoreModules) {
+            ({ collection, query, where, orderBy, limit, getDocs, getCountFromServer } = window.firestoreModules);
+        } else {
+            const modules = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            ({ collection, query, where, orderBy, limit, getDocs, getCountFromServer } = modules);
+        }
+        
+        const db = typeof window !== 'undefined' ? window.db : global.db;
         const today = new Date().toISOString().split('T')[0];
         
         // Fetch top 5 players for today
@@ -63,8 +71,17 @@ async function fetchLeaderboardData() {
  */
 async function fetchAggregateStats(today) {
     try {
-        const { collection, query, where, getDocs, getCountFromServer } = 
-            await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        // Use globally available modules or import them
+        let collection, query, where, getDocs, getCountFromServer;
+        
+        if (typeof window !== 'undefined' && window.firestoreModules) {
+            ({ collection, query, where, getDocs, getCountFromServer } = window.firestoreModules);
+        } else {
+            const modules = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            ({ collection, query, where, getDocs, getCountFromServer } = modules);
+        }
+        
+        const db = typeof window !== 'undefined' ? window.db : global.db;
         
         // Total players (unique users)
         const usersSnapshot = await getCountFromServer(collection(db, 'users'));

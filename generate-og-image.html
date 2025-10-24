@@ -72,6 +72,10 @@
                 Ready to generate OG image...
             </div>
             
+            <div id="firebaseStatus" class="status" style="border-color: var(--dos-gray);">
+                <strong>Firebase Status:</strong> <span id="firebaseStatusText">Checking...</span>
+            </div>
+            
             <div class="data-display">
                 <strong>Current Data:</strong>
                 <div id="dataDisplay">No data loaded</div>
@@ -89,10 +93,20 @@
     <!-- Scripts -->
     <script src="src/js/version.js"></script>
     <script src="src/js/leaderboard-card-generator.js"></script>
-    <script src="src/js/leaderboard-data.js"></script>
     
-    <!-- Firebase (optional for live data) -->
-    <script type="module" src="src/js/firebase-config.js"></script>
+    <!-- Firebase (for live data) -->
+    <script type="module">
+        import { db } from './src/js/firebase-config.js';
+        import { collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Make db available globally for leaderboard-data.js
+        window.db = db;
+        window.firestoreModules = { collection, query, where, orderBy, limit, getDocs, getCountFromServer };
+        
+        console.log('Firebase initialized:', db ? '✅' : '❌');
+    </script>
+    
+    <script src="src/js/leaderboard-data.js"></script>
     
     <script>
         let currentData = null;
@@ -113,13 +127,21 @@
             fetchDataBtn.disabled = true;
             
             try {
+                if (!window.db) {
+                    throw new Error('Firebase not initialized. Using mock data instead.');
+                }
                 currentData = await fetchLeaderboardData();
                 dataDisplay.textContent = JSON.stringify(currentData, null, 2);
                 statusEl.textContent = '✅ Live data loaded successfully!';
                 generateBtn.disabled = false;
             } catch (error) {
-                statusEl.textContent = `❌ Error: ${error.message}`;
+                statusEl.textContent = `⚠️ ${error.message}`;
                 console.error(error);
+                // Fallback to mock data
+                currentData = getMockLeaderboardData();
+                dataDisplay.textContent = JSON.stringify(currentData, null, 2);
+                statusEl.textContent += ' Using mock data instead.';
+                generateBtn.disabled = false;
             } finally {
                 fetchDataBtn.disabled = false;
             }
@@ -182,8 +204,27 @@
             leaderboardCardGenerator.previewImage(currentSVG);
         });
         
+        // Check Firebase status
+        function checkFirebaseStatus() {
+            const statusEl = document.getElementById('firebaseStatusText');
+            
+            // Wait a bit for Firebase to initialize
+            setTimeout(() => {
+                if (window.db) {
+                    statusEl.textContent = '✅ Connected - Live data available';
+                    statusEl.style.color = 'var(--success-color)';
+                    fetchDataBtn.disabled = false;
+                } else {
+                    statusEl.textContent = '⚠️ Not connected - Mock data only';
+                    statusEl.style.color = 'var(--warning-color)';
+                    fetchDataBtn.title = 'Firebase not available. Will use mock data.';
+                }
+            }, 1000);
+        }
+        
         // Auto-load mock data on page load
         window.addEventListener('DOMContentLoaded', () => {
+            checkFirebaseStatus();
             useMockDataBtn.click();
         });
     </script>

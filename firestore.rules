@@ -29,6 +29,9 @@ service cloud.firestore {
       // Users can read their own profile
       allow read: if isOwner(userId);
       
+      // Allow counting users (for stats)
+      allow get: if true;
+      
       // Users can create their own profile
       allow create: if isOwner(userId)
         && isValidUser(request.resource.data)
@@ -74,7 +77,18 @@ service cloud.firestore {
       allow delete: if false;
     }
     
-    // Leaderboards (read-only for users, write-only for Cloud Functions)
+    // Leaderboard (singular - for daily rankings)
+    match /leaderboard/{document=**} {
+      // Anyone can read leaderboard
+      allow read: if true;
+      
+      // Only authenticated users can write their scores
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if false;
+    }
+    
+    // Leaderboards (plural - for historical data)
     match /leaderboards/{document=**} {
       // Anyone can read leaderboards
       allow read: if true;
