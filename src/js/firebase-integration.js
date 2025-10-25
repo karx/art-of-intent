@@ -63,6 +63,10 @@ function handleAuthStateChange(user, profile) {
     const userName = document.getElementById('userName');
     const userPhoto = document.getElementById('userPhoto');
     
+    // Update input area user indicator
+    const inputUserLabel = document.getElementById('inputUserLabel');
+    const inputUserAvatar = document.getElementById('inputUserAvatar');
+    
     if (user && profile) {
         // User is signed in
         console.log('👤 User signed in:', profile.displayName);
@@ -72,6 +76,21 @@ function handleAuthStateChange(user, profile) {
         if (userPhoto) {
             userPhoto.src = profile.photoURL || 'https://via.placeholder.com/32';
             userPhoto.alt = profile.displayName;
+        }
+        
+        // Update input area indicator
+        if (inputUserLabel) {
+            inputUserLabel.textContent = profile.displayName;
+        }
+        if (inputUserAvatar) {
+            if (profile.photoURL) {
+                inputUserAvatar.style.backgroundImage = `url(${profile.photoURL})`;
+                inputUserAvatar.classList.add('has-photo');
+                inputUserAvatar.textContent = '';
+            } else {
+                inputUserAvatar.textContent = profile.displayName.charAt(0).toUpperCase();
+                inputUserAvatar.classList.remove('has-photo');
+            }
         }
         
         if (userInfo) userInfo.classList.remove('hidden');
@@ -93,6 +112,16 @@ function handleAuthStateChange(user, profile) {
         // Update UI
         if (userInfo) userInfo.classList.add('hidden');
         if (authButtons) authButtons.classList.remove('hidden');
+        
+        // Reset input area indicator to guest
+        if (inputUserLabel) {
+            inputUserLabel.textContent = 'Guest';
+        }
+        if (inputUserAvatar) {
+            inputUserAvatar.textContent = 'G';
+            inputUserAvatar.classList.remove('has-photo');
+            inputUserAvatar.style.backgroundImage = '';
+        }
     }
 }
 
