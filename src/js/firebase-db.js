@@ -148,10 +148,10 @@ export async function saveSession(sessionData) {
     } catch (error) {
         console.error('Error saving session:', error);
         console.error('Failed session data:', {
-            sessionId: firestoreSession.sessionId,
-            userId: firestoreSession.userId,
-            gameDate: firestoreSession.gameDate,
-            hasAllRequired: !!(firestoreSession.sessionId && firestoreSession.userId && firestoreSession.gameDate)
+            sessionId: sessionData.sessionId,
+            userId: user.uid,
+            errorCode: error.code,
+            errorMessage: error.message
         });
         throw error;
     }

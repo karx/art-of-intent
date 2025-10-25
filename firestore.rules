@@ -61,8 +61,9 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid;
       
       // Users can update their own sessions
+      // Allow update if: user is authenticated AND (existing doc has no userId OR userId matches)
       allow update: if isAuthenticated()
-        && resource.data.userId == request.auth.uid
+        && (!resource.data.keys().hasAny(['userId']) || resource.data.userId == request.auth.uid)
         && request.resource.data.userId == request.auth.uid;
       
       // No deletes allowed
