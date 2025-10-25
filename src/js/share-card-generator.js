@@ -9,14 +9,15 @@ class ShareCardGenerator {
         this.height = 630; // Standard OG image size
         this.padding = 40;
         this.colors = {
-            background: '#000000',
-            border: '#AAAAAA',
-            cyan: '#55FFFF',
-            green: '#55FF55',
-            red: '#FF5555',
-            yellow: '#FFFF55',
-            white: '#FFFFFF',
-            gray: '#555555'
+            background: '#002b36',  // Solarized dark
+            backgroundAlt: '#073642',
+            border: '#586e75',      // Solarized base01
+            cyan: '#2aa198',        // Solarized cyan
+            green: '#859900',       // Solarized green
+            red: '#dc322f',         // Solarized red
+            yellow: '#b58900',      // Solarized yellow
+            white: '#93a1a1',       // Solarized base1
+            gray: '#586e75'         // Solarized base01
         };
     }
     

@@ -802,9 +802,7 @@ async function shareScore() {
     
     try {
         // Get user info
-        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-        const userName = user?.displayName || user?.email || 'Guest';
-        const userPhoto = user?.photoURL || null;
+        const { userName, userPhoto } = getUserDisplayInfo();
         
         // Generate share card data
         const isWin = gameState.matchedWords.size === gameState.targetWords.length;
@@ -844,9 +842,7 @@ function previewShareCard() {
     
     try {
         // Get user info
-        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-        const userName = user?.displayName || user?.email || 'Guest';
-        const userPhoto = user?.photoURL || null;
+        const { userName, userPhoto } = getUserDisplayInfo();
         
         // Generate share card data
         const isWin = gameState.matchedWords.size === gameState.targetWords.length;
@@ -894,9 +890,7 @@ async function shareWithText() {
     
     try {
         // Get user info
-        const user = typeof auth !== 'undefined' ? auth.currentUser : null;
-        const userName = user?.displayName || user?.email || 'Guest';
-        const userPhoto = user?.photoURL || null;
+        const { userName, userPhoto } = getUserDisplayInfo();
         
         // Generate share card data
         const isWin = gameState.matchedWords.size === gameState.targetWords.length;
@@ -1428,6 +1422,30 @@ function exportSessionData() {
     updateSchemaMetadata();
     
     console.log('Session data exported:', jsonld);
+}
+
+// ============================================
+// User Info Helper
+// ============================================
+
+function getUserDisplayInfo() {
+    // Try to get from Firebase profile first
+    if (window.firebaseAuth && window.firebaseAuth.getUserProfile) {
+        const profile = window.firebaseAuth.getUserProfile();
+        if (profile) {
+            return {
+                userName: profile.displayName || 'Guest',
+                userPhoto: profile.photoURL || null
+            };
+        }
+    }
+    
+    // Fallback to auth user
+    const user = typeof auth !== 'undefined' ? auth.currentUser : null;
+    return {
+        userName: user?.displayName || user?.email || 'Guest',
+        userPhoto: user?.photoURL || null
+    };
 }
 
 // ============================================
