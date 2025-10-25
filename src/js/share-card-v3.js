@@ -38,8 +38,8 @@ function generateShareCardV3(data) {
     
     // Generate cascading token visualization
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
-        const y = 220 + (idx * 45);
-        const x = 80 + (idx * 15); // Cascade effect
+        const y = 195 + (idx * 45);
+        const x = 80 + (idx * 12); // Cascade effect
         
         // Calculate token split widths (max 800px total)
         const maxWidth = 800;
@@ -116,7 +116,7 @@ function generateShareCardV3(data) {
     }).join('');
     
     // Calculate final Y position for legend
-    const finalY = 220 + (recentAttempts.length * 45) + 20;
+    const finalY = 195 + (recentAttempts.length * 45) + 30;
     
     return `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -137,83 +137,81 @@ function generateShareCardV3(data) {
     <rect x="20" y="20" width="${width - 40}" height="${height - 40}" 
           fill="none" stroke="${colors.border}" stroke-width="2"/>
     
-    <!-- Header -->
-    <text x="60" y="70" style="font-size: 36px; font-weight: bold; fill: ${colors.cyan}; letter-spacing: 3px;">
-        ART OF INTENT
-    </text>
-    
-    <!-- Result Badge (Compact) -->
-    <g transform="translate(60, 100)">
-        <rect x="0" y="0" width="200" height="80" fill="${colors.backgroundAlt}" 
-              stroke="${resultColor}" stroke-width="3" rx="8"/>
-        <text x="100" y="35" style="font-size: 20px; fill: ${colors.gray}; text-anchor: middle;">
-            ${isWin ? '✓' : '✗'} ${result}
+    <!-- Header with Branding -->
+    <g transform="translate(60, 50)">
+        <text x="0" y="30" style="font-size: 42px; font-weight: bold; fill: ${colors.cyan}; letter-spacing: 4px;">
+            ART OF INTENT
         </text>
-        <text x="100" y="60" style="font-size: 28px; font-weight: bold; fill: ${resultColor}; text-anchor: middle;">
-            ${matchNum}/${matchTotal}
+        <text x="0" y="55" style="font-size: 16px; fill: ${colors.gray}; letter-spacing: 2px;">
+            HAIKU CHALLENGE
+        </text>
+        <text x="0" y="75" style="font-size: 14px; fill: ${colors.border};">
+            art-of-intent.netlify.app
         </text>
     </g>
     
-    <!-- Stats Summary (Compact) -->
-    <g transform="translate(300, 100)">
-        <text x="0" y="25" style="font-size: 16px; fill: ${colors.gray};">
-            ATTEMPTS: <tspan style="fill: ${colors.cyan}; font-weight: bold;">${attempts}</tspan>
+    <!-- User Info Card -->
+    <g transform="translate(700, 50)">
+        <rect x="0" y="0" width="440" height="90" fill="${colors.backgroundAlt}" 
+              stroke="${colors.border}" stroke-width="2" rx="8"/>
+        
+        <!-- User name -->
+        <text x="20" y="30" style="font-size: 20px; font-weight: bold; fill: ${colors.cyan};">
+            ${userName}
         </text>
-        <text x="0" y="55" style="font-size: 16px; fill: ${colors.gray};">
-            TOKENS: <tspan style="fill: ${colors.yellow}; font-weight: bold;">${tokens}</tspan>
+        
+        <!-- Result -->
+        <text x="20" y="55" style="font-size: 16px; fill: ${colors.gray};">
+            RESULT: <tspan style="fill: ${resultColor}; font-weight: bold; font-size: 18px;">${result}</tspan>
+        </text>
+        
+        <!-- Stats -->
+        <text x="20" y="75" style="font-size: 14px; fill: ${colors.gray};">
+            ${matchNum}/${matchTotal} words · ${attempts} attempts · ${tokens} tokens
         </text>
     </g>
     
     <!-- Response Trail Section -->
-    <text x="60" y="200" style="font-size: 14px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 1px;">
+    <text x="60" y="170" style="font-size: 16px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">
         Response Trail
     </text>
-    <line x1="60" y1="205" x2="1140" y2="205" stroke="${colors.border}" stroke-width="1"/>
+    <line x1="60" y1="175" x2="1140" y2="175" stroke="${colors.border}" stroke-width="1"/>
     
     ${attemptVisuals}
     
     <!-- Legend -->
     <g transform="translate(80, ${finalY})">
-        <text x="0" y="0" style="font-size: 12px; fill: ${colors.gray}; text-transform: uppercase;">
+        <text x="0" y="0" style="font-size: 13px; fill: ${colors.gray}; text-transform: uppercase; font-weight: bold;">
             Legend:
         </text>
         
         <!-- Prompt tokens -->
-        <rect x="0" y="10" width="40" height="16" fill="${colors.cyan}" rx="3" opacity="0.8"/>
-        <text x="45" y="22" style="font-size: 11px; fill: ${colors.white};">
-            Prompt
+        <rect x="0" y="12" width="50" height="18" fill="${colors.cyan}" rx="4" opacity="0.8"/>
+        <text x="55" y="25" style="font-size: 12px; fill: ${colors.white};">
+            Prompt Tokens
         </text>
         
         <!-- Output tokens -->
-        <rect x="120" y="10" width="40" height="16" fill="${colors.yellow}" rx="3" opacity="0.8"/>
-        <text x="165" y="22" style="font-size: 11px; fill: ${colors.white};">
-            Output
+        <rect x="180" y="12" width="50" height="18" fill="${colors.yellow}" rx="4" opacity="0.8"/>
+        <text x="235" y="25" style="font-size: 12px; fill: ${colors.white};">
+            Output Tokens
         </text>
         
         <!-- Hit indicator -->
-        <circle cx="240" cy="18" r="6" fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
-        <text x="255" y="22" style="font-size: 11px; fill: ${colors.white};">
-            Match
+        <circle cx="370" cy="21" r="7" fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
+        <text x="385" y="25" style="font-size: 12px; fill: ${colors.white};">
+            Word Match
         </text>
         
         <!-- Blacklist indicator -->
-        <circle cx="330" cy="18" r="8" fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
-        <text x="330" y="22" style="font-size: 14px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+        <circle cx="510" cy="21" r="9" fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
+        <text x="510" y="26" style="font-size: 15px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
             ✗
         </text>
-        <text x="345" y="22" style="font-size: 11px; fill: ${colors.white};">
-            Blacklist
+        <text x="525" y="25" style="font-size: 12px; fill: ${colors.white};">
+            Blacklist Hit
         </text>
     </g>
-    
-    <!-- Footer -->
-    <line x1="60" y1="580" x2="${width - 60}" y2="580" stroke="${colors.border}" stroke-width="1"/>
-    <text x="60" y="605" style="font-size: 18px; font-weight: bold; fill: ${colors.cyan};">
-        ${userName}
-    </text>
-    <text x="${width - 60}" y="605" style="font-size: 16px; fill: ${colors.gray}; text-anchor: end;">
-        art-of-intent.netlify.app
-    </text>
     
 </svg>
     `.trim();
