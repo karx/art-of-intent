@@ -572,8 +572,11 @@ function processResponse(prompt, apiResponse) {
     
     // If voice input was used, read the response back
     if (lastInputWasVoice) {
+        console.log('🔊 Speaking response:', responseText);
         speakText(responseText);
         lastInputWasVoice = false; // Reset flag
+    } else {
+        console.log('🔇 Not speaking (lastInputWasVoice:', lastInputWasVoice, ')');
     }
     
     // Check win condition
@@ -1029,12 +1032,22 @@ function handleVoiceInput() {
         const confidence = event.results[0][0].confidence;
         promptInput.value = transcript;
         lastInputWasVoice = true; // Mark that voice input was used
+        console.log('🎤 Voice input received, flag set to:', lastInputWasVoice);
         
         trackEvent('voice_input_completed', {
             transcriptLength: transcript.length,
             confidence: confidence,
             duration: Date.now() - voiceStartTime
         });
+        
+        // Auto-submit after voice input
+        setTimeout(() => {
+            const submitBtn = document.getElementById('submitBtn');
+            console.log('🎤 Auto-submit check - flag:', lastInputWasVoice, 'transcript:', transcript.trim());
+            if (submitBtn && !submitBtn.disabled && transcript.trim()) {
+                submitBtn.click();
+            }
+        }, 500); // Small delay to ensure UI updates
     };
     
     recognition.onerror = (event) => {
