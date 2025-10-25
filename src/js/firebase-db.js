@@ -37,8 +37,8 @@ export async function saveSession(sessionData) {
             // Game configuration
             gameDate: new Date().toISOString().split('T')[0],
             date: new Date().toISOString().split('T')[0], // Alias for easier querying
-            targetWords: sessionData.targetWords || gameState.targetWords,
-            blacklistWords: sessionData.blacklistWords || gameState.blacklistWords,
+            targetWords: sessionData.targetWords || [],
+            blacklistWords: sessionData.blacklistWords || [],
             
             // Session data
             startTime: sessionData.sessionStartTime,
