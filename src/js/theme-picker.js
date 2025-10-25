@@ -77,6 +77,14 @@ class ThemePicker {
                             </select>
                         </div>
                         
+                        <div class="voice-toggle-wrapper">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="autoSubmitVoice" ${this.themeManager.autoSubmitVoice ? 'checked' : ''}>
+                                <span class="toggle-text">Auto-submit after voice input</span>
+                            </label>
+                            <p class="toggle-description">When enabled, prompts automatically submit after speaking. Disable to manually edit transcribed text.</p>
+                        </div>
+                        
                         <button class="btn-secondary test-voice-btn" id="testVoiceBtn">
                             🔊 Test Voice
                         </button>
@@ -195,6 +203,15 @@ class ThemePicker {
             testVoiceBtn.addEventListener('click', () => this.testVoice());
         }
         
+        // Auto-submit voice checkbox
+        const autoSubmitCheckbox = this.modal.querySelector('#autoSubmitVoice');
+        if (autoSubmitCheckbox) {
+            autoSubmitCheckbox.addEventListener('change', (e) => {
+                // Don't save immediately, wait for Apply button
+                this.previewAutoSubmit = e.target.checked;
+            });
+        }
+        
         // Theme option change - live preview
         this.modal.addEventListener('change', (e) => {
             if (e.target.name === 'theme') {
@@ -286,6 +303,12 @@ class ThemePicker {
         const voiceSelect = this.modal.querySelector('#voiceSelect');
         if (voiceSelect && voiceSelect.value) {
             this.themeManager.setVoice(voiceSelect.value);
+        }
+        
+        // Apply auto-submit preference
+        const autoSubmitCheckbox = this.modal.querySelector('#autoSubmitVoice');
+        if (autoSubmitCheckbox) {
+            this.themeManager.setAutoSubmitVoice(autoSubmitCheckbox.checked);
         }
         
         // Close modal

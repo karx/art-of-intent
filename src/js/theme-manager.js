@@ -88,6 +88,7 @@ class ThemeManager {
         this.currentVoiceStyle = 'contemplative';
         this.currentVoice = null;
         this.availableVoices = [];
+        this.autoSubmitVoice = true; // Auto-submit after voice input by default
         
         this.init();
     }
@@ -147,6 +148,7 @@ class ThemeManager {
                 this.currentTextSize = prefs.textSize || 'medium';
                 this.currentVoiceStyle = prefs.voiceStyle || 'contemplative';
                 this.currentVoice = prefs.voiceName || null;
+                this.autoSubmitVoice = prefs.autoSubmitVoice !== undefined ? prefs.autoSubmitVoice : true;
             }
         } catch (error) {
             console.error('Error loading preferences:', error);
@@ -160,12 +162,26 @@ class ThemeManager {
                 textSize: this.currentTextSize,
                 voiceStyle: this.currentVoiceStyle,
                 voiceName: this.currentVoice ? this.currentVoice.name : null,
+                autoSubmitVoice: this.autoSubmitVoice,
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem(this.storageKey, JSON.stringify(prefs));
         } catch (error) {
             console.error('Error saving preferences:', error);
         }
+    }
+    
+    setAutoSubmitVoice(enabled, save = true) {
+        this.autoSubmitVoice = enabled;
+        
+        if (save) {
+            this.savePreferences();
+            this.showNotification(`Auto-submit: ${enabled ? 'Enabled' : 'Disabled'}`);
+        }
+    }
+    
+    getAutoSubmitVoice() {
+        return this.autoSubmitVoice;
     }
     
     applyVoiceStyle(styleName, save = true) {

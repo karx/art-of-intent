@@ -1053,14 +1053,23 @@ function handleVoiceInput() {
             duration: Date.now() - voiceStartTime
         });
         
-        // Auto-submit after voice input
-        setTimeout(() => {
-            const submitBtn = document.getElementById('submitBtn');
-            console.log('🎤 Auto-submit check - flag:', lastInputWasVoice, 'transcript:', transcript.trim());
-            if (submitBtn && !submitBtn.disabled && transcript.trim()) {
-                submitBtn.click();
-            }
-        }, 500); // Small delay to ensure UI updates
+        // Auto-submit after voice input (if enabled in preferences)
+        const autoSubmit = window.themeManager ? window.themeManager.getAutoSubmitVoice() : true;
+        console.log('🎤 Auto-submit preference:', autoSubmit);
+        
+        if (autoSubmit) {
+            setTimeout(() => {
+                const submitBtn = document.getElementById('submitBtn');
+                console.log('🎤 Auto-submit check - flag:', lastInputWasVoice, 'transcript:', transcript.trim());
+                if (submitBtn && !submitBtn.disabled && transcript.trim()) {
+                    submitBtn.click();
+                }
+            }, 500); // Small delay to ensure UI updates
+        } else {
+            console.log('🎤 Auto-submit disabled, user can edit transcript');
+            // Focus the input so user can edit
+            promptInput.focus();
+        }
     };
     
     recognition.onerror = (event) => {

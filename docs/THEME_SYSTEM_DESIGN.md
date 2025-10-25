@@ -189,6 +189,31 @@ Users can select from available system voices:
 - Preference for English voices by default
 - Voice selection persisted in localStorage
 
+### Auto-Submit After Voice Input
+
+**Cognitive Design Rationale:**
+
+Users have different workflows when using voice input:
+
+1. **Direct Flow** (Auto-submit enabled - default)
+   - User speaks → Transcription appears → Automatically submits
+   - Best for: Quick interactions, confident speakers, mobile users
+   - Reduces cognitive load: One action (speak) triggers complete flow
+   - Follows principle of **least effort** - minimal steps to goal
+
+2. **Review Flow** (Auto-submit disabled)
+   - User speaks → Transcription appears → User reviews/edits → Manual submit
+   - Best for: Careful users, complex prompts, accuracy-focused workflows
+   - Provides **sense of control** - user validates before submission
+   - Follows principle of **user agency** - explicit confirmation
+
+**Implementation:**
+- Checkbox in Voice Settings: "Auto-submit after voice input"
+- Default: Enabled (optimizes for speed)
+- When disabled: Input field receives focus for editing
+- Preference persisted in localStorage
+- Visual feedback: Console logs show auto-submit state
+
 ### Integration
 
 Voice settings integrate with the `speakText()` function:
