@@ -31,15 +31,28 @@ export async function saveSession(sessionData) {
         return null;
     }
     
+    // Wait a moment for profile to load if it's not ready yet
     const profile = getUserProfile();
-    const displayName = profile?.displayName || user.displayName || user.email || 'Guest';
+    if (!profile && user.isAnonymous) {
+        console.log('Profile not loaded yet for anonymous user, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    const updatedProfile = getUserProfile();
+    const displayName = updatedProfile?.displayName || user.displayName || user.email || `Player${Math.floor(Math.random() * 10000)}`;
+    
+    const gameDate = new Date().toISOString().split('T')[0];
     
     console.log('Saving session:', {
         sessionId: sessionData.sessionId,
         userId: user.uid,
         displayName: displayName,
         isAuthenticated: !!user,
-        hasProfile: !!profile
+        isAnonymous: user.isAnonymous,
+        hasProfile: !!profile,
+        gameDate: gameDate,
+        targetWords: sessionData.targetWords?.length || 0,
+        attempts: sessionData.attempts || 0
     });
     
     try {
@@ -52,8 +65,8 @@ export async function saveSession(sessionData) {
             displayName: displayName,
             
             // Game configuration
-            gameDate: new Date().toISOString().split('T')[0],
-            date: new Date().toISOString().split('T')[0], // Alias for easier querying
+            gameDate: gameDate,
+            date: gameDate, // Alias for easier querying
             targetWords: sessionData.targetWords || [],
             blacklistWords: sessionData.blacklistWords || [],
             
@@ -113,12 +126,33 @@ export async function saveSession(sessionData) {
             isPublic: true
         };
         
-        await setDoc(sessionRef, firestoreSession, { merge: true });
-        console.log('✅ Session saved to Firestore:', sessionData.sessionId);
+        // Check if document exists to determine create vs update
+        const docSnap = await getDoc(sessionRef);
+        
+        if (docSnap.exists()) {
+            // Update existing document - only update changed fields
+            const updates = {
+                ...firestoreSession,
+                updatedAt: serverTimestamp(),
+                lastActivity: serverTimestamp()
+            };
+            await setDoc(sessionRef, updates, { merge: true });
+            console.log('✅ Session updated in Firestore:', sessionData.sessionId);
+        } else {
+            // Create new document - must have all required fields
+            await setDoc(sessionRef, firestoreSession);
+            console.log('✅ Session created in Firestore:', sessionData.sessionId);
+        }
         
         return sessionRef.id;
     } catch (error) {
         console.error('Error saving session:', error);
+        console.error('Failed session data:', {
+            sessionId: firestoreSession.sessionId,
+            userId: firestoreSession.userId,
+            gameDate: firestoreSession.gameDate,
+            hasAllRequired: !!(firestoreSession.sessionId && firestoreSession.userId && firestoreSession.gameDate)
+        });
         throw error;
     }
 }
