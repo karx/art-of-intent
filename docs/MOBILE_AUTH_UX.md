@@ -2,12 +2,24 @@
 
 ## Problem Statement
 
-**Current Issue:**
-- Top bar is hidden on mobile (<767px) with `display: none`
-- Sign in/Sign out buttons are inaccessible
-- User info (name, photo) is not visible
-- Profile button exists in side navigation but lacks prominence
-- Users cannot easily authenticate or manage their account on mobile
+**Original Issue:**
+- Top bar was hidden on mobile (<767px) with `display: none`
+- Sign in/Sign out buttons were inaccessible
+- User info (name, photo) was not visible
+- Users couldn't authenticate or manage their account on mobile
+
+**Attempted Solution (Reverted):**
+- Added profile icon to mobile top bar
+- Caused glitchiness with existing top bar functionality
+- Top bar already used for other purposes on mobile
+
+## Final Solution: Profile Modal-Based Authentication
+
+**Approach:**
+- Use existing Profile button in side navigation
+- Enhance profile modal with authentication controls
+- Make profile modal scrollable on mobile
+- Show different views for guest vs authenticated users
 
 ## Design Principles
 
@@ -163,7 +175,113 @@ Add authentication controls to a sticky bottom bar alongside input.
 
 ---
 
-## Recommended Solution: Option 1 (Profile Icon in Top Bar)
+## Implemented Solution: Profile Modal Enhancement
+
+### Overview
+
+Instead of adding UI elements to the mobile top bar (which caused conflicts), we enhanced the existing Profile modal to handle all authentication needs.
+
+### Guest Profile View
+
+When user is not authenticated, profile modal shows:
+
+```
+┌─────────────────────────────────────┐
+│ User Profile                    [×] │
+├─────────────────────────────────────┤
+│                                     │
+│            👤                       │
+│                                     │
+│      Playing as Guest               │
+│                                     │
+│  Sign in to save your progress,    │
+│  compete on the leaderboard, and   │
+│  track your stats!                 │
+│                                     │
+│  ┌───────────────────────────────┐ │
+│  │ Benefits of signing in:       │ │
+│  │ ✓ Save your game progress    │ │
+│  │ ✓ Compete on leaderboard     │ │
+│  │ ✓ Track your statistics      │ │
+│  │ ✓ Earn achievements           │ │
+│  │ ✓ Sync across devices         │ │
+│  └───────────────────────────────┘ │
+│                                     │
+│  [🔵 Sign in with Google]          │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Authenticated Profile View
+
+When user is signed in, profile modal shows:
+
+```
+┌─────────────────────────────────────┐
+│ User Profile                    [×] │
+├─────────────────────────────────────┤
+│ ┌─────────────────────────────────┐ │
+│ │ JOHN DOE                        │ │
+│ │ Joined: Jan 1, 2025 | AUTH     │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ Statistics                      │ │
+│ │ Total Games: 42                 │ │
+│ │ Win Rate: 65%                   │ │
+│ │ Avg Tokens: 234                 │ │
+│ │ ...                             │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ Achievements                    │ │
+│ │ [✓] First Win                   │ │
+│ │ [✓] Perfect Score               │ │
+│ │ ...                             │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ Account                         │ │
+│ │ [✏️ Edit Display Name]          │ │
+│ │ [🚪 Sign Out]                   │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ [Export Session] [Export Profile]  │
+│              [Close]                │
+└─────────────────────────────────────┘
+```
+
+### Key Features
+
+**1. Scrollable Content**
+- Profile content has `max-height: 70vh` on desktop
+- Mobile: `max-height: calc(100vh - 200px)`
+- Custom scrollbar styling
+- Smooth scrolling behavior
+
+**2. Guest View**
+- Large user icon (64px desktop, 48px mobile)
+- Clear "Playing as Guest" heading
+- Benefits list with checkmarks
+- Prominent "Sign in with Google" button
+- Delegates to main authentication flow
+
+**3. Authenticated View**
+- User stats and achievements
+- Recent sessions history
+- Account section at bottom with:
+  - Edit Display Name button
+  - Sign Out button
+- Both buttons delegate to existing auth handlers
+
+**4. Mobile Optimizations**
+- Full-width modal on mobile
+- Reduced padding for compact view
+- Touch-friendly button sizes (min 44px)
+- Scrollable content area
+- Responsive layout adjustments
+
+## Recommended Solution: Option 1 (Profile Icon in Top Bar) - DEPRECATED
 
 ### Detailed Specification
 
