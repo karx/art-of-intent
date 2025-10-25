@@ -1467,6 +1467,97 @@ header::after {
     font-size: 1.2rem;
 }
 
+/* Welcome Modal */
+.welcome-modal {
+    max-width: 500px;
+    text-align: center;
+    padding: var(--spacing-xl);
+}
+
+.welcome-modal h2 {
+    color: var(--text-bright);
+    margin-bottom: var(--spacing-md);
+    font-size: 1.5rem;
+}
+
+.welcome-tagline {
+    color: var(--text-dim);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.welcome-benefits {
+    text-align: left;
+    margin: var(--spacing-lg) auto;
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    max-width: 400px;
+}
+
+.welcome-benefits h3 {
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+    font-size: 0.9rem;
+}
+
+.welcome-benefits ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.welcome-benefits li {
+    color: var(--text-dim);
+    padding: var(--spacing-xs) 0;
+    font-size: 0.85rem;
+}
+
+.welcome-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+}
+
+.btn-large {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 1rem;
+    min-height: 48px;
+}
+
+.welcome-guest-link {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: var(--spacing-sm);
+}
+
+.welcome-guest-link:hover {
+    color: var(--text-primary);
+}
+
+/* Welcome Modal Mobile */
+@media (max-width: 767px) {
+    .welcome-modal {
+        max-width: 100%;
+        padding: var(--spacing-lg);
+    }
+    
+    .welcome-modal h2 {
+        font-size: 1.3rem;
+    }
+    
+    .welcome-benefits {
+        max-width: 100%;
+    }
+}
+
 .profile-header {
     text-align: center;
     padding: var(--spacing-lg);

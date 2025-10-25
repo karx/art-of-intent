@@ -30,22 +30,18 @@ function initializeFirebaseIntegration() {
         // Set up auth button listeners
         setupAuthButtons();
         
-        // Auto-authenticate as guest if user hasn't signed in after 2 seconds
+        // Show welcome modal for first-time visitors
         setTimeout(() => {
             const user = window.firebaseAuth.getCurrentUser();
-            if (!user) {
-                console.log('🎮 No user signed in, auto-authenticating as guest for session tracking...');
-                window.firebaseAuth.signInAnon()
-                    .then(() => {
-                        console.log('✅ Auto-authenticated as guest');
-                    })
-                    .catch(err => {
-                        console.error('❌ Auto-authentication failed:', err);
-                    });
-            } else {
+            if (!user && window.welcomeModal && window.welcomeModal.shouldShow()) {
+                console.log('👋 First-time visitor, showing welcome modal');
+                window.welcomeModal.show();
+            } else if (user) {
                 console.log('✅ User already authenticated:', user.uid);
+            } else {
+                console.log('🎮 Returning visitor, no auth required');
             }
-        }, 2000);
+        }, 500); // Reduced delay for better UX
         
         console.log('✅ Firebase Auth initialized');
     }
