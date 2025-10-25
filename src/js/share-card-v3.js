@@ -33,13 +33,24 @@ function generateShareCardV3(data) {
     const resultColor = isWin ? colors.green : colors.red;
     const [matchNum, matchTotal] = matches.split('/').map(Number);
     
-    // Get all attempts for visualization (up to 8)
-    const recentAttempts = responseTrail.slice(-8);
+    // Calculate available space for trail
+    const trailStartY = 195;
+    const legendHeight = 60;
+    const footerMargin = 40;
+    const availableHeight = height - trailStartY - legendHeight - footerMargin;
+    
+    // Get all attempts for visualization
+    const maxAttempts = Math.min(responseTrail.length, 10);
+    const recentAttempts = responseTrail.slice(-maxAttempts);
+    
+    // Calculate spacing to fit available space
+    const attemptHeight = Math.min(45, Math.floor(availableHeight / maxAttempts));
+    const cascadeOffset = Math.min(12, Math.floor(attemptHeight / 4));
     
     // Generate cascading token visualization
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
-        const y = 195 + (idx * 45);
-        const x = 80 + (idx * 12); // Cascade effect
+        const y = trailStartY + (idx * attemptHeight);
+        const x = 80 + (idx * cascadeOffset); // Cascade effect
         
         // Calculate token split widths (max 800px total)
         const maxWidth = 800;
@@ -115,8 +126,9 @@ function generateShareCardV3(data) {
         `;
     }).join('');
     
-    // Calculate final Y position for legend
-    const finalY = 195 + (recentAttempts.length * 45) + 30;
+    // Position legend at bottom right
+    const legendX = 700;
+    const legendY = height - 80;
     
     return `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -179,38 +191,47 @@ function generateShareCardV3(data) {
     
     ${attemptVisuals}
     
-    <!-- Legend -->
-    <g transform="translate(80, ${finalY})">
-        <text x="0" y="0" style="font-size: 13px; fill: ${colors.gray}; text-transform: uppercase; font-weight: bold;">
+    <!-- Legend (Bottom Right) -->
+    <g transform="translate(${legendX}, ${legendY})">
+        <rect x="-10" y="-10" width="450" height="70" fill="${colors.backgroundAlt}" 
+              stroke="${colors.border}" stroke-width="1" rx="6" opacity="0.9"/>
+        
+        <text x="0" y="5" style="font-size: 11px; fill: ${colors.gray}; text-transform: uppercase; font-weight: bold;">
             Legend:
         </text>
         
-        <!-- Prompt tokens -->
-        <rect x="0" y="12" width="50" height="18" fill="${colors.cyan}" rx="4" opacity="0.8"/>
-        <text x="55" y="25" style="font-size: 12px; fill: ${colors.white};">
-            Prompt Tokens
-        </text>
+        <!-- Row 1 -->
+        <g transform="translate(0, 20)">
+            <!-- Prompt tokens -->
+            <rect x="0" y="0" width="35" height="14" fill="${colors.cyan}" rx="3" opacity="0.8"/>
+            <text x="40" y="11" style="font-size: 10px; fill: ${colors.white};">
+                Prompt
+            </text>
+            
+            <!-- Output tokens -->
+            <rect x="100" y="0" width="35" height="14" fill="${colors.yellow}" rx="3" opacity="0.8"/>
+            <text x="140" y="11" style="font-size: 10px; fill: ${colors.white};">
+                Output
+            </text>
+        </g>
         
-        <!-- Output tokens -->
-        <rect x="180" y="12" width="50" height="18" fill="${colors.yellow}" rx="4" opacity="0.8"/>
-        <text x="235" y="25" style="font-size: 12px; fill: ${colors.white};">
-            Output Tokens
-        </text>
-        
-        <!-- Hit indicator -->
-        <circle cx="370" cy="21" r="7" fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
-        <text x="385" y="25" style="font-size: 12px; fill: ${colors.white};">
-            Word Match
-        </text>
-        
-        <!-- Blacklist indicator -->
-        <circle cx="510" cy="21" r="9" fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
-        <text x="510" y="26" style="font-size: 15px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
-            ✗
-        </text>
-        <text x="525" y="25" style="font-size: 12px; fill: ${colors.white};">
-            Blacklist Hit
-        </text>
+        <!-- Row 2 -->
+        <g transform="translate(0, 40)">
+            <!-- Hit indicator -->
+            <circle cx="17" cy="7" r="6" fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
+            <text x="30" y="11" style="font-size: 10px; fill: ${colors.white};">
+                Match
+            </text>
+            
+            <!-- Blacklist indicator -->
+            <circle cx="117" cy="7" r="7" fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
+            <text x="117" y="11" style="font-size: 12px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+                ✗
+            </text>
+            <text x="130" y="11" style="font-size: 10px; fill: ${colors.white};">
+                Blacklist
+            </text>
+        </g>
     </g>
     
 </svg>
