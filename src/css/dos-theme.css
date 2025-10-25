@@ -215,6 +215,76 @@ header::after {
     gap: var(--spacing-sm);
 }
 
+/* Mobile Auth Button */
+.mobile-auth-btn {
+    display: none; /* Hidden on desktop */
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    color: var(--text-dim);
+    min-height: 44px; /* Touch target */
+}
+
+.mobile-auth-btn:hover,
+.mobile-auth-btn:active {
+    background: var(--bg-tertiary);
+    border-color: var(--border-active);
+}
+
+.mobile-user-photo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--success);
+    object-fit: cover;
+}
+
+.mobile-auth-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.mobile-auth-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+/* Authenticated state */
+.mobile-auth-btn.authenticated .mobile-auth-label {
+    display: none;
+}
+
+.mobile-auth-btn.authenticated .mobile-auth-icon {
+    display: none;
+}
+
+.mobile-auth-btn.authenticated .mobile-user-photo {
+    display: block;
+}
+
+/* First visit pulse animation */
+@keyframes authPulse {
+    0%, 100% { 
+        border-color: var(--border-color);
+        box-shadow: 0 0 0 0 rgba(42, 161, 152, 0);
+    }
+    50% { 
+        border-color: var(--border-active);
+        box-shadow: 0 0 0 4px rgba(42, 161, 152, 0.3);
+    }
+}
+
+.mobile-auth-btn.first-visit {
+    animation: authPulse 2s ease-in-out 3;
+}
+
 .btn-auth {
     padding: 4px 8px;
     background: var(--bg-primary);
@@ -2287,7 +2357,20 @@ body.nav-expanded .top-bar {
     
     /* Hide desktop top bar on mobile */
     .top-bar {
-        display: none;
+        display: flex !important; /* Show on mobile with auth button */
+        height: 48px;
+        padding: 0 12px;
+    }
+    
+    /* Hide desktop auth elements on mobile */
+    .top-bar .user-info,
+    .top-bar .auth-buttons {
+        display: none !important;
+    }
+    
+    /* Show mobile auth button */
+    .mobile-auth-btn {
+        display: flex !important;
     }
     
     .main-content {

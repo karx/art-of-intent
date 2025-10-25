@@ -10,7 +10,7 @@ let lastInputWasVoice = false;
 
 // System prompt token overhead (approximate, measured from API)
 // This is subtracted from promptTokens to show only user's contribution
-const SYSTEM_PROMPT_TOKENS = 920;
+const SYSTEM_PROMPT_TOKENS = 915;
 
 // Text-to-Speech function
 function speakText(text) {

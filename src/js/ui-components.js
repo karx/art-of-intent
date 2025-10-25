@@ -211,6 +211,81 @@ function formatTime(seconds) {
 }
 
 // ============================================
+// MOBILE AUTH BUTTON
+// ============================================
+
+export function initializeMobileAuth() {
+    const mobileAuthBtn = document.getElementById('mobileAuthBtn');
+    
+    if (!mobileAuthBtn) return;
+    
+    // Check if first visit
+    const hasVisited = localStorage.getItem('artOfIntent_hasVisited');
+    if (!hasVisited) {
+        mobileAuthBtn.classList.add('first-visit');
+        localStorage.setItem('artOfIntent_hasVisited', 'true');
+        
+        // Remove animation class after it completes
+        setTimeout(() => {
+            mobileAuthBtn.classList.remove('first-visit');
+        }, 6000); // 3 iterations × 2s
+    }
+    
+    mobileAuthBtn.addEventListener('click', () => {
+        const user = auth.currentUser;
+        
+        if (user) {
+            // Authenticated - open profile
+            openProfile();
+        } else {
+            // Not authenticated - trigger sign in
+            const signInBtn = document.getElementById('signInGoogleBtn');
+            if (signInBtn) {
+                signInBtn.click();
+            }
+        }
+    });
+    
+    // Update button state on auth changes
+    auth.onAuthStateChanged((user) => {
+        updateMobileAuthButton(user);
+    });
+}
+
+function updateMobileAuthButton(user) {
+    const btn = document.getElementById('mobileAuthBtn');
+    const photo = document.getElementById('mobileUserPhoto');
+    const icon = document.getElementById('mobileAuthIcon');
+    const label = document.getElementById('mobileAuthLabel');
+    
+    if (!btn) return;
+    
+    if (user) {
+        // Authenticated state
+        btn.classList.add('authenticated');
+        btn.setAttribute('aria-label', `Profile: ${user.displayName || 'User'}`);
+        
+        if (user.photoURL) {
+            photo.src = user.photoURL;
+            photo.classList.remove('hidden');
+        } else {
+            photo.classList.add('hidden');
+            icon.style.display = 'block';
+        }
+        
+        label.textContent = '';
+    } else {
+        // Unauthenticated state
+        btn.classList.remove('authenticated');
+        btn.setAttribute('aria-label', 'Sign in to save progress');
+        
+        photo.classList.add('hidden');
+        icon.style.display = 'block';
+        label.textContent = 'Sign In';
+    }
+}
+
+// ============================================
 // USER PROFILE
 // ============================================
 
@@ -422,4 +497,5 @@ async function exportProfileData() {
 export function initializeUIComponents() {
     initializeLeaderboard();
     initializeProfile();
+    initializeMobileAuth();
 }
