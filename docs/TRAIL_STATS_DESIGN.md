@@ -37,16 +37,16 @@ Trail stats display token consumption and game progress for each attempt. Design
 2. **Timestamp** - When attempt was made
 3. **User Prompt** - What user asked
 4. **Arty Response** - Haiku generated
-5. **Token Consumption**:
-   - Prompt tokens (user input only, system prompt excluded)
-   - Output tokens (Arty's response)
-   - Total tokens (sum of both)
-6. **Match Indicator** - Words found (if any)
+5. **Token Consumption** - Compact bar visualization:
+   - Two-segment bar (prompt + output)
+   - Total tokens displayed as "X tok"
+   - Gradient colors: cyan→amber (prompt), amber→green (output)
+6. **Match Indicator** - Green dots (●) for each hit
 
 **Visual Treatment:**
 - Border: Neutral (base color)
 - Background: Standard
-- No special emphasis
+- Compact, scannable layout
 
 ```
 ┌─────────────────────────────────────────┐
@@ -57,19 +57,24 @@ Trail stats display token consumption and game progress for each attempt. Design
 │                                         │
 │ ✓ Found: cherry                         │
 │                                         │
-│ PROMPT  [████░░░░░░] 42                │
-│ OUTPUT  [██████████] 95                │
-│ ─────────────────────────────────────  │
-│ TOTAL: 137 tokens                      │
+│ [████████░░░░░░░░] 137 tok ●           │
+│  prompt  output                         │
 └─────────────────────────────────────────┘
 ```
+
+**Compact Stats Design:**
+- Inspired by share-card SVG aesthetic
+- Single-line horizontal bar
+- Hover tooltips show exact token counts
+- Green dots (●) indicate matched words
+- Minimal visual clutter
 
 ### Type 2: Victory Attempt (Game Win)
 **State**: All target words matched, game won
 
 **Information Displayed:**
 1. All standard info (above)
-2. **Victory Badge** - Visual indicator of win
+2. **Victory Badge** - 🏆 VICTORY header
 3. **Efficiency Score** - Performance metric
 4. **Final Stats Summary**:
    - Total attempts
@@ -77,14 +82,14 @@ Trail stats display token consumption and game progress for each attempt. Design
    - Average tokens per attempt
 
 **Visual Treatment:**
-- Border: Success color (green/cyan)
-- Background: Subtle success tint
+- Border: Success color (green/cyan, 3px)
+- Background: Subtle success tint (rgba green 0.05)
 - Victory icon/badge prominent
-- Glow effect or highlight
+- Pulse animation (respects reduced-motion)
 
 ```
 ┌═════════════════════════════════════════┐
-║ 🏆 VICTORY • #5 • 2:47:30 PM           ║
+║ 🏆 VICTORY • 2:47:30 PM                ║
 ║                                         ║
 ║ > USER: Speak of spring's arrival      ║
 ║ < ARTY: Cherry blossoms fall...        ║
@@ -92,10 +97,7 @@ Trail stats display token consumption and game progress for each attempt. Design
 ║ ✓ Found: cherry, spring, blossom       ║
 ║ ✓ ALL TARGETS MATCHED!                 ║
 ║                                         ║
-║ PROMPT  [████░░░░░░] 38                ║
-║ OUTPUT  [██████████] 89                ║
-║ ─────────────────────────────────────  ║
-║ TOTAL: 127 tokens                      ║
+║ [████████░░░░░░░░] 127 tok ●●●         ║
 ║                                         ║
 ║ ┌─────────────────────────────────┐   ║
 ║ │ GAME COMPLETE                   │   ║
