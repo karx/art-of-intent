@@ -4,36 +4,42 @@
    ============================================ */
 
 /* ============================================
-   COLOR PALETTE - IBM VGA 16-Color
+   COLOR PALETTE - Solarized CRT Theme
    ============================================ */
 :root {
-    /* Primary Colors */
-    --dos-black: #000000;
-    --dos-gray: #555555;
-    --dos-light-gray: #AAAAAA;
-    --dos-white: #FFFFFF;
+    /* Solarized Base Colors */
+    --sol-base03: #002b36;
+    --sol-base02: #073642;
+    --sol-base01: #586e75;
+    --sol-base00: #657b83;
+    --sol-base0: #839496;
+    --sol-base1: #93a1a1;
+    --sol-base2: #eee8d5;
+    --sol-base3: #fdf6e3;
     
-    /* Accent Colors */
-    --dos-green: #55FF55;
-    --dos-red: #FF5555;
-    --dos-cyan: #55FFFF;
-    --dos-yellow: #FFFF55;
-    --dos-blue: #5555FF;
-    --dos-magenta: #FF55FF;
+    /* Solarized Accent Colors */
+    --sol-yellow: #b58900;
+    --sol-orange: #cb4b16;
+    --sol-red: #dc322f;
+    --sol-magenta: #d33682;
+    --sol-violet: #6c71c4;
+    --sol-blue: #268bd2;
+    --sol-cyan: #2aa198;
+    --sol-green: #859900;
     
-    /* Semantic Colors */
-    --bg-primary: var(--dos-black);
-    --bg-secondary: #0A0A0A;
-    --text-primary: var(--dos-light-gray);
-    --text-bright: var(--dos-white);
-    --text-dim: var(--dos-gray);
-    --border-color: var(--dos-light-gray);
-    --border-active: var(--dos-cyan);
-    --success-color: var(--dos-green);
-    --error-color: var(--dos-red);
-    --warning-color: var(--dos-yellow);
-    --info-color: var(--dos-cyan);
-    --highlight-color: var(--dos-blue);
+    /* Semantic Colors - Solarized CRT */
+    --bg-primary: var(--sol-base03);
+    --bg-secondary: var(--sol-base02);
+    --text-primary: var(--sol-base0);
+    --text-bright: var(--sol-base1);
+    --text-dim: var(--sol-base01);
+    --border-color: var(--sol-base01);
+    --border-active: var(--sol-cyan);
+    --success-color: var(--sol-green);
+    --error-color: var(--sol-red);
+    --warning-color: var(--sol-yellow);
+    --info-color: var(--sol-cyan);
+    --highlight-color: var(--sol-blue);
     
     /* Spacing */
     --spacing-xs: 4px;
@@ -70,17 +76,20 @@ body {
     display: flex;
     flex-direction: column;
     
-    /* CRT Effect - Scanlines */
+    /* CRT Effect - Scanlines with subtle warmth */
     background-image: 
         repeating-linear-gradient(
             0deg,
-            rgba(0, 0, 0, 0.15),
-            rgba(0, 0, 0, 0.15) 1px,
+            rgba(0, 0, 0, 0.1),
+            rgba(0, 0, 0, 0.1) 1px,
             transparent 1px,
             transparent 2px
         );
     background-size: 100% 2px;
     animation: scanline 8s linear infinite;
+    
+    /* Subtle CRT glow */
+    text-shadow: 0 0 1px rgba(131, 148, 150, 0.3);
 }
 
 @keyframes scanline {
@@ -148,7 +157,7 @@ header::after {
 .header-title h1 {
     font-size: 11px;
     font-weight: bold;
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin: 0;
@@ -159,7 +168,7 @@ header::after {
 
 .header-title h1::before {
     content: '> ';
-    color: var(--dos-yellow);
+    color: var(--sol-yellow);
 }
 
 .subtitle {
@@ -188,12 +197,12 @@ header::after {
 .user-photo {
     width: 24px;
     height: 24px;
-    border: 1px solid var(--dos-cyan);
+    border: 1px solid var(--sol-cyan);
     image-rendering: pixelated;
 }
 
 .user-name {
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     font-size: 12px;
     text-transform: uppercase;
 }
@@ -220,13 +229,13 @@ header::after {
 
 .btn-auth:hover {
     background: var(--text-dim);
-    color: var(--dos-black);
-    border-color: var(--dos-cyan);
+    color: var(--sol-base03);
+    border-color: var(--sol-cyan);
 }
 
 .btn-auth:active {
-    background: var(--dos-cyan);
-    color: var(--dos-black);
+    background: var(--sol-cyan);
+    color: var(--sol-base03);
 }
 
 .btn-auth svg {
@@ -304,7 +313,7 @@ header::after {
 
 .target-group .word-badge.found {
     background: var(--success-color);
-    color: var(--dos-black);
+    color: var(--sol-base03);
     font-weight: bold;
 }
 
@@ -324,7 +333,7 @@ header::after {
 }
 
 .score-compact strong {
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     font-weight: bold;
 }
 
@@ -431,7 +440,7 @@ header::after {
 
 .target-card .word-badge.found {
     background: var(--success-color);
-    color: var(--dos-black);
+    color: var(--sol-base03);
     font-weight: bold;
 }
 
@@ -473,7 +482,7 @@ header::after {
 }
 
 .score-value {
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     font-weight: bold;
     font-size: 14px;
     font-family: inherit;
@@ -487,8 +496,8 @@ header::after {
     padding: var(--spacing-xs) var(--spacing-md);
     width: 100%;
     background: var(--bg-primary);
-    color: var(--dos-yellow);
-    border: 1px solid var(--dos-yellow);
+    color: var(--sol-yellow);
+    border: 1px solid var(--sol-yellow);
     font-family: inherit;
     font-size: 12px;
     text-transform: uppercase;
@@ -505,8 +514,8 @@ header::after {
 }
 
 .export-btn:hover {
-    background: var(--dos-yellow);
-    color: var(--dos-black);
+    background: var(--sol-yellow);
+    color: var(--sol-base03);
 }
 
 .export-btn svg {
@@ -582,7 +591,7 @@ header::after {
 }
 
 .trail-prompt {
-    color: var(--dos-yellow);
+    color: var(--sol-yellow);
     margin-bottom: var(--spacing-xs);
     font-size: 13px;
 }
@@ -593,7 +602,7 @@ header::after {
 }
 
 .trail-response {
-    color: var(--dos-green);
+    color: var(--sol-green);
     margin-bottom: var(--spacing-xs);
     font-size: 13px;
     white-space: pre-wrap;
@@ -650,7 +659,7 @@ header::after {
 }
 
 .live-value {
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     font-family: inherit;
 }
 
@@ -675,12 +684,12 @@ header::after {
 .input-section.morphed {
     opacity: 1;
     transform: scale(1);
-    border-color: var(--dos-cyan);
+    border-color: var(--sol-cyan);
     animation: pulse-border 2s ease-in-out infinite;
 }
 
 @keyframes pulse-border {
-    0%, 100% { border-color: var(--dos-cyan); }
+    0%, 100% { border-color: var(--sol-cyan); }
     50% { border-color: var(--success-color); }
 }
 
@@ -709,8 +718,8 @@ header::after {
 }
 
 .code-editor-input:focus {
-    border-color: var(--dos-cyan);
-    box-shadow: 0 0 4px var(--dos-cyan);
+    border-color: var(--sol-cyan);
+    box-shadow: 0 0 4px var(--sol-cyan);
 }
 
 .input-controls {
@@ -759,14 +768,14 @@ header::after {
 .voice-btn:hover,
 .submit-btn:hover {
     background: var(--text-dim);
-    color: var(--dos-black);
-    border-color: var(--dos-cyan);
+    color: var(--sol-base03);
+    border-color: var(--sol-cyan);
 }
 
 .voice-btn:active,
 .submit-btn:active {
-    background: var(--dos-cyan);
-    color: var(--dos-black);
+    background: var(--sol-cyan);
+    color: var(--sol-base03);
 }
 
 .voice-btn:disabled,
@@ -784,7 +793,7 @@ header::after {
 
 .voice-btn.recording {
     background: var(--error-color);
-    color: var(--dos-black);
+    color: var(--sol-base03);
     border-color: var(--error-color);
     animation: blink 500ms infinite;
 }
@@ -853,7 +862,7 @@ header::after {
 .modal-content h2 {
     font-size: 16px;
     font-weight: bold;
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     text-transform: uppercase;
     text-align: center;
     margin-bottom: var(--spacing-lg);
@@ -905,12 +914,12 @@ header::after {
 
 .btn-primary:hover {
     background: var(--success-color);
-    color: var(--dos-black);
+    color: var(--sol-base03);
 }
 
 .btn-secondary:hover {
     background: var(--text-dim);
-    color: var(--dos-black);
+    color: var(--sol-base03);
 }
 
 /* ============================================
@@ -998,14 +1007,14 @@ header::after {
 }
 
 .filter-btn.active {
-    background: var(--dos-cyan);
-    color: var(--dos-black);
-    border-color: var(--dos-cyan);
+    background: var(--sol-cyan);
+    color: var(--sol-base03);
+    border-color: var(--sol-cyan);
 }
 
 .filter-btn:hover:not(.active) {
     background: var(--text-dim);
-    color: var(--dos-black);
+    color: var(--sol-base03);
 }
 
 .leaderboard-content {
@@ -1027,7 +1036,7 @@ header::after {
 .leaderboard-table th {
     padding: var(--spacing-sm);
     text-align: left;
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     text-transform: uppercase;
     font-weight: bold;
 }
@@ -1039,7 +1048,7 @@ header::after {
 
 .leaderboard-table tr.current-user {
     background: var(--text-dim);
-    color: var(--dos-black);
+    color: var(--sol-base03);
 }
 
 .leaderboard-table tr.current-user td {
@@ -1047,7 +1056,7 @@ header::after {
 }
 
 .leaderboard-table .rank {
-    color: var(--dos-yellow);
+    color: var(--sol-yellow);
     font-weight: bold;
     width: 60px;
 }
@@ -1062,7 +1071,7 @@ header::after {
 }
 
 .leaderboard-table .tokens {
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     text-align: right;
 }
 
@@ -1104,7 +1113,7 @@ header::after {
 
 .profile-username {
     font-size: 16px;
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     text-transform: uppercase;
     font-weight: bold;
     margin-bottom: var(--spacing-xs);
@@ -1125,7 +1134,7 @@ header::after {
 
 .profile-section-title {
     font-size: 12px;
-    color: var(--dos-yellow);
+    color: var(--sol-yellow);
     text-transform: uppercase;
     font-weight: bold;
     margin-bottom: var(--spacing-md);
@@ -1157,7 +1166,7 @@ header::after {
 
 .profile-stat-value {
     font-size: 14px;
-    color: var(--dos-cyan);
+    color: var(--sol-cyan);
     font-weight: bold;
 }
 
@@ -1179,7 +1188,7 @@ header::after {
 
 .profile-progress-fill {
     height: 100%;
-    background: var(--dos-cyan);
+    background: var(--sol-cyan);
     transition: width 0.3s ease;
 }
 
