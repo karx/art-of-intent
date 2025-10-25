@@ -215,76 +215,6 @@ header::after {
     gap: var(--spacing-sm);
 }
 
-/* Mobile Auth Button */
-.mobile-auth-btn {
-    display: none; /* Hidden on desktop */
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 12px;
-    color: var(--text-dim);
-    min-height: 44px; /* Touch target */
-}
-
-.mobile-auth-btn:hover,
-.mobile-auth-btn:active {
-    background: var(--bg-tertiary);
-    border-color: var(--border-active);
-}
-
-.mobile-user-photo {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid var(--success);
-    object-fit: cover;
-}
-
-.mobile-auth-icon {
-    font-size: 20px;
-    line-height: 1;
-}
-
-.mobile-auth-label {
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
-}
-
-/* Authenticated state */
-.mobile-auth-btn.authenticated .mobile-auth-label {
-    display: none;
-}
-
-.mobile-auth-btn.authenticated .mobile-auth-icon {
-    display: none;
-}
-
-.mobile-auth-btn.authenticated .mobile-user-photo {
-    display: block;
-}
-
-/* First visit pulse animation */
-@keyframes authPulse {
-    0%, 100% { 
-        border-color: var(--border-color);
-        box-shadow: 0 0 0 0 rgba(42, 161, 152, 0);
-    }
-    50% { 
-        border-color: var(--border-active);
-        box-shadow: 0 0 0 4px rgba(42, 161, 152, 0.3);
-    }
-}
-
-.mobile-auth-btn.first-visit {
-    animation: authPulse 2s ease-in-out 3;
-}
-
 .btn-auth {
     padding: 4px 8px;
     background: var(--bg-primary);
@@ -1454,6 +1384,107 @@ header::after {
 
 .profile-content {
     min-height: 400px;
+    max-height: 70vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Scrollbar styling for profile content */
+.profile-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.profile-content::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.profile-content::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.profile-content::-webkit-scrollbar-thumb:hover {
+    background: var(--border-active);
+}
+
+/* Guest Profile */
+.profile-guest {
+    text-align: center;
+    padding: var(--spacing-xl);
+}
+
+.profile-guest-icon {
+    font-size: 64px;
+    margin-bottom: var(--spacing-md);
+}
+
+.profile-guest h3 {
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+    font-size: 1.5rem;
+}
+
+.profile-guest-message {
+    color: var(--text-dim);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.6;
+}
+
+.profile-guest-benefits {
+    text-align: left;
+    margin: var(--spacing-lg) auto;
+    max-width: 400px;
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.profile-guest-benefits h4 {
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+    font-size: 0.9rem;
+}
+
+.profile-guest-benefits ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.profile-guest-benefits li {
+    color: var(--text-dim);
+    padding: var(--spacing-xs) 0;
+    font-size: 0.85rem;
+}
+
+.profile-guest-actions {
+    margin-top: var(--spacing-lg);
+}
+
+/* Profile Actions Section */
+.profile-actions-section {
+    margin-top: var(--spacing-lg);
+}
+
+.profile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.profile-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-md);
+    font-size: 0.9rem;
+}
+
+.profile-action-btn .btn-icon {
+    font-size: 1.2rem;
 }
 
 .profile-header {
@@ -2006,6 +2037,35 @@ header::after {
     .modal-actions button {
         flex: 1;
     }
+    
+    /* Profile Modal Mobile */
+    .profile-modal {
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+    }
+    
+    .profile-content {
+        max-height: calc(100vh - 200px);
+        padding: var(--spacing-sm);
+    }
+    
+    .profile-header {
+        padding: var(--spacing-md);
+    }
+    
+    .profile-section {
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .profile-guest {
+        padding: var(--spacing-md);
+    }
+    
+    .profile-guest-icon {
+        font-size: 48px;
+    }
 }
 
 /* ============================================
@@ -2357,20 +2417,7 @@ body.nav-expanded .top-bar {
     
     /* Hide desktop top bar on mobile */
     .top-bar {
-        display: flex !important; /* Show on mobile with auth button */
-        height: 48px;
-        padding: 0 12px;
-    }
-    
-    /* Hide desktop auth elements on mobile */
-    .top-bar .user-info,
-    .top-bar .auth-buttons {
-        display: none !important;
-    }
-    
-    /* Show mobile auth button */
-    .mobile-auth-btn {
-        display: flex !important;
+        display: none;
     }
     
     .main-content {

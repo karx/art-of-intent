@@ -211,81 +211,6 @@ function formatTime(seconds) {
 }
 
 // ============================================
-// MOBILE AUTH BUTTON
-// ============================================
-
-export function initializeMobileAuth() {
-    const mobileAuthBtn = document.getElementById('mobileAuthBtn');
-    
-    if (!mobileAuthBtn) return;
-    
-    // Check if first visit
-    const hasVisited = localStorage.getItem('artOfIntent_hasVisited');
-    if (!hasVisited) {
-        mobileAuthBtn.classList.add('first-visit');
-        localStorage.setItem('artOfIntent_hasVisited', 'true');
-        
-        // Remove animation class after it completes
-        setTimeout(() => {
-            mobileAuthBtn.classList.remove('first-visit');
-        }, 6000); // 3 iterations × 2s
-    }
-    
-    mobileAuthBtn.addEventListener('click', () => {
-        const user = auth.currentUser;
-        
-        if (user) {
-            // Authenticated - open profile
-            openProfile();
-        } else {
-            // Not authenticated - trigger sign in
-            const signInBtn = document.getElementById('signInGoogleBtn');
-            if (signInBtn) {
-                signInBtn.click();
-            }
-        }
-    });
-    
-    // Update button state on auth changes
-    auth.onAuthStateChanged((user) => {
-        updateMobileAuthButton(user);
-    });
-}
-
-function updateMobileAuthButton(user) {
-    const btn = document.getElementById('mobileAuthBtn');
-    const photo = document.getElementById('mobileUserPhoto');
-    const icon = document.getElementById('mobileAuthIcon');
-    const label = document.getElementById('mobileAuthLabel');
-    
-    if (!btn) return;
-    
-    if (user) {
-        // Authenticated state
-        btn.classList.add('authenticated');
-        btn.setAttribute('aria-label', `Profile: ${user.displayName || 'User'}`);
-        
-        if (user.photoURL) {
-            photo.src = user.photoURL;
-            photo.classList.remove('hidden');
-        } else {
-            photo.classList.add('hidden');
-            icon.style.display = 'block';
-        }
-        
-        label.textContent = '';
-    } else {
-        // Unauthenticated state
-        btn.classList.remove('authenticated');
-        btn.setAttribute('aria-label', 'Sign in to save progress');
-        
-        photo.classList.add('hidden');
-        icon.style.display = 'block';
-        label.textContent = 'Sign In';
-    }
-}
-
-// ============================================
 // USER PROFILE
 // ============================================
 
@@ -327,13 +252,58 @@ async function openProfile() {
     const modal = document.getElementById('profileModal');
     const user = auth.currentUser;
 
-    if (!user) {
-        alert('Please sign in to view your profile');
-        return;
-    }
-
     modal.classList.remove('hidden');
-    await loadProfile(user.uid);
+    
+    if (!user) {
+        // Show guest/sign-in view
+        showGuestProfile();
+    } else {
+        // Show authenticated profile
+        await loadProfile(user.uid);
+    }
+}
+
+function showGuestProfile() {
+    const content = document.getElementById('profileContent');
+    content.innerHTML = `
+        <div class="profile-guest">
+            <div class="profile-guest-icon">👤</div>
+            <h3>Playing as Guest</h3>
+            <p class="profile-guest-message">Sign in to save your progress, compete on the leaderboard, and track your stats!</p>
+            
+            <div class="profile-guest-benefits">
+                <h4>Benefits of signing in:</h4>
+                <ul>
+                    <li>✓ Save your game progress</li>
+                    <li>✓ Compete on global leaderboard</li>
+                    <li>✓ Track your statistics</li>
+                    <li>✓ Earn achievements</li>
+                    <li>✓ Sync across devices</li>
+                </ul>
+            </div>
+            
+            <div class="profile-guest-actions">
+                <button id="profileSignInBtn" class="btn-primary btn-google">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                        <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z" fill="#34A853"/>
+                        <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                        <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+                    </svg>
+                    Sign in with Google
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Add event listener for sign in button
+    const signInBtn = document.getElementById('profileSignInBtn');
+    signInBtn.addEventListener('click', () => {
+        const mainSignInBtn = document.getElementById('signInGoogleBtn');
+        if (mainSignInBtn) {
+            mainSignInBtn.click();
+        }
+    });
 }
 
 async function loadProfile(userId) {
@@ -445,11 +415,58 @@ async function loadProfile(userId) {
                     }).join('') : '<div class="profile-empty">No sessions yet</div>'}
                 </div>
             </div>
+            
+            <div class="profile-section profile-actions-section">
+                <div class="profile-section-title">Account</div>
+                <div class="profile-actions">
+                    <button id="profileEditNameBtn" class="btn-secondary profile-action-btn">
+                        <span class="btn-icon">✏️</span>
+                        Edit Display Name
+                    </button>
+                    <button id="profileSignOutBtn" class="btn-secondary profile-action-btn">
+                        <span class="btn-icon">🚪</span>
+                        Sign Out
+                    </button>
+                </div>
+            </div>
         `;
+        
+        // Add event listeners for auth actions
+        setTimeout(() => {
+            const editNameBtn = document.getElementById('profileEditNameBtn');
+            const signOutBtn = document.getElementById('profileSignOutBtn');
+            
+            if (editNameBtn) {
+                editNameBtn.addEventListener('click', () => handleEditName());
+            }
+            
+            if (signOutBtn) {
+                signOutBtn.addEventListener('click', () => handleSignOut());
+            }
+        }, 0);
 
     } catch (error) {
         console.error('Error loading profile:', error);
         content.innerHTML = '<div class="leaderboard-empty">Error loading profile. Please try again.</div>';
+    }
+}
+
+function handleEditName() {
+    const editNameBtn = document.getElementById('editNameBtn');
+    if (editNameBtn) {
+        editNameBtn.click();
+    }
+}
+
+function handleSignOut() {
+    const signOutBtn = document.getElementById('signOutBtn');
+    if (signOutBtn) {
+        signOutBtn.click();
+    }
+    // Close profile modal
+    const profileModal = document.getElementById('profileModal');
+    if (profileModal) {
+        profileModal.classList.add('hidden');
     }
 }
 
@@ -497,5 +514,4 @@ async function exportProfileData() {
 export function initializeUIComponents() {
     initializeLeaderboard();
     initializeProfile();
-    initializeMobileAuth();
 }
