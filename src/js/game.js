@@ -326,8 +326,21 @@ function setupEventListeners() {
 
 function updateSoundIcon() {
     const soundIcon = document.getElementById('soundIcon');
+    const soundLabel = document.getElementById('soundLabel');
+    const soundBtn = document.getElementById('soundToggleBtn');
+    
     if (soundIcon && typeof soundManager !== 'undefined') {
-        soundIcon.textContent = soundManager.isEnabled() ? '🔊' : '🔇';
+        const isEnabled = soundManager.isEnabled();
+        soundIcon.textContent = isEnabled ? '♪' : '♪̸';
+        
+        if (soundLabel) {
+            soundLabel.textContent = isEnabled ? 'Sound' : 'Muted';
+        }
+        
+        if (soundBtn) {
+            soundBtn.title = isEnabled ? 'Mute sound (Ctrl+M)' : 'Unmute sound (Ctrl+M)';
+            soundBtn.style.color = isEnabled ? '' : 'var(--accent-yellow)';
+        }
     }
 }
 

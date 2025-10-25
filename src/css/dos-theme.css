@@ -1,6 +1,7 @@
 /* ============================================
    MS-DOS CONSOLE THEME - Art of Intent
    Early 1990s Aesthetic
+   Updated: 2025-10-25 with Side Navigation
    ============================================ */
 
 /* ============================================
@@ -73,8 +74,7 @@ body {
     padding: 0;
     margin: 0;
     overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
+    position: relative;
     
     /* CRT Effect - Scanlines with subtle warmth */
     background-image: 
@@ -106,12 +106,15 @@ body {
    CONTAINER & LAYOUT
    ============================================ */
 .container {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
     max-width: 100%;
     margin: 0;
     padding: 0;
+}
+
+.container:not(.main-content) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 /* DOS-Style Full Screen Border */
@@ -674,6 +677,51 @@ header::after {
     border-top: 2px solid var(--border-color);
     background: var(--bg-primary);
     transition: all 0.3s ease;
+}
+
+.input-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--spacing-sm) var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.input-user-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+.user-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: var(--text-primary);
+    border: 1px solid var(--border-active);
+}
+
+.user-avatar.has-photo {
+    background-size: cover;
+    background-position: center;
+}
+
+.user-label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.user-label::before {
+    content: '>';
+    margin-right: 4px;
+    color: var(--info-color);
 }
 
 .input-section.morphing {
@@ -1385,4 +1433,373 @@ header::after {
     25% { content: '/'; }
     50% { content: '─'; }
     75% { content: '\\'; }
+}
+
+/* ============================================
+   SIDE NAVIGATION - Cognitive Design
+   ============================================ */
+
+/* Side Navigation - Desktop (default) */
+.side-nav {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 56px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    z-index: 1000;
+    transition: width 0.2s ease;
+    overflow: hidden;
+}
+
+.side-nav.expanded {
+    width: 200px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    margin: 2px 4px;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    min-height: 48px;
+}
+
+.nav-item:hover {
+    background: var(--bg-primary);
+    color: var(--highlight-color);
+}
+
+.nav-item:active,
+.nav-item.active {
+    background: var(--bg-primary);
+    color: var(--info-color);
+    border-left: 2px solid var(--info-color);
+}
+
+.nav-icon {
+    font-size: 1.25rem;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.nav-label {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    font-weight: 500;
+}
+
+.side-nav.expanded .nav-label {
+    opacity: 1;
+}
+
+.nav-toggle {
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+}
+
+.nav-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-primary {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.nav-monitoring {
+    flex: 1;
+}
+
+.nav-settings {
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Top Bar - Auto-hide on scroll */
+.top-bar {
+    position: fixed;
+    top: 0;
+    left: 56px;
+    right: 0;
+    height: 48px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 999;
+    transition: transform 0.3s ease, left 0.2s ease;
+    transform: translateY(0);
+}
+
+.top-bar.hidden {
+    transform: translateY(-100%);
+}
+
+body.scrolled-top .top-bar {
+    transform: translateY(0);
+}
+
+.top-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.version-badge {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-dim);
+    background: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border-color);
+}
+
+.top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Main Content Adjustments */
+.main-content {
+    margin-left: 56px;
+    margin-top: 48px;
+    padding: 20px;
+    transition: margin-left 0.2s ease, margin-top 0.3s ease;
+}
+
+body:not(.scrolled-top) .main-content {
+    margin-top: 0;
+    padding-top: 20px;
+}
+
+body.nav-expanded .main-content {
+    margin-left: 200px;
+}
+
+body.nav-expanded .top-bar {
+    left: 200px;
+}
+
+/* User Info in Top Bar */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-photo {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--highlight-color);
+}
+
+.user-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.btn-text:hover {
+    color: var(--highlight-color);
+    background: var(--bg-primary);
+}
+
+/* Auth Buttons */
+.auth-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background: var(--highlight-color);
+    color: var(--bg-primary);
+    border-color: var(--highlight-color);
+}
+
+.btn-primary:hover {
+    background: var(--info-color);
+    border-color: var(--info-color);
+}
+
+.btn-secondary {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: var(--border-color);
+    border-color: var(--highlight-color);
+}
+
+.btn-google {
+    background: #fff;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+}
+
+.btn-google:hover {
+    background: #f8f9fa;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Mobile Responsive - Only for small screens */
+@media only screen and (max-width: 767px) {
+    /* Mobile: Top navigation bar (auto-hide on scroll) */
+    .side-nav {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: auto !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 48px !important;
+        flex-direction: row !important;
+        justify-content: space-around;
+        align-items: center;
+        padding: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        transition: transform 0.3s ease;
+        transform: translateY(0);
+        z-index: 1001;
+    }
+    
+    /* Hide on scroll */
+    .side-nav.hidden {
+        transform: translateY(-100%);
+    }
+    
+    body.scrolled-top .side-nav {
+        transform: translateY(0);
+    }
+    
+    .side-nav.expanded {
+        width: 100%;
+        height: 48px;
+    }
+    
+    /* Hide menu toggle on mobile - no collapsible state needed */
+    .nav-toggle {
+        display: none;
+    }
+    
+    .nav-item {
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px 4px;
+        margin: 0;
+        min-height: auto;
+        font-size: 0.65rem;
+        flex: 1;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .nav-icon {
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    
+    .nav-label {
+        opacity: 1;
+        font-size: 0.65rem;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    
+    .nav-section {
+        border: none;
+        padding: 0;
+        margin: 0;
+        display: contents;
+    }
+    
+    .nav-primary,
+    .nav-monitoring,
+    .nav-settings {
+        flex-direction: row;
+        border: none;
+        display: contents;
+    }
+    
+    /* Hide desktop top bar on mobile */
+    .top-bar {
+        display: none;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        margin-top: 48px;
+        margin-bottom: 0;
+        padding: 12px;
+        transition: margin-top 0.3s ease;
+    }
+    
+    body:not(.scrolled-top) .main-content {
+        margin-top: 0;
+    }
+    
+    body.nav-expanded .main-content {
+        margin-left: 0;
+    }
 }
