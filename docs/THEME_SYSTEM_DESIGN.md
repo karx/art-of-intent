@@ -120,6 +120,27 @@ const textSizes = {
   xlarge: { name: 'Extra Large', multiplier: 1.25, lineHeight: 1.7 },
   huge: { name: 'Huge', multiplier: 1.5, lineHeight: 1.8 }
 };
+
+const voiceStyles = {
+  contemplative: {
+    name: 'Contemplative',
+    description: 'Slow and calm',
+    rate: 0.7,
+    pitch: 0.9
+  },
+  natural: {
+    name: 'Natural',
+    description: 'Balanced reading',
+    rate: 0.85,
+    pitch: 1.0
+  },
+  expressive: {
+    name: 'Expressive',
+    description: 'Slightly animated',
+    rate: 0.95,
+    pitch: 1.1
+  }
+};
 ```
 
 ### User Preferences Structure
@@ -128,6 +149,8 @@ const textSizes = {
 const userPreferences = {
   theme: 'solarized',        // Current theme
   textSize: 'medium',        // Current text size
+  voiceStyle: 'contemplative', // Voice reading style
+  voiceName: null,           // Selected voice (null = default)
   reducedMotion: false,      // Respect prefers-reduced-motion
   autoTheme: false,          // Follow system dark mode
   customColors: null         // Future: custom theme colors
@@ -135,6 +158,50 @@ const userPreferences = {
 
 // Stored in localStorage
 localStorage.setItem('artOfIntent_preferences', JSON.stringify(userPreferences));
+```
+
+## Voice Settings
+
+### Voice Styles
+
+Three preset voice styles for haiku readout:
+
+1. **Contemplative** (Default)
+   - Rate: 0.7 (slow, meditative)
+   - Pitch: 0.9 (slightly lower, calm)
+   - Best for: Traditional haiku reading, mindful experience
+
+2. **Natural**
+   - Rate: 0.85 (balanced)
+   - Pitch: 1.0 (neutral)
+   - Best for: General use, comfortable listening
+
+3. **Expressive**
+   - Rate: 0.95 (slightly faster)
+   - Pitch: 1.1 (slightly higher, animated)
+   - Best for: Energetic reading, playful tone
+
+### Voice Selection
+
+Users can select from available system voices:
+- Browser provides list via `speechSynthesis.getVoices()`
+- Voices vary by OS and browser
+- Preference for English voices by default
+- Voice selection persisted in localStorage
+
+### Integration
+
+Voice settings integrate with the `speakText()` function:
+```javascript
+function speakText(text) {
+  const settings = themeManager.getVoiceSettings();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.voice = settings.voice;
+  utterance.rate = settings.rate;
+  utterance.pitch = settings.pitch;
+  utterance.volume = settings.volume;
+  window.speechSynthesis.speak(utterance);
+}
 ```
 
 ## Implementation Plan
