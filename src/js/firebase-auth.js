@@ -117,6 +117,12 @@ async function loadUserProfile(user) {
 
 // Create new user profile
 async function createUserProfile(user) {
+    console.log('Creating user profile for:', {
+        uid: user.uid,
+        isAnonymous: user.isAnonymous,
+        displayName: user.displayName
+    });
+    
     const profile = {
         userId: user.uid,
         displayName: user.displayName || `Player${Math.floor(Math.random() * 10000)}`,
@@ -156,9 +162,10 @@ async function createUserProfile(user) {
     try {
         const userRef = doc(db, 'users', user.uid);
         await setDoc(userRef, profile);
+        console.log('✅ User profile created successfully:', profile.displayName);
         return profile;
     } catch (error) {
-        console.error('Error creating user profile:', error);
+        console.error('❌ Error creating user profile:', error);
         throw error;
     }
 }

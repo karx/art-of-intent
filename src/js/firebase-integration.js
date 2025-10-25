@@ -30,6 +30,23 @@ function initializeFirebaseIntegration() {
         // Set up auth button listeners
         setupAuthButtons();
         
+        // Auto-authenticate as guest if user hasn't signed in after 2 seconds
+        setTimeout(() => {
+            const user = window.firebaseAuth.getCurrentUser();
+            if (!user) {
+                console.log('🎮 No user signed in, auto-authenticating as guest for session tracking...');
+                window.firebaseAuth.signInAnon()
+                    .then(() => {
+                        console.log('✅ Auto-authenticated as guest');
+                    })
+                    .catch(err => {
+                        console.error('❌ Auto-authentication failed:', err);
+                    });
+            } else {
+                console.log('✅ User already authenticated:', user.uid);
+            }
+        }, 2000);
+        
         console.log('✅ Firebase Auth initialized');
     }
     
