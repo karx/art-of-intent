@@ -611,6 +611,13 @@ function handleBlacklistViolation(prompt, violatedWords) {
     saveGameState();
     updateUI();
     
+    // Save to Firestore
+    if (window.saveGameToFirestore) {
+        window.saveGameToFirestore(gameState).catch(err => {
+            console.error('Failed to save to Firestore:', err);
+        });
+    }
+    
     showGameOverModal(false, violatedWords);
 }
 
@@ -639,6 +646,14 @@ function handleGameWin() {
     });
     
     saveGameState();
+    
+    // Save to Firestore
+    if (window.saveGameToFirestore) {
+        window.saveGameToFirestore(gameState).catch(err => {
+            console.error('Failed to save to Firestore:', err);
+        });
+    }
+    
     showGameOverModal(true);
 }
 

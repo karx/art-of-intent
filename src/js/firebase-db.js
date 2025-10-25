@@ -25,8 +25,22 @@ export async function saveSession(sessionData) {
         return null;
     }
     
+    // Validate required fields
+    if (!sessionData || !sessionData.sessionId) {
+        console.error('Invalid session data: missing sessionId', sessionData);
+        return null;
+    }
+    
     const profile = getUserProfile();
     const displayName = profile?.displayName || user.displayName || user.email || 'Guest';
+    
+    console.log('Saving session:', {
+        sessionId: sessionData.sessionId,
+        userId: user.uid,
+        displayName: displayName,
+        isAuthenticated: !!user,
+        hasProfile: !!profile
+    });
     
     try {
         const sessionRef = doc(db, 'sessions', sessionData.sessionId);

@@ -253,6 +253,13 @@ function setupOfflineSync() {
 // Hook into game completion to save to Firestore
 // This will be called from game.js after a game ends
 window.saveGameToFirestore = async function(gameData) {
+    console.log('saveGameToFirestore called with:', {
+        hasFirebaseDb: !!window.firebaseDb,
+        hasFirebaseAuth: !!window.firebaseAuth,
+        sessionId: gameData?.sessionId,
+        gameOver: gameData?.gameOver
+    });
+    
     if (!window.firebaseDb || !window.firebaseAuth) {
         console.warn('Firebase not available, skipping save');
         return;
@@ -263,6 +270,8 @@ window.saveGameToFirestore = async function(gameData) {
         console.warn('No user signed in, skipping Firestore save');
         return;
     }
+    
+    console.log('Attempting to save session for user:', user.uid);
     
     try {
         // Save session to Firestore
