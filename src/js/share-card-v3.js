@@ -16,17 +16,27 @@ function generateShareCardV3(data) {
     
     const width = 1200;
     const height = 630;
+    
+    // Get current theme colors from CSS variables
+    const getThemeColor = (varName, fallback) => {
+        if (typeof document !== 'undefined') {
+            const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+            return value || fallback;
+        }
+        return fallback;
+    };
+    
     const colors = {
-        background: '#002b36',
-        backgroundAlt: '#073642',
-        border: '#586e75',
-        cyan: '#2aa198',
-        green: '#859900',
-        red: '#dc322f',
-        yellow: '#b58900',
-        white: '#93a1a1',
-        gray: '#586e75',
-        dim: '#073642'
+        background: getThemeColor('--bg-primary', '#002b36'),
+        backgroundAlt: getThemeColor('--bg-secondary', '#073642'),
+        border: getThemeColor('--border-primary', '#586e75'),
+        cyan: getThemeColor('--accent-secondary', '#2aa198'),
+        green: getThemeColor('--success', '#859900'),
+        red: getThemeColor('--error', '#dc322f'),
+        yellow: getThemeColor('--warning', '#b58900'),
+        white: getThemeColor('--text-primary', '#93a1a1'),
+        gray: getThemeColor('--text-secondary', '#586e75'),
+        dim: getThemeColor('--bg-tertiary', '#073642')
     };
     
     const isWin = result === 'WIN';

@@ -1,0 +1,251 @@
+/* ============================================
+   THEME SYSTEM - Art of Intent
+   Multi-theme support with CSS variables
+   ============================================ */
+
+/* ============================================
+   BASE THEME STRUCTURE
+   ============================================ */
+
+:root {
+  /* Text Size System */
+  --text-size-multiplier: 1.0; /* Default: Medium */
+  --base-font-size: 15px;
+  --line-height-base: 1.5;
+  
+  /* Computed sizes */
+  --font-size-computed: calc(var(--base-font-size) * var(--text-size-multiplier));
+  --font-size-small: calc(var(--font-size-computed) * 0.875);
+  --font-size-large: calc(var(--font-size-computed) * 1.25);
+  --font-size-h1: calc(var(--font-size-computed) * 2.0);
+  --font-size-h2: calc(var(--font-size-computed) * 1.5);
+  --font-size-h3: calc(var(--font-size-computed) * 1.25);
+}
+
+/* ============================================
+   THEME 1: SOLARIZED (Default)
+   Classic terminal aesthetic
+   ============================================ */
+
+[data-theme="solarized"],
+:root {
+  /* Base Colors */
+  --sol-base03: #002b36;
+  --sol-base02: #073642;
+  --sol-base01: #586e75;
+  --sol-base00: #657b83;
+  --sol-base0: #839496;
+  --sol-base1: #93a1a1;
+  --sol-base2: #eee8d5;
+  --sol-base3: #fdf6e3;
+  
+  /* Accent Colors */
+  --sol-yellow: #b58900;
+  --sol-orange: #cb4b16;
+  --sol-red: #dc322f;
+  --sol-magenta: #d33682;
+  --sol-violet: #6c71c4;
+  --sol-blue: #268bd2;
+  --sol-cyan: #2aa198;
+  --sol-green: #859900;
+  
+  /* Semantic Mapping */
+  --bg-primary: var(--sol-base03);
+  --bg-secondary: var(--sol-base02);
+  --bg-tertiary: #0a4a5a;
+  --text-primary: var(--sol-base0);
+  --text-secondary: var(--sol-base01);
+  --text-bright: var(--sol-base1);
+  --text-dim: var(--sol-base00);
+  --border-color: var(--sol-base01);
+  --border-active: var(--sol-cyan);
+  --accent-primary: var(--sol-cyan);
+  --accent-secondary: var(--sol-blue);
+  --success-color: var(--sol-green);
+  --warning-color: var(--sol-yellow);
+  --error-color: var(--sol-red);
+  --info-color: var(--sol-cyan);
+  --highlight-color: var(--sol-blue);
+  --hover-bg: #0a4a5a;
+  --active-bg: #0d5766;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================
+   THEME 2: POLARIZED
+   High contrast light theme
+   ============================================ */
+
+[data-theme="polarized"] {
+  /* Base Colors */
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #eee8d5;
+  --bg-tertiary: #e5ddc8;
+  --text-primary: #073642;
+  --text-secondary: #586e75;
+  --text-bright: #002b36;
+  --text-dim: #657b83;
+  --border-color: #93a1a1;
+  --border-active: #268bd2;
+  
+  /* Accents - Bold and vibrant */
+  --accent-primary: #268bd2;
+  --accent-secondary: #cb4b16;
+  --success-color: #859900;
+  --warning-color: #b58900;
+  --error-color: #dc322f;
+  --info-color: #2aa198;
+  --highlight-color: #d33682;
+  --hover-bg: #e5ddc8;
+  --active-bg: #ddd4bd;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   THEME 3: LIGHT
+   Clean minimal modern
+   ============================================ */
+
+[data-theme="light"] {
+  /* Base Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7fafc;
+  --bg-tertiary: #edf2f7;
+  --text-primary: #2d3748;
+  --text-secondary: #4a5568;
+  --text-bright: #1a202c;
+  --text-dim: #718096;
+  --border-color: #e2e8f0;
+  --border-active: #4299e1;
+  
+  /* Accents - Soft and modern */
+  --accent-primary: #4299e1;
+  --accent-secondary: #667eea;
+  --success-color: #48bb78;
+  --warning-color: #ed8936;
+  --error-color: #f56565;
+  --info-color: #4299e1;
+  --highlight-color: #667eea;
+  --hover-bg: #edf2f7;
+  --active-bg: #e2e8f0;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   THEME 4: DARK
+   Modern dark mode
+   ============================================ */
+
+[data-theme="dark"] {
+  /* Base Colors */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --text-primary: #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-bright: #f0f6fc;
+  --text-dim: #6e7681;
+  --border-color: #30363d;
+  --border-active: #58a6ff;
+  
+  /* Accents - Bright and clear */
+  --accent-primary: #58a6ff;
+  --accent-secondary: #79c0ff;
+  --success-color: #3fb950;
+  --warning-color: #d29922;
+  --error-color: #f85149;
+  --info-color: #58a6ff;
+  --highlight-color: #79c0ff;
+  --hover-bg: #21262d;
+  --active-bg: #30363d;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   THEME 5: CARTOON
+   Playful and colorful
+   ============================================ */
+
+[data-theme="cartoon"] {
+  /* Base Colors */
+  --bg-primary: #f0f4ff;
+  --bg-secondary: #e0e7ff;
+  --bg-tertiary: #ddd6fe;
+  --text-primary: #4a1d96;
+  --text-secondary: #6b21a8;
+  --text-bright: #3b0764;
+  --text-dim: #7c3aed;
+  --border-color: #c4b5fd;
+  --border-active: #8b5cf6;
+  
+  /* Accents - Rainbow and vibrant */
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #ec4899;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  --info-color: #3b82f6;
+  --highlight-color: #ec4899;
+  --hover-bg: #ddd6fe;
+  --active-bg: #c4b5fd;
+  --shadow-color: rgba(139, 92, 246, 0.2);
+}
+
+/* ============================================
+   TEXT SIZE CLASSES
+   ============================================ */
+
+[data-text-size="small"] {
+  --text-size-multiplier: 0.9;
+  --line-height-base: 1.4;
+}
+
+[data-text-size="medium"] {
+  --text-size-multiplier: 1.0;
+  --line-height-base: 1.5;
+}
+
+[data-text-size="large"] {
+  --text-size-multiplier: 1.1;
+  --line-height-base: 1.6;
+}
+
+[data-text-size="xlarge"] {
+  --text-size-multiplier: 1.25;
+  --line-height-base: 1.7;
+}
+
+[data-text-size="huge"] {
+  --text-size-multiplier: 1.5;
+  --line-height-base: 1.8;
+}
+
+/* ============================================
+   THEME TRANSITIONS
+   ============================================ */
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
+}
+
+/* ============================================
+   APPLY COMPUTED FONT SIZE
+   ============================================ */
+
+body {
+  font-size: var(--font-size-computed);
+  line-height: var(--line-height-base);
+}
+
+h1 { font-size: var(--font-size-h1); }
+h2 { font-size: var(--font-size-h2); }
+h3 { font-size: var(--font-size-h3); }
+small, .text-small { font-size: var(--font-size-small); }
+.text-large { font-size: var(--font-size-large); }

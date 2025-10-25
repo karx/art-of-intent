@@ -220,6 +220,7 @@
     </script>
     
     <link rel="stylesheet" href="src/css/dos-theme.css">
+    <link rel="stylesheet" href="src/css/themes.css">
 </head>
 <body>
     <!-- Side Navigation -->
@@ -252,6 +253,11 @@
             <button id="soundToggleBtn" class="nav-item" aria-label="Toggle sound" title="Sound (Ctrl+M)">
                 <span class="nav-icon" id="soundIcon">♪</span>
                 <span class="nav-label" id="soundLabel">Sound</span>
+            </button>
+            
+            <button id="themeBtn" class="nav-item" aria-label="Appearance settings" title="Theme (Ctrl+T)">
+                <span class="nav-icon">⚙</span>
+                <span class="nav-label">Theme</span>
             </button>
             
             <a href="about.html" class="nav-item" aria-label="About this app" title="About">
@@ -485,6 +491,10 @@
     
     <!-- Header Toggle -->
     <script type="module" src="src/js/header-toggle.js"></script>
+    
+    <!-- Theme System -->
+    <script type="module" src="src/js/theme-manager.js"></script>
+    <script type="module" src="src/js/theme-picker.js"></script>
     
     <!-- Firebase Modules -->
     <script type="module" src="src/js/firebase-config.js"></script>
