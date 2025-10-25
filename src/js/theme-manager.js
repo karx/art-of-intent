@@ -61,9 +61,33 @@ class ThemeManager {
             }
         };
         
+        this.voiceStyles = {
+            contemplative: {
+                name: 'Contemplative',
+                description: 'Slow and calm',
+                rate: 0.7,
+                pitch: 0.9
+            },
+            natural: {
+                name: 'Natural',
+                description: 'Balanced reading',
+                rate: 0.85,
+                pitch: 1.0
+            },
+            expressive: {
+                name: 'Expressive',
+                description: 'Slightly animated',
+                rate: 0.95,
+                pitch: 1.1
+            }
+        };
+        
         this.storageKey = 'artOfIntent_preferences';
         this.currentTheme = 'solarized';
         this.currentTextSize = 'medium';
+        this.currentVoiceStyle = 'contemplative';
+        this.currentVoice = null;
+        this.availableVoices = [];
         
         this.init();
     }
@@ -76,6 +100,9 @@ class ThemeManager {
         this.applyTheme(this.currentTheme, false);
         this.applyTextSize(this.currentTextSize, false);
         
+        // Load available voices
+        this.loadVoices();
+        
         // Setup keyboard shortcuts
         this.setupKeyboardShortcuts();
         
@@ -84,8 +111,31 @@ class ThemeManager {
         
         console.log('🎨 Theme Manager initialized:', {
             theme: this.currentTheme,
-            textSize: this.currentTextSize
+            textSize: this.currentTextSize,
+            voiceStyle: this.currentVoiceStyle
         });
+    }
+    
+    loadVoices() {
+        if ('speechSynthesis' in window) {
+            const loadVoiceList = () => {
+                this.availableVoices = window.speechSynthesis.getVoices();
+                console.log('🔊 Loaded voices:', this.availableVoices.length);
+                
+                // Set default voice if not set
+                if (!this.currentVoice && this.availableVoices.length > 0) {
+                    // Prefer English voices
+                    const englishVoice = this.availableVoices.find(v => v.lang.startsWith('en'));
+                    this.currentVoice = englishVoice || this.availableVoices[0];
+                }
+            };
+            
+            loadVoiceList();
+            // Voices may load asynchronously
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoiceList;
+            }
+        }
     }
     
     loadPreferences() {
@@ -95,6 +145,8 @@ class ThemeManager {
                 const prefs = JSON.parse(saved);
                 this.currentTheme = prefs.theme || 'solarized';
                 this.currentTextSize = prefs.textSize || 'medium';
+                this.currentVoiceStyle = prefs.voiceStyle || 'contemplative';
+                this.currentVoice = prefs.voiceName || null;
             }
         } catch (error) {
             console.error('Error loading preferences:', error);
@@ -106,12 +158,50 @@ class ThemeManager {
             const prefs = {
                 theme: this.currentTheme,
                 textSize: this.currentTextSize,
+                voiceStyle: this.currentVoiceStyle,
+                voiceName: this.currentVoice ? this.currentVoice.name : null,
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem(this.storageKey, JSON.stringify(prefs));
         } catch (error) {
             console.error('Error saving preferences:', error);
         }
+    }
+    
+    applyVoiceStyle(styleName, save = true) {
+        if (!this.voiceStyles[styleName]) {
+            console.warn('Unknown voice style:', styleName);
+            return;
+        }
+        
+        this.currentVoiceStyle = styleName;
+        
+        if (save) {
+            this.savePreferences();
+            this.showNotification(`Voice style: ${this.voiceStyles[styleName].name}`);
+        }
+    }
+    
+    setVoice(voiceName, save = true) {
+        const voice = this.availableVoices.find(v => v.name === voiceName);
+        if (voice) {
+            this.currentVoice = voice;
+            
+            if (save) {
+                this.savePreferences();
+                this.showNotification(`Voice: ${voice.name}`);
+            }
+        }
+    }
+    
+    getVoiceSettings() {
+        const style = this.voiceStyles[this.currentVoiceStyle];
+        return {
+            voice: this.currentVoice,
+            rate: style.rate,
+            pitch: style.pitch,
+            volume: 1.0
+        };
     }
     
     applyTheme(themeName, save = true) {

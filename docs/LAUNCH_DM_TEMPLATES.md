@@ -155,7 +155,7 @@ I've seen people:
 - Go full philosophical
 - Try to "jailbreak" the constraints
 
-What's your approach?
+What's your approach?   
 
 Try it: art-of-intent.netlify.app
 

@@ -60,6 +60,27 @@ class ThemePicker {
                             <p class="text-small">Small text sample for comparison.</p>
                         </div>
                     </div>
+                    
+                    <!-- Voice Settings -->
+                    <div class="settings-section">
+                        <h3>Voice Settings</h3>
+                        <p class="settings-description">Configure how haikus are read aloud</p>
+                        
+                        <div class="voice-style-options" id="voiceStyleOptions">
+                            ${this.renderVoiceStyleOptions()}
+                        </div>
+                        
+                        <div class="voice-select-wrapper">
+                            <label for="voiceSelect">Voice:</label>
+                            <select id="voiceSelect" class="voice-select">
+                                ${this.renderVoiceOptions()}
+                            </select>
+                        </div>
+                        
+                        <button class="btn-secondary test-voice-btn" id="testVoiceBtn">
+                            🔊 Test Voice
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="modal-footer">
@@ -110,6 +131,37 @@ class ThemePicker {
         `).join('');
     }
     
+    renderVoiceStyleOptions() {
+        const styles = this.themeManager.voiceStyles;
+        const currentStyle = this.themeManager.currentVoiceStyle;
+        
+        return Object.entries(styles).map(([key, style]) => `
+            <label class="voice-style-option ${key === currentStyle ? 'selected' : ''}">
+                <input type="radio" name="voiceStyle" value="${key}" ${key === currentStyle ? 'checked' : ''}>
+                <div class="style-card">
+                    <div class="style-name">${style.name}</div>
+                    <div class="style-description">${style.description}</div>
+                    <div class="style-details">Rate: ${style.rate} | Pitch: ${style.pitch}</div>
+                </div>
+            </label>
+        `).join('');
+    }
+    
+    renderVoiceOptions() {
+        const voices = this.themeManager.availableVoices;
+        const currentVoice = this.themeManager.currentVoice;
+        
+        if (voices.length === 0) {
+            return '<option>Loading voices...</option>';
+        }
+        
+        return voices.map(voice => `
+            <option value="${voice.name}" ${currentVoice && voice.name === currentVoice.name ? 'selected' : ''}>
+                ${voice.name} (${voice.lang})
+            </option>
+        `).join('');
+    }
+    
     setupEventListeners() {
         // Close button
         this.modal.querySelector('.modal-close').addEventListener('click', () => this.close());
@@ -137,6 +189,12 @@ class ThemePicker {
             }
         });
         
+        // Test voice button
+        const testVoiceBtn = this.modal.querySelector('#testVoiceBtn');
+        if (testVoiceBtn) {
+            testVoiceBtn.addEventListener('click', () => this.testVoice());
+        }
+        
         // Theme option change - live preview
         this.modal.addEventListener('change', (e) => {
             if (e.target.name === 'theme') {
@@ -147,12 +205,19 @@ class ThemePicker {
                 this.previewTextSize = e.target.value;
                 this.updatePreview();
                 this.updateSelection('textSize', e.target.value);
+            } else if (e.target.name === 'voiceStyle') {
+                this.updateSelection('voiceStyle', e.target.value);
             }
         });
     }
     
     updateSelection(type, value) {
-        const container = type === 'theme' ? '#themeOptions' : '#textSizeOptions';
+        let container;
+        if (type === 'theme') container = '#themeOptions';
+        else if (type === 'textSize') container = '#textSizeOptions';
+        else if (type === 'voiceStyle') container = '#voiceStyleOptions';
+        else return;
+        
         const options = this.modal.querySelectorAll(`${container} label`);
         
         options.forEach(option => {
@@ -212,11 +277,49 @@ class ThemePicker {
             this.themeManager.applyTextSize(this.previewTextSize);
         }
         
+        // Apply voice settings
+        const voiceStyleInput = this.modal.querySelector('input[name="voiceStyle"]:checked');
+        if (voiceStyleInput) {
+            this.themeManager.applyVoiceStyle(voiceStyleInput.value);
+        }
+        
+        const voiceSelect = this.modal.querySelector('#voiceSelect');
+        if (voiceSelect && voiceSelect.value) {
+            this.themeManager.setVoice(voiceSelect.value);
+        }
+        
         // Close modal
         this.modal.classList.add('hidden');
         
         // Show success notification
         this.themeManager.showNotification('Appearance settings saved');
+    }
+    
+    testVoice() {
+        // Get current selections
+        const voiceStyleInput = this.modal.querySelector('input[name="voiceStyle"]:checked');
+        const voiceSelect = this.modal.querySelector('#voiceSelect');
+        
+        if (!voiceStyleInput || !voiceSelect) return;
+        
+        // Temporarily apply settings for test
+        const style = this.themeManager.voiceStyles[voiceStyleInput.value];
+        const voice = this.themeManager.availableVoices.find(v => v.name === voiceSelect.value);
+        
+        // Test haiku
+        const testHaiku = "Whispers in the wind\nCherry blossoms gently fall\nSpring's fleeting beauty";
+        
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(testHaiku);
+            if (voice) utterance.voice = voice;
+            utterance.rate = style.rate;
+            utterance.pitch = style.pitch;
+            utterance.volume = 1.0;
+            
+            window.speechSynthesis.speak(utterance);
+        }
     }
     
     resetDefaults() {

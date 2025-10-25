@@ -19,9 +19,22 @@ function speakText(text) {
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9; // Slightly slower for clarity
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
+    
+    // Get voice settings from theme manager if available
+    if (window.themeManager) {
+        const settings = window.themeManager.getVoiceSettings();
+        if (settings.voice) {
+            utterance.voice = settings.voice;
+        }
+        utterance.rate = settings.rate;
+        utterance.pitch = settings.pitch;
+        utterance.volume = settings.volume;
+    } else {
+        // Fallback to contemplative defaults
+        utterance.rate = 0.7;
+        utterance.pitch = 0.9;
+        utterance.volume = 1.0;
+    }
     
     window.speechSynthesis.speak(utterance);
 }
