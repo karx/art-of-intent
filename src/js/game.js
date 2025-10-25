@@ -816,11 +816,12 @@ async function shareScore() {
             efficiency: efficiency,
             date: new Date().toLocaleDateString(),
             userName: userName,
-            userPhoto: userPhoto
+            userPhoto: userPhoto,
+            globalMaxTokens: 1000 // Can be fetched from leaderboard stats
         };
         
-        // Generate SVG
-        const svg = shareCardGenerator.generateSVG(cardData);
+        // Generate SVG (v2 by default)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
         
         // Share image
         await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
@@ -856,11 +857,12 @@ function previewShareCard() {
             efficiency: efficiency,
             date: new Date().toLocaleDateString(),
             userName: userName,
-            userPhoto: userPhoto
+            userPhoto: userPhoto,
+            globalMaxTokens: 1000
         };
         
-        // Generate and preview SVG
-        const svg = shareCardGenerator.generateSVG(cardData);
+        // Generate and preview SVG (v2 by default)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
         shareCardGenerator.previewImage(svg);
         
     } catch (error) {
@@ -904,11 +906,12 @@ async function shareWithText() {
             efficiency: efficiency,
             date: new Date().toLocaleDateString(),
             userName: userName,
-            userPhoto: userPhoto
+            userPhoto: userPhoto,
+            globalMaxTokens: 1000
         };
         
-        // Generate SVG and convert to PNG
-        const svg = shareCardGenerator.generateSVG(cardData);
+        // Generate SVG and convert to PNG (v2 by default)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
         const blob = await shareCardGenerator.svgToPNG(svg);
         const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
         

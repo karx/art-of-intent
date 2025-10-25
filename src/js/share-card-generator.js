@@ -24,9 +24,22 @@ class ShareCardGenerator {
     /**
      * Generate SVG share card
      * @param {object} data - Game data
+     * @param {string} version - Card version ('v1' or 'v2')
      * @returns {string} SVG string
      */
-    generateSVG(data) {
+    generateSVG(data, version = 'v2') {
+        if (version === 'v2') {
+            return this.generateSVGv2(data);
+        }
+        return this.generateSVGv1(data);
+    }
+    
+    /**
+     * Generate SVG share card v1 (original)
+     * @param {object} data - Game data
+     * @returns {string} SVG string
+     */
+    generateSVGv1(data) {
         const {
             result = 'WIN',
             attempts = 0,
@@ -214,6 +227,170 @@ class ShareCardGenerator {
     <!-- Footer -->
     <text x="60" y="565" class="username">${userName}</text>
     <text x="60" y="595" class="url">art-of-intent.netlify.app</text>
+    
+</svg>
+        `.trim();
+    }
+    
+    /**
+     * Generate SVG share card v2 (enhanced)
+     * @param {object} data - Game data
+     * @returns {string} SVG string
+     */
+    generateSVGv2(data) {
+        const {
+            result = 'WIN',
+            attempts = 0,
+            tokens = 0,
+            matches = '0/3',
+            efficiency = '0.0',
+            date = new Date().toLocaleDateString(),
+            userName = 'Guest',
+            userPhoto = null,
+            globalMaxTokens = 1000 // Global max for comparison
+        } = data;
+        
+        const isWin = result === 'WIN';
+        const resultColor = isWin ? this.colors.green : this.colors.red;
+        const [matchNum, matchTotal] = matches.split('/').map(Number);
+        
+        // Calculate percentages for visual bars
+        const matchPercent = matchTotal > 0 ? (matchNum / matchTotal) * 100 : 0;
+        const tokenPercent = globalMaxTokens > 0 ? Math.min((tokens / globalMaxTokens) * 100, 100) : 0;
+        const attemptPercent = Math.min((attempts / 10) * 100, 100);
+        
+        return `
+<svg width="${this.width}" height="${this.height}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400,700&amp;display=swap');
+            
+            text {
+                font-family: 'Courier Prime', 'Courier New', monospace;
+                fill: ${this.colors.white};
+            }
+            
+            .title {
+                font-size: 48px;
+                font-weight: bold;
+                fill: ${this.colors.cyan};
+                letter-spacing: 4px;
+            }
+            
+            .subtitle {
+                font-size: 20px;
+                fill: ${this.colors.gray};
+                letter-spacing: 2px;
+            }
+            
+            .result-badge {
+                font-size: 80px;
+                font-weight: bold;
+                fill: ${resultColor};
+                letter-spacing: 8px;
+            }
+            
+            .result-icon {
+                font-size: 64px;
+                fill: ${resultColor};
+            }
+            
+            .kpi-label {
+                font-size: 16px;
+                fill: ${this.colors.gray};
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            .kpi-value {
+                font-size: 48px;
+                font-weight: bold;
+                fill: ${this.colors.cyan};
+            }
+            
+            .kpi-unit {
+                font-size: 20px;
+                fill: ${this.colors.gray};
+            }
+            
+            .bar-bg {
+                fill: ${this.colors.backgroundAlt};
+            }
+            
+            .bar-fill {
+                fill: ${this.colors.cyan};
+            }
+            
+            .bar-fill-success {
+                fill: ${this.colors.green};
+            }
+            
+            .bar-fill-warning {
+                fill: ${this.colors.yellow};
+            }
+            
+            .footer-text {
+                font-size: 18px;
+                fill: ${this.colors.gray};
+            }
+            
+            .username {
+                font-size: 20px;
+                font-weight: bold;
+                fill: ${this.colors.cyan};
+            }
+        </style>
+    </defs>
+    
+    <!-- Background -->
+    <rect width="${this.width}" height="${this.height}" fill="${this.colors.background}"/>
+    
+    <!-- Border -->
+    <rect x="20" y="20" width="${this.width - 40}" height="${this.height - 40}" 
+          fill="none" stroke="${this.colors.border}" stroke-width="3"/>
+    
+    <!-- Header -->
+    <text x="60" y="90" class="title">ART OF INTENT</text>
+    <text x="60" y="120" class="subtitle">DAILY HAIKU CHALLENGE</text>
+    
+    <!-- Result Badge (Center-Left) -->
+    <g transform="translate(80, 200)">
+        <rect x="0" y="0" width="280" height="160" 
+              fill="${this.colors.backgroundAlt}" 
+              stroke="${resultColor}" stroke-width="3"/>
+        <text x="140" y="70" class="result-icon" text-anchor="middle">${isWin ? '✓' : '✗'}</text>
+        <text x="140" y="135" class="result-badge" text-anchor="middle">${result}</text>
+    </g>
+    
+    <!-- KPI Grid (Center-Right) -->
+    <!-- Attempts -->
+    <g transform="translate(420, 200)">
+        <text x="0" y="20" class="kpi-label">ATTEMPTS</text>
+        <text x="0" y="75" class="kpi-value">${attempts}<tspan class="kpi-unit">/10</tspan></text>
+        <rect x="0" y="90" width="300" height="12" class="bar-bg" rx="6"/>
+        <rect x="0" y="90" width="${attemptPercent * 3}" height="12" class="bar-fill" rx="6"/>
+    </g>
+    
+    <!-- Matches -->
+    <g transform="translate(420, 290)">
+        <text x="0" y="20" class="kpi-label">MATCHES</text>
+        <text x="0" y="75" class="kpi-value">${matchNum}<tspan class="kpi-unit">/${matchTotal}</tspan></text>
+        <rect x="0" y="90" width="300" height="12" class="bar-bg" rx="6"/>
+        <rect x="0" y="90" width="${matchPercent * 3}" height="12" class="bar-fill-success" rx="6"/>
+    </g>
+    
+    <!-- Tokens (Bottom Full Width) -->
+    <g transform="translate(80, 430)">
+        <text x="0" y="20" class="kpi-label">TOKENS USED</text>
+        <text x="0" y="75" class="kpi-value">${tokens}<tspan class="kpi-unit"> / ${globalMaxTokens} max</tspan></text>
+        <rect x="0" y="90" width="1040" height="16" class="bar-bg" rx="8"/>
+        <rect x="0" y="90" width="${tokenPercent * 10.4}" height="16" class="bar-fill-warning" rx="8"/>
+    </g>
+    
+    <!-- Footer -->
+    <line x1="60" y1="560" x2="${this.width - 60}" y2="560" stroke="${this.colors.border}" stroke-width="1"/>
+    <text x="60" y="595" class="username">${userName}</text>
+    <text x="${this.width - 60}" y="595" class="footer-text" text-anchor="end">art-of-intent.netlify.app</text>
     
 </svg>
         `.trim();
