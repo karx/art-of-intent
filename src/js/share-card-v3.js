@@ -33,48 +33,90 @@ function generateShareCardV3(data) {
     const resultColor = isWin ? colors.green : colors.red;
     const [matchNum, matchTotal] = matches.split('/').map(Number);
     
-    // Get last 3 attempts for visualization
-    const recentAttempts = responseTrail.slice(-3);
+    // Get all attempts for visualization (up to 8)
+    const recentAttempts = responseTrail.slice(-8);
     
-    // Generate attempt visualizations
+    // Generate cascading token visualization
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
-        const y = 220 + (idx * 110);
-        const tokenPercent = Math.min((attempt.totalTokens / 200) * 100, 100);
-        const hasHits = attempt.foundWords && attempt.foundWords.length > 0;
-        const hitColor = hasHits ? colors.green : colors.gray;
+        const y = 220 + (idx * 45);
+        const x = 80 + (idx * 15); // Cascade effect
+        
+        // Calculate token split widths (max 800px total)
+        const maxWidth = 800;
+        const promptWidth = Math.min((attempt.promptTokens / 200) * maxWidth, maxWidth * 0.6);
+        const outputWidth = Math.min((attempt.outputTokens / 200) * maxWidth, maxWidth * 0.4);
+        
+        // Determine hit status
+        const isViolation = attempt.violation || false;
+        const hitCount = attempt.foundWords ? attempt.foundWords.length : 0;
+        const hasHits = hitCount > 0;
+        
+        // Generate hit indicators
+        let hitIndicators = '';
+        if (isViolation) {
+            // Red X for blacklist violation
+            hitIndicators = `
+                <circle cx="${30 + promptWidth + outputWidth + 20}" cy="17" r="8" 
+                        fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
+                <text x="${30 + promptWidth + outputWidth + 20}" y="21" 
+                      style="font-size: 14px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+                    ✗
+                </text>
+            `;
+        } else if (hasHits) {
+            // Multiple green circles for multiple hits
+            for (let i = 0; i < Math.min(hitCount, 3); i++) {
+                const circleX = 30 + promptWidth + outputWidth + 20 + (i * 14);
+                hitIndicators += `
+                    <circle cx="${circleX}" cy="17" r="6" 
+                            fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
+                `;
+            }
+            // Show count if more than 3
+            if (hitCount > 3) {
+                hitIndicators += `
+                    <text x="${30 + promptWidth + outputWidth + 20 + (3 * 14)}" y="20" 
+                          style="font-size: 11px; fill: ${colors.green}; font-weight: bold;">
+                        +${hitCount - 3}
+                    </text>
+                `;
+            }
+        } else {
+            // Gray circle for no hits
+            hitIndicators = `
+                <circle cx="${30 + promptWidth + outputWidth + 20}" cy="17" r="6" 
+                        fill="${colors.gray}" stroke="${colors.border}" stroke-width="2" opacity="0.5"/>
+            `;
+        }
         
         return `
         <!-- Attempt ${attempt.number} -->
-        <g transform="translate(80, ${y})">
+        <g transform="translate(${x}, ${y})">
             <!-- Attempt number -->
-            <text x="0" y="20" style="font-size: 16px; fill: ${colors.gray}; text-transform: uppercase;">
-                #${attempt.number}
+            <text x="0" y="18" style="font-size: 14px; fill: ${colors.gray}; font-weight: bold;">
+                ${attempt.number}
             </text>
             
-            <!-- Token bar -->
-            <rect x="60" y="5" width="400" height="20" fill="${colors.dim}" rx="4"/>
-            <rect x="60" y="5" width="${tokenPercent * 4}" height="20" fill="${colors.yellow}" rx="4"/>
-            <text x="470" y="20" style="font-size: 14px; fill: ${colors.white};">
-                ${attempt.totalTokens} tok
-            </text>
+            <!-- Prompt tokens (cyan) -->
+            <rect x="30" y="5" width="${promptWidth}" height="24" fill="${colors.cyan}" rx="4" opacity="0.8"/>
             
-            <!-- Hits indicator -->
-            <circle cx="550" cy="15" r="8" fill="${hitColor}" stroke="${colors.border}" stroke-width="2"/>
-            ${hasHits ? `<text x="570" y="20" style="font-size: 14px; fill: ${colors.green}; font-weight: bold;">
-                ${attempt.foundWords.join(', ')}
-            </text>` : ''}
+            <!-- Output tokens (yellow) -->
+            <rect x="${30 + promptWidth}" y="5" width="${outputWidth}" height="24" fill="${colors.yellow}" rx="4" opacity="0.8"/>
             
-            <!-- Prompt preview (truncated) -->
-            <text x="60" y="50" style="font-size: 13px; fill: ${colors.gray}; font-style: italic;">
-                "${attempt.prompt.substring(0, 80)}${attempt.prompt.length > 80 ? '...' : ''}"
+            <!-- Hit indicators -->
+            ${hitIndicators}
+            
+            <!-- Total tokens label -->
+            <text x="${30 + promptWidth + outputWidth + 70}" y="20" 
+                  style="font-size: 12px; fill: ${colors.white};">
+                ${attempt.totalTokens}
             </text>
         </g>
         `;
     }).join('');
     
-    // Final prompt (if game is complete)
-    const finalAttempt = responseTrail[responseTrail.length - 1];
-    const finalPromptY = 220 + (recentAttempts.length * 110);
+    // Calculate final Y position for legend
+    const finalY = 220 + (recentAttempts.length * 45) + 20;
     
     return `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -130,19 +172,39 @@ function generateShareCardV3(data) {
     
     ${attemptVisuals}
     
-    ${finalAttempt && isWin ? `
-    <!-- Final Result -->
-    <g transform="translate(80, ${finalPromptY})">
-        <rect x="0" y="0" width="1040" height="60" fill="${colors.backgroundAlt}" 
-              stroke="${colors.green}" stroke-width="2" rx="6"/>
-        <text x="20" y="25" style="font-size: 14px; fill: ${colors.green}; font-weight: bold;">
-            WINNING PROMPT:
+    <!-- Legend -->
+    <g transform="translate(80, ${finalY})">
+        <text x="0" y="0" style="font-size: 12px; fill: ${colors.gray}; text-transform: uppercase;">
+            Legend:
         </text>
-        <text x="20" y="45" style="font-size: 12px; fill: ${colors.white}; font-style: italic;">
-            "${finalAttempt.prompt.substring(0, 100)}${finalAttempt.prompt.length > 100 ? '...' : ''}"
+        
+        <!-- Prompt tokens -->
+        <rect x="0" y="10" width="40" height="16" fill="${colors.cyan}" rx="3" opacity="0.8"/>
+        <text x="45" y="22" style="font-size: 11px; fill: ${colors.white};">
+            Prompt
+        </text>
+        
+        <!-- Output tokens -->
+        <rect x="120" y="10" width="40" height="16" fill="${colors.yellow}" rx="3" opacity="0.8"/>
+        <text x="165" y="22" style="font-size: 11px; fill: ${colors.white};">
+            Output
+        </text>
+        
+        <!-- Hit indicator -->
+        <circle cx="240" cy="18" r="6" fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
+        <text x="255" y="22" style="font-size: 11px; fill: ${colors.white};">
+            Match
+        </text>
+        
+        <!-- Blacklist indicator -->
+        <circle cx="330" cy="18" r="8" fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
+        <text x="330" y="22" style="font-size: 14px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+            ✗
+        </text>
+        <text x="345" y="22" style="font-size: 11px; fill: ${colors.white};">
+            Blacklist
         </text>
     </g>
-    ` : ''}
     
     <!-- Footer -->
     <line x1="60" y1="580" x2="${width - 60}" y2="580" stroke="${colors.border}" stroke-width="1"/>
