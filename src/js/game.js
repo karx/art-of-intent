@@ -8,6 +8,10 @@ import { GameAnalytics, UserAnalytics } from './analytics.js';
 // Track if last input was via voice
 let lastInputWasVoice = false;
 
+// System prompt token overhead (approximate, measured from API)
+// This is subtracted from promptTokens to show only user's contribution
+const SYSTEM_PROMPT_TOKENS = 920;
+
 // Text-to-Speech function
 function speakText(text) {
     if (!('speechSynthesis' in window)) {
@@ -549,11 +553,17 @@ function processResponse(prompt, apiResponse) {
     const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
     const usageMetadata = apiResponse.usageMetadata || {};
     
-    const promptTokens = usageMetadata.promptTokenCount || 0;
+    // Get raw token counts from API
+    const rawPromptTokens = usageMetadata.promptTokenCount || 0;
     const outputTokens = usageMetadata.candidatesTokenCount || 0;
-    const totalTokens = usageMetadata.totalTokenCount || 0;
+    const rawTotalTokens = usageMetadata.totalTokenCount || 0;
     
-    gameState.totalTokens += totalTokens;
+    // Subtract system prompt tokens to show only user's contribution
+    const userPromptTokens = Math.max(0, rawPromptTokens - SYSTEM_PROMPT_TOKENS);
+    const adjustedTotalTokens = userPromptTokens + outputTokens;
+    
+    // Track adjusted total for game stats
+    gameState.totalTokens += adjustedTotalTokens;
     
     // Check for target words in response
     const responseLower = responseText.toLowerCase();
@@ -573,25 +583,25 @@ function processResponse(prompt, apiResponse) {
     // Track response processing
     trackEvent('response_processed', {
         attemptNumber: gameState.attempts,
-        promptTokens,
+        promptTokens: userPromptTokens,
         outputTokens,
-        totalTokens,
+        totalTokens: adjustedTotalTokens,
         foundWords,
         newWordsFound: newMatchCount - previousMatchCount,
         totalMatches: newMatchCount,
         responseLength: responseText.length
     });
     
-    // Create trail item
+    // Create trail item with adjusted tokens
     const trailItem = {
         number: gameState.attempts,
         timestamp: new Date().toLocaleTimeString(),
         isoTimestamp: new Date().toISOString(),
         prompt: prompt,
         response: responseText,
-        promptTokens,
-        outputTokens,
-        totalTokens,
+        promptTokens: userPromptTokens,  // User tokens only
+        outputTokens: outputTokens,
+        totalTokens: adjustedTotalTokens, // Adjusted total
         foundWords,
         matchedSoFar: [...gameState.matchedWords]
     };
@@ -1146,14 +1156,26 @@ function updateResponseTrail() {
     
     const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
-    container.innerHTML = gameState.responseTrail.map(item => {
-        const itemClass = item.violation ? 'violation' : 
-                         (item.foundWords && item.foundWords.length > 0) ? 'success' : '';
+    container.innerHTML = gameState.responseTrail.map((item, index) => {
+        const isLastItem = index === gameState.responseTrail.length - 1;
+        const isGameEnding = isLastItem && gameState.gameOver;
+        const isVictory = isGameEnding && !item.violation && gameState.matchedWords.size === gameState.targetWords.length;
+        const isDefeat = isGameEnding && item.violation;
+        
+        let itemClass = '';
+        if (isVictory) itemClass = 'trail-item--victory';
+        else if (isDefeat) itemClass = 'trail-item--violation';
+        else if (item.foundWords && item.foundWords.length > 0) itemClass = 'trail-item--success';
+        
+        let headerIcon = '';
+        if (isVictory) headerIcon = '🏆 VICTORY';
+        else if (isDefeat) headerIcon = '⚠️ VIOLATION';
+        else headerIcon = `Attempt #${item.number}`;
         
         return `
             <div class="trail-item ${itemClass}">
                 <div class="trail-header">
-                    <span class="trail-number">Attempt #${item.number}</span>
+                    <span class="trail-number">${headerIcon}</span>
                     <span class="trail-timestamp">${item.timestamp}</span>
                 </div>
                 <div class="trail-prompt">${escapeHtml(item.prompt)}</div>
@@ -1167,15 +1189,49 @@ function updateResponseTrail() {
                     <div class="match-indicator">
                         <strong>Found:</strong>
                         ${item.foundWords.map(w => `<span class="match-word found">${w}</span>`).join('')}
+                        ${isVictory ? '<div class="all-matched">✓ ALL TARGETS MATCHED!</div>' : ''}
                     </div>
                 ` : ''}
-                <div class="trail-stats">
-                    ${generateTrailStats({
-                        promptTokens: item.promptTokens,
-                        outputTokens: item.outputTokens,
-                        totalTokens: item.totalTokens
-                    })}
-                </div>
+                ${!item.violation ? `
+                    <div class="trail-stats">
+                        ${generateTrailStats({
+                            promptTokens: item.promptTokens,
+                            outputTokens: item.outputTokens,
+                            totalTokens: item.totalTokens
+                        })}
+                    </div>
+                ` : ''}
+                ${isGameEnding ? `
+                    <div class="game-summary">
+                        <div class="game-summary-title">${isVictory ? 'GAME COMPLETE' : 'GAME OVER'}</div>
+                        ${isVictory ? `
+                            <div class="game-summary-row">
+                                <span>Efficiency Score:</span>
+                                <span class="game-summary-value">${calculateEfficiencyScore()}</span>
+                            </div>
+                        ` : ''}
+                        <div class="game-summary-row">
+                            <span>Total Attempts:</span>
+                            <span class="game-summary-value">${gameState.attempts}</span>
+                        </div>
+                        ${isDefeat ? `
+                            <div class="game-summary-row">
+                                <span>Words Matched:</span>
+                                <span class="game-summary-value">${gameState.matchedWords.size}/${gameState.targetWords.length}</span>
+                            </div>
+                        ` : ''}
+                        <div class="game-summary-row">
+                            <span>Total Tokens:</span>
+                            <span class="game-summary-value">${gameState.totalTokens}</span>
+                        </div>
+                        ${isVictory && gameState.attempts > 1 ? `
+                            <div class="game-summary-row">
+                                <span>Avg per Attempt:</span>
+                                <span class="game-summary-value">${(gameState.totalTokens / gameState.attempts).toFixed(1)}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''}
             </div>
         `;
     }).join('');

@@ -584,6 +584,84 @@ header::after {
     background: var(--bg-primary);
     overflow: hidden; /* Prevent overflow */
     max-width: 100%; /* Ensure it doesn't exceed container */
+    transition: all 0.3s ease;
+}
+
+/* Trail Item States */
+.trail-item--success {
+    border-left-color: var(--success);
+}
+
+.trail-item--victory {
+    border-left: 3px solid var(--success);
+    background: rgba(133, 153, 0, 0.05); /* Subtle green tint */
+    box-shadow: 0 0 10px rgba(133, 153, 0, 0.2);
+    animation: victoryPulse 2s ease-in-out;
+}
+
+.trail-item--violation {
+    border-left: 3px solid var(--error);
+    background: rgba(220, 50, 47, 0.05); /* Subtle red tint */
+    box-shadow: 0 0 10px rgba(220, 50, 47, 0.2);
+}
+
+@keyframes victoryPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(133, 153, 0, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(133, 153, 0, 0.4); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .trail-item--victory {
+        animation: none;
+    }
+}
+
+/* All Matched Indicator */
+.all-matched {
+    color: var(--success);
+    font-weight: 700;
+    margin-top: var(--spacing-xs);
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+/* Game Summary Box */
+.game-summary {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-active);
+    border-radius: 6px;
+}
+
+.game-summary-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-xs);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.game-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xs) 0;
+    font-size: 0.8rem;
+}
+
+.game-summary-row span:first-child {
+    color: var(--text-dim);
+}
+
+.game-summary-value {
+    color: var(--text-bright);
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
 }
 
 .trail-header {
