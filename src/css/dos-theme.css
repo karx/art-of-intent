@@ -877,6 +877,45 @@ header::after {
     margin-bottom: var(--spacing-lg);
 }
 
+/* Help Modal Specific Styles */
+.help-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: var(--spacing-sm);
+}
+
+.help-section {
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--text-dim);
+}
+
+.help-section:last-child {
+    border-bottom: none;
+}
+
+.help-section h3 {
+    font-size: 14px;
+    color: var(--sol-yellow);
+    text-transform: uppercase;
+    margin-bottom: var(--spacing-sm);
+    font-weight: bold;
+}
+
+.help-section h3::before {
+    content: '> ';
+    color: var(--sol-cyan);
+}
+
+.help-section p {
+    margin-bottom: var(--spacing-xs);
+    line-height: 1.5;
+}
+
+.help-section p strong {
+    color: var(--sol-cyan);
+}
+
 .modal-actions {
     display: flex;
     gap: var(--spacing-md);

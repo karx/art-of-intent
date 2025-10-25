@@ -227,6 +227,7 @@
                     <p class="subtitle">Guide Arty the Haiku Bot to speak your target words</p>
                 </div>
                 <div class="auth-section">
+                    <button id="helpBtn" class="btn-auth" title="How to play">?</button>
                     <button id="soundToggleBtn" class="btn-auth" title="Toggle sound effects">
                         <span id="soundIcon">🔊</span>
                     </button>
@@ -356,6 +357,51 @@
                     <button id="exportSessionBtn" class="btn-primary">Export Session</button>
                     <button id="exportProfileBtn" class="btn-primary">Export Profile</button>
                     <button id="closeProfileBtn" class="btn-secondary">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Getting Started Modal -->
+        <div id="gettingStartedModal" class="modal hidden">
+            <div class="modal-content help-modal">
+                <h2>How to Play</h2>
+                <div class="modal-body help-content">
+                    <div class="help-section">
+                        <h3>Objective</h3>
+                        <p>Guide Arty the Haiku Bot to speak your TARGET words without using any BLACKLIST words.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <h3>How It Works</h3>
+                        <p><strong>1. Write a Prompt:</strong> Craft instructions to guide Arty's response</p>
+                        <p><strong>2. Arty Responds:</strong> The AI generates a haiku based on your prompt</p>
+                        <p><strong>3. Match Words:</strong> Get all target words in Arty's responses</p>
+                        <p><strong>4. Avoid Blacklist:</strong> If Arty says a forbidden word, game over!</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <h3>Scoring</h3>
+                        <p>Lower is better! Your score = (Attempts × 10) + (Tokens ÷ 10)</p>
+                        <p>Compete on the daily leaderboard for the best efficiency score.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <h3>Features</h3>
+                        <p><strong>Voice Input:</strong> Click MIC to speak your prompt</p>
+                        <p><strong>Export Data:</strong> Download your session analytics</p>
+                        <p><strong>Leaderboard:</strong> See how you rank globally</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <h3>Tips</h3>
+                        <p>• Be creative with your prompts</p>
+                        <p>• Think about word associations</p>
+                        <p>• Shorter prompts = fewer tokens</p>
+                        <p>• Each attempt costs tokens</p>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="closeHelpBtn" class="btn-primary">Got It!</button>
                 </div>
             </div>
         </div>

@@ -146,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeGame();
     setupEventListeners();
     updateSchemaMetadata();
+    checkFirstTimeUser();
 });
 
 function initializeGame() {
@@ -289,6 +290,8 @@ function setupEventListeners() {
     const previewCardBtn = document.getElementById('previewCardBtn');
     const shareWithTextBtn = document.getElementById('shareWithTextBtn');
     const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const helpBtn = document.getElementById('helpBtn');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
     
     submitBtn.addEventListener('click', handleSubmit);
     promptInput.addEventListener('keydown', (e) => {
@@ -302,6 +305,14 @@ function setupEventListeners() {
     shareBtn.addEventListener('click', shareScore);
     previewCardBtn.addEventListener('click', previewShareCard);
     shareWithTextBtn.addEventListener('click', shareWithText);
+    
+    // Help modal
+    if (helpBtn) {
+        helpBtn.addEventListener('click', showGettingStarted);
+    }
+    if (closeHelpBtn) {
+        closeHelpBtn.addEventListener('click', closeGettingStarted);
+    }
     
     // Sound toggle
     if (soundToggleBtn && typeof soundManager !== 'undefined') {
@@ -1417,4 +1428,34 @@ function exportSessionData() {
     updateSchemaMetadata();
     
     console.log('Session data exported:', jsonld);
+}
+
+// ============================================
+// Getting Started / Help Modal
+// ============================================
+
+function checkFirstTimeUser() {
+    const hasSeenHelp = localStorage.getItem('hasSeenGettingStarted');
+    if (!hasSeenHelp) {
+        // Show help modal after a brief delay for better UX
+        setTimeout(() => {
+            showGettingStarted();
+            localStorage.setItem('hasSeenGettingStarted', 'true');
+        }, 500);
+    }
+}
+
+function showGettingStarted() {
+    const modal = document.getElementById('gettingStartedModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        trackEvent('help_viewed', { source: 'manual' });
+    }
+}
+
+function closeGettingStarted() {
+    const modal = document.getElementById('gettingStartedModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
