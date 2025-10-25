@@ -3,8 +3,6 @@
 // SVG-based shareable image with DOS aesthetic
 // ============================================
 
-import { generateShareCardV3 } from './share-card-v3.js';
-
 class ShareCardGenerator {
     constructor() {
         this.width = 1200;

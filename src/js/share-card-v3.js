@@ -3,7 +3,7 @@
 // Minimalist design with response trail visualization
 // ============================================
 
-export function generateShareCardV3(data) {
+function generateShareCardV3(data) {
     const {
         result = 'WIN',
         attempts = 0,
