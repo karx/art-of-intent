@@ -3,6 +3,8 @@
 // SVG-based shareable image with DOS aesthetic
 // ============================================
 
+import { generateShareCardV3 } from './share-card-v3.js';
+
 class ShareCardGenerator {
     constructor() {
         this.width = 1200;
@@ -24,10 +26,13 @@ class ShareCardGenerator {
     /**
      * Generate SVG share card
      * @param {object} data - Game data
-     * @param {string} version - Card version ('v1' or 'v2')
+     * @param {string} version - Card version ('v1', 'v2', or 'v3')
      * @returns {string} SVG string
      */
-    generateSVG(data, version = 'v2') {
+    generateSVG(data, version = 'v3') {
+        if (version === 'v3') {
+            return generateShareCardV3(data);
+        }
         if (version === 'v2') {
             return this.generateSVGv2(data);
         }
@@ -372,7 +377,7 @@ class ShareCardGenerator {
     </g>
     
     <!-- Matches -->
-    <g transform="translate(420, 290)">
+    <g transform="translate(420, 310)">
         <text x="0" y="20" class="kpi-label">MATCHES</text>
         <text x="0" y="75" class="kpi-value">${matchNum}<tspan class="kpi-unit">/${matchTotal}</tspan></text>
         <rect x="0" y="90" width="300" height="12" class="bar-bg" rx="6"/>

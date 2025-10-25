@@ -832,11 +832,12 @@ async function shareScore() {
             date: new Date().toLocaleDateString(),
             userName: userName,
             userPhoto: userPhoto,
-            globalMaxTokens: 1000 // Can be fetched from leaderboard stats
+            globalMaxTokens: 1000,
+            responseTrail: gameState.responseTrail || []
         };
         
-        // Generate SVG (v2 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
+        // Generate SVG (v3 by default - minimalist with response trail)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
         
         // Share image
         await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
@@ -873,11 +874,12 @@ function previewShareCard() {
             date: new Date().toLocaleDateString(),
             userName: userName,
             userPhoto: userPhoto,
-            globalMaxTokens: 1000
+            globalMaxTokens: 1000,
+            responseTrail: gameState.responseTrail || []
         };
         
-        // Generate and preview SVG (v2 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
+        // Generate and preview SVG (v3 by default)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
         shareCardGenerator.previewImage(svg);
         
     } catch (error) {
@@ -922,11 +924,12 @@ async function shareWithText() {
             date: new Date().toLocaleDateString(),
             userName: userName,
             userPhoto: userPhoto,
-            globalMaxTokens: 1000
+            globalMaxTokens: 1000,
+            responseTrail: gameState.responseTrail || []
         };
         
-        // Generate SVG and convert to PNG (v2 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v2');
+        // Generate SVG and convert to PNG (v3 by default)
+        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
         const blob = await shareCardGenerator.svgToPNG(svg);
         const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
         
