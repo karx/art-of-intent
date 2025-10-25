@@ -542,7 +542,7 @@ function processResponse(prompt, apiResponse) {
         matchedSoFar: [...gameState.matchedWords]
     };
     
-    gameState.responseTrail.unshift(trailItem);
+    gameState.responseTrail.push(trailItem);
     saveGameState();
     updateUI();
     
@@ -596,7 +596,7 @@ function handleBlacklistViolation(prompt, violatedWords) {
         violatedWords
     };
     
-    gameState.responseTrail.unshift(trailItem);
+    gameState.responseTrail.push(trailItem);
     saveGameState();
     updateUI();
     
@@ -1053,6 +1053,8 @@ function updateResponseTrail() {
         return;
     }
     
+    const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+    
     container.innerHTML = gameState.responseTrail.map(item => {
         const itemClass = item.violation ? 'violation' : 
                          (item.foundWords && item.foundWords.length > 0) ? 'success' : '';
@@ -1086,6 +1088,13 @@ function updateResponseTrail() {
             </div>
         `;
     }).join('');
+    
+    // Auto-scroll to bottom if user was already at bottom
+    if (wasAtBottom) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 0);
+    }
 }
 
 function escapeHtml(text) {
