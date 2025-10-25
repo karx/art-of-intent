@@ -50,33 +50,28 @@ function generateProgressBar(value, max, width = 10) {
     return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
-function generateTrailStats(stats) {
+function generateTrailStats(stats, foundWords = []) {
     const { promptTokens = 0, outputTokens = 0, totalTokens = 0 } = stats;
     
-    // Calculate percentages for visual representation
-    const maxDisplay = 200; // Max tokens to show at 100% width
+    // Calculate bar widths (max 200 tokens = 100% width)
+    const maxDisplay = 200;
     const promptPct = Math.min((promptTokens / maxDisplay) * 100, 100);
     const outputPct = Math.min((outputTokens / maxDisplay) * 100, 100);
     
+    // Generate hit indicators
+    const hitIndicators = foundWords.length > 0 
+        ? foundWords.map(word => `<span class="hit-dot" title="${word}">●</span>`).join('')
+        : '';
+    
     return `
-        <div class="token-consumption">
-            <div class="token-row">
-                <span class="token-label">Prompt</span>
-                <div class="token-bar-container">
-                    <div class="token-bar token-bar-prompt" style="width: ${promptPct}%"></div>
-                </div>
-                <span class="token-value">${promptTokens}</span>
+        <div class="trail-stats-compact">
+            <div class="stats-bar">
+                <div class="stats-bar-segment stats-bar-prompt" style="width: ${promptPct}%" title="Prompt: ${promptTokens} tokens"></div>
+                <div class="stats-bar-segment stats-bar-output" style="width: ${outputPct}%" title="Output: ${outputTokens} tokens"></div>
             </div>
-            <div class="token-row">
-                <span class="token-label">Output</span>
-                <div class="token-bar-container">
-                    <div class="token-bar token-bar-output" style="width: ${outputPct}%"></div>
-                </div>
-                <span class="token-value">${outputTokens}</span>
-            </div>
-            <div class="token-total">
-                <span class="token-total-label">Total:</span>
-                <span class="token-total-value">${totalTokens} tokens</span>
+            <div class="stats-info">
+                <span class="stats-tokens">${totalTokens} tok</span>
+                ${hitIndicators ? `<span class="stats-hits">${hitIndicators}</span>` : ''}
             </div>
         </div>
     `;
@@ -1198,7 +1193,7 @@ function updateResponseTrail() {
                             promptTokens: item.promptTokens,
                             outputTokens: item.outputTokens,
                             totalTokens: item.totalTokens
-                        })}
+                        }, item.foundWords || [])}
                     </div>
                 ` : ''}
                 ${isGameEnding ? `
