@@ -15,7 +15,7 @@ import {
     serverTimestamp
 } from './firebase-config.js';
 
-import { getCurrentUser } from './firebase-auth.js';
+import { getCurrentUser, getUserProfile } from './firebase-auth.js';
 
 // Save session to Firestore
 export async function saveSession(sessionData) {
@@ -25,14 +25,17 @@ export async function saveSession(sessionData) {
         return null;
     }
     
+    const profile = getUserProfile();
+    const displayName = profile?.displayName || user.displayName || user.email || 'Guest';
+    
     try {
         const sessionRef = doc(db, 'sessions', sessionData.sessionId);
         
         const firestoreSession = {
             sessionId: sessionData.sessionId,
             userId: user.uid,
-            userName: user.displayName || user.email || 'Guest',
-            displayName: user.displayName || user.email || 'Guest',
+            userName: displayName,
+            displayName: displayName,
             
             // Game configuration
             gameDate: new Date().toISOString().split('T')[0],

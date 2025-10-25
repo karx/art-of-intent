@@ -413,6 +413,36 @@ export async function updateUserPreferences(preferences) {
     }
 }
 
+// Update display name (pen name)
+export async function updateDisplayName(newName) {
+    if (!currentUser) return;
+    
+    // Validate name
+    const sanitizedName = newName.trim().substring(0, 20);
+    if (!sanitizedName || sanitizedName.length < 2) {
+        throw new Error('Name must be at least 2 characters');
+    }
+    
+    try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, {
+            displayName: sanitizedName
+        });
+        
+        userProfile.displayName = sanitizedName;
+        
+        console.log('Display name updated:', sanitizedName);
+        
+        // Notify listeners of profile change
+        notifyAuthStateChange(currentUser, userProfile);
+        
+        return sanitizedName;
+    } catch (error) {
+        console.error('Error updating display name:', error);
+        throw error;
+    }
+}
+
 // Export for global access
 window.firebaseAuth = {
     initAuth,
@@ -423,6 +453,7 @@ window.firebaseAuth = {
     getUserProfile,
     updateUserStats,
     updateUserPreferences,
+    updateDisplayName,
     addAuthStateListener,
     removeAuthStateListener
 };

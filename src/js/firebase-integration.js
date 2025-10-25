@@ -84,6 +84,7 @@ function setupAuthButtons() {
     const signInGoogleBtn = document.getElementById('signInGoogleBtn');
     const playAnonymousBtn = document.getElementById('playAnonymousBtn');
     const signOutBtn = document.getElementById('signOutBtn');
+    const editNameBtn = document.getElementById('editNameBtn');
     
     if (signInGoogleBtn) {
         signInGoogleBtn.addEventListener('click', async () => {
@@ -139,6 +140,89 @@ function setupAuthButtons() {
                 alert('Sign-out failed. Please try again.');
             }
         });
+    }
+    
+    if (editNameBtn) {
+        editNameBtn.addEventListener('click', () => {
+            showPenNameModal();
+        });
+    }
+    
+    // Set up pen name modal
+    setupPenNameModal();
+}
+
+// Pen Name Modal
+function setupPenNameModal() {
+    const modal = document.getElementById('penNameModal');
+    const input = document.getElementById('penNameInput');
+    const saveBtn = document.getElementById('savePenNameBtn');
+    const cancelBtn = document.getElementById('cancelPenNameBtn');
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            const newName = input.value.trim();
+            if (!newName || newName.length < 2) {
+                alert('Name must be at least 2 characters');
+                return;
+            }
+            
+            try {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+                
+                await window.firebaseAuth.updateDisplayName(newName);
+                
+                // Update UI
+                const userName = document.getElementById('userName');
+                if (userName) userName.textContent = newName;
+                
+                // Close modal
+                modal.classList.add('hidden');
+                input.value = '';
+                
+                console.log('✅ Pen name updated:', newName);
+            } catch (error) {
+                console.error('❌ Error updating pen name:', error);
+                alert(error.message || 'Failed to update name. Please try again.');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save';
+            }
+        });
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            input.value = '';
+        });
+    }
+    
+    // Enter key to save
+    if (input) {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                saveBtn.click();
+            }
+        });
+    }
+}
+
+function showPenNameModal() {
+    const modal = document.getElementById('penNameModal');
+    const input = document.getElementById('penNameInput');
+    
+    if (modal && input) {
+        // Pre-fill with current name
+        const profile = window.firebaseAuth.getUserProfile();
+        if (profile) {
+            input.value = profile.displayName;
+        }
+        
+        modal.classList.remove('hidden');
+        input.focus();
+        input.select();
     }
 }
 

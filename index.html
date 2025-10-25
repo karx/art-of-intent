@@ -237,6 +237,7 @@
                     <div id="userInfo" class="user-info hidden">
                         <img id="userPhoto" class="user-photo" src="" alt="User">
                         <span id="userName" class="user-name"></span>
+                        <button id="editNameBtn" class="btn-auth" title="Edit pen name">✎</button>
                         <button id="signOutBtn" class="btn-auth">Sign Out</button>
                     </div>
                     <div id="authButtons" class="auth-buttons">
@@ -402,6 +403,30 @@
                 </div>
                 <div class="modal-actions">
                     <button id="closeHelpBtn" class="btn-primary">Got It!</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pen Name Modal -->
+        <div id="penNameModal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Set Your Pen Name</h2>
+                <div class="modal-body">
+                    <p>Choose a display name for the leaderboard:</p>
+                    <div class="pen-name-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="penNameInput" 
+                            class="pen-name-input" 
+                            placeholder="Enter pen name..."
+                            maxlength="20"
+                        />
+                        <div class="pen-name-hint">Max 20 characters. Letters, numbers, spaces allowed.</div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button id="savePenNameBtn" class="btn-primary">Save</button>
+                    <button id="cancelPenNameBtn" class="btn-secondary">Cancel</button>
                 </div>
             </div>
         </div>
