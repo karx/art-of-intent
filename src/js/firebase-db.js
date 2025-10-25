@@ -334,27 +334,49 @@ export async function getUserRank(userId, date = null) {
 // Sync localStorage to Firestore
 export async function syncLocalToFirestore() {
     const user = getCurrentUser();
-    if (!user) return;
+    if (!user) {
+        console.log('No user for sync, skipping');
+        return;
+    }
     
     try {
         // Get current game state from localStorage
         const sessionId = localStorage.getItem('sessionId');
-        if (!sessionId) return;
+        if (!sessionId) {
+            console.log('No sessionId in localStorage, skipping sync');
+            return;
+        }
+        
+        // Check if there's actual game data to sync
+        const targetWords = JSON.parse(localStorage.getItem('targetWords') || '[]');
+        const attempts = parseInt(localStorage.getItem('attempts') || '0');
+        
+        // Only sync if there's a valid game session (has target words or attempts)
+        if (targetWords.length === 0 && attempts === 0) {
+            console.log('No valid game data to sync, skipping');
+            return;
+        }
         
         // Build session data from localStorage
         const sessionData = {
             sessionId,
             sessionStartTime: localStorage.getItem('sessionStartTime'),
             sessionEndTime: localStorage.getItem('sessionEndTime'),
-            targetWords: JSON.parse(localStorage.getItem('targetWords') || '[]'),
+            targetWords: targetWords,
             blacklistWords: JSON.parse(localStorage.getItem('blacklistWords') || '[]'),
-            attempts: parseInt(localStorage.getItem('attempts') || '0'),
+            attempts: attempts,
             totalTokens: parseInt(localStorage.getItem('totalTokens') || '0'),
             matchedWords: new Set(JSON.parse(localStorage.getItem('matchedWords') || '[]')),
             responseTrail: JSON.parse(localStorage.getItem('responseTrail') || '[]'),
             events: JSON.parse(localStorage.getItem('events') || '[]'),
             gameOver: localStorage.getItem('gameOver') === 'true'
         };
+        
+        console.log('Syncing local data to Firestore:', {
+            sessionId: sessionData.sessionId,
+            attempts: sessionData.attempts,
+            targetWords: sessionData.targetWords.length
+        });
         
         await saveSession(sessionData);
         console.log('✅ Local data synced to Firestore');
