@@ -325,14 +325,17 @@ window.saveGameToFirestore = async function(gameData) {
         console.log('✅ Game saved to Firestore');
         
         // Update user stats
+        const isVictory = gameData.matchedWords?.size === gameData.targetWords?.length;
+        const efficiencyScore = (gameData.gameOver && isVictory)
+            ? (gameData.attempts * 10) + Math.floor(gameData.totalTokens / 10)
+            : null;
+        
         const sessionData = {
-            result: gameData.matchedWords?.size === gameData.targetWords?.length ? 'victory' : 'defeat',
+            result: isVictory ? 'victory' : 'defeat',
             attempts: gameData.attempts || 0,
             totalTokens: gameData.totalTokens || 0,
             matchedWordsCount: gameData.matchedWords?.size || 0,
-            efficiencyScore: gameData.gameOver && gameData.matchedWords?.size === gameData.targetWords?.length
-                ? calculateEfficiencyScore()
-                : null
+            efficiencyScore: efficiencyScore
         };
         
         await window.firebaseAuth.updateUserStats(sessionData);
