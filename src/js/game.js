@@ -48,16 +48,33 @@ function generateProgressBar(value, max, width = 10) {
 
 function generateTrailStats(stats) {
     const { promptTokens = 0, outputTokens = 0, totalTokens = 0 } = stats;
-    const maxTokens = 100;
     
-    const promptBar = generateProgressBar(promptTokens, maxTokens, 5);
-    const outputBar = generateProgressBar(outputTokens, maxTokens, 5);
-    const totalBar = generateProgressBar(totalTokens, maxTokens, 10);
+    // Calculate percentages for visual representation
+    const maxDisplay = 200; // Max tokens to show at 100% width
+    const promptPct = Math.min((promptTokens / maxDisplay) * 100, 100);
+    const outputPct = Math.min((outputTokens / maxDisplay) * 100, 100);
     
     return `
-        <span>P:${promptTokens} [${promptBar}]</span>
-        <span>O:${outputTokens} [${outputBar}]</span>
-        <span>T:${totalTokens} [${totalBar}]</span>
+        <div class="token-consumption">
+            <div class="token-row">
+                <span class="token-label">Prompt</span>
+                <div class="token-bar-container">
+                    <div class="token-bar token-bar-prompt" style="width: ${promptPct}%"></div>
+                </div>
+                <span class="token-value">${promptTokens}</span>
+            </div>
+            <div class="token-row">
+                <span class="token-label">Output</span>
+                <div class="token-bar-container">
+                    <div class="token-bar token-bar-output" style="width: ${outputPct}%"></div>
+                </div>
+                <span class="token-value">${outputTokens}</span>
+            </div>
+            <div class="token-total">
+                <span class="token-total-label">Total:</span>
+                <span class="token-total-value">${totalTokens} tokens</span>
+            </div>
+        </div>
     `;
 }
 
