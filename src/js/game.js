@@ -178,24 +178,45 @@ document.addEventListener('DOMContentLoaded', () => {
     checkFirstTimeUser();
 });
 
+function getDailyDateKey() {
+    // Use UTC date for consistency across timezones
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function initializeGame() {
-    const today = new Date().toDateString();
+    const today = getDailyDateKey();
     
     // Check if we need to generate new words for today
     const savedDate = localStorage.getItem('gameDate');
+    
+    console.log('📅 Daily Words Check:', {
+        today,
+        savedDate,
+        needsNewWords: savedDate !== today
+    });
+    
     if (savedDate !== today) {
+        console.log('🔄 Generating new words for', today);
         generateDailyWords();
         resetGameState();
         localStorage.setItem('gameDate', today);
-        trackEvent('session_start', { reason: 'new_day' });
+        trackEvent('session_start', { reason: 'new_day', date: today });
         GameAnalytics.gameStart(today);
     } else {
         loadSavedGame();
         trackEvent('session_resume', { 
             attempts: gameState.attempts,
-            matchedWords: gameState.matchedWords.size 
+            matchedWords: gameState.matchedWords.size,
+            date: today
         });
     }
+    
+    // Validate words are available
+    ensureWordsAvailable();
     
     updateUI();
     
@@ -205,10 +226,36 @@ function initializeGame() {
     }
 }
 
+function ensureWordsAvailable() {
+    // Fallback: regenerate if words are missing
+    if (gameState.targetWords.length === 0 || gameState.blacklistWords.length === 0) {
+        console.warn('⚠️ Words missing, regenerating...');
+        generateDailyWords();
+    }
+    
+    // Validate word counts
+    if (gameState.targetWords.length !== 3) {
+        console.error('❌ Invalid target count:', gameState.targetWords.length);
+        generateDailyWords();
+    }
+    
+    if (gameState.blacklistWords.length < 5 || gameState.blacklistWords.length > 7) {
+        console.error('❌ Invalid blacklist count:', gameState.blacklistWords.length);
+        generateDailyWords();
+    }
+    
+    console.log('✅ Words validated:', {
+        target: gameState.targetWords,
+        blacklist: gameState.blacklistWords
+    });
+}
+
 function generateDailyWords() {
-    // Use date as seed for consistent daily words
-    const seed = new Date().toDateString();
+    // Use UTC date as seed for consistent daily words worldwide
+    const seed = getDailyDateKey();
     const random = seededRandom(seed);
+    
+    console.log('🎲 Generating words with seed:', seed);
     
     // Select 3 target words from different categories
     const categories = Object.keys(wordPools);
@@ -225,10 +272,25 @@ function generateDailyWords() {
     const blacklistCount = 5 + Math.floor(random() * 3);
     gameState.blacklistWords = shuffleArray([...availableWords], random).slice(0, blacklistCount);
     
+    console.log('✅ Generated words:', {
+        target: gameState.targetWords,
+        blacklist: gameState.blacklistWords,
+        seed
+    });
+    
     // Save to localStorage
     localStorage.setItem('targetWords', JSON.stringify(gameState.targetWords));
     localStorage.setItem('blacklistWords', JSON.stringify(gameState.blacklistWords));
 }
+
+// Debug function for manual word regeneration
+window.regenerateWords = function() {
+    console.log('🔄 Manually regenerating words...');
+    generateDailyWords();
+    resetGameState();
+    updateUI();
+    console.log('✅ Words regenerated. Refresh page to start new game.');
+};
 
 function seededRandom(seed) {
     let hash = 0;
