@@ -451,19 +451,55 @@ async function handleSubmit() {
         return;
     }
     
+    // Sanitize and check for prompt injection
+    const purifyResult = PromptPurify.sanitize(prompt);
+    
+    if (purifyResult.blocked) {
+        const message = purifyResult.threats.map(t => t.message).join('\n');
+        alert(`Prompt blocked:\n${message}`);
+        if (typeof soundManager !== 'undefined') soundManager.playError();
+        trackEvent('prompt_injection_blocked', { 
+            threats: purifyResult.threats.map(t => t.type),
+            promptLength: prompt.length 
+        });
+        return;
+    }
+    
+    // Log warnings if any (but allow submission)
+    if (purifyResult.warnings.length > 0) {
+        console.warn('Prompt warnings detected:', purifyResult.warnings);
+        trackEvent('prompt_injection_warning', { 
+            warnings: purifyResult.warnings.map(w => w.type),
+            promptLength: prompt.length 
+        });
+    }
+    
+    // Log threats if any (in warn-only mode)
+    if (purifyResult.threats.length > 0) {
+        console.warn('Potential prompt injection detected:', purifyResult.threats);
+        trackEvent('prompt_injection_detected', { 
+            threats: purifyResult.threats.map(t => t.type),
+            promptLength: prompt.length 
+        });
+    }
+    
+    // Use sanitized prompt
+    const sanitizedPrompt = purifyResult.sanitized;
+    
     // Play submit sound
     if (typeof soundManager !== 'undefined') soundManager.playSubmit();
     
     trackEvent('prompt_submitted', { 
-        promptLength: prompt.length,
-        attemptNumber: gameState.attempts + 1 
+        promptLength: sanitizedPrompt.length,
+        attemptNumber: gameState.attempts + 1,
+        wasSanitized: sanitizedPrompt !== prompt
     });
     
     // Track prompt submission
-    GameAnalytics.promptSubmit(prompt.length, 0); // Token count updated after API response
+    GameAnalytics.promptSubmit(sanitizedPrompt.length, 0); // Token count updated after API response
     
     // Check for blacklist words in user prompt
-    const promptLower = prompt.toLowerCase();
+    const promptLower = sanitizedPrompt.toLowerCase();
     const violatedWords = gameState.blacklistWords.filter(word => 
         promptLower.includes(word.toLowerCase())
     );
@@ -471,10 +507,10 @@ async function handleSubmit() {
     if (violatedWords.length > 0) {
         trackEvent('blacklist_violation_detected', { 
             violatedWords: violatedWords,
-            promptLength: prompt.length 
+            promptLength: sanitizedPrompt.length 
         });
         GameAnalytics.blacklistViolation(violatedWords[0], gameState.attempts + 1);
-        handleBlacklistViolation(prompt, violatedWords);
+        handleBlacklistViolation(sanitizedPrompt, violatedWords);
         return;
     }
     
@@ -486,7 +522,7 @@ async function handleSubmit() {
     const apiCallStart = Date.now();
     
     try {
-        const response = await callArtyAPI(prompt);
+        const response = await callArtyAPI(sanitizedPrompt);
         const apiCallDuration = Date.now() - apiCallStart;
         
         trackEvent('api_response_received', { 
@@ -494,7 +530,7 @@ async function handleSubmit() {
             hasResponse: !!response 
         });
         
-        processResponse(prompt, response);
+        processResponse(sanitizedPrompt, response, purifyResult);
     } catch (error) {
         console.error('Error calling API:', error);
         trackEvent('api_error', { 
@@ -603,7 +639,7 @@ function generateSystemInstruction() {
     return instruction;
 }
 
-function processResponse(prompt, apiResponse) {
+function processResponse(prompt, apiResponse, securityAnalysis = null) {
     gameState.attempts++;
     
     // Extract response text and token usage
@@ -660,7 +696,20 @@ function processResponse(prompt, apiResponse) {
         outputTokens: outputTokens,
         totalTokens: adjustedTotalTokens, // Adjusted total
         foundWords,
-        matchedSoFar: [...gameState.matchedWords]
+        matchedSoFar: [...gameState.matchedWords],
+        security: securityAnalysis ? {
+            isClean: securityAnalysis.isClean,
+            threatCount: securityAnalysis.threats.length,
+            warningCount: securityAnalysis.warnings.length,
+            threats: securityAnalysis.threats.map(t => ({
+                type: t.type,
+                severity: t.severity
+            })),
+            warnings: securityAnalysis.warnings.map(w => ({
+                type: w.type,
+                severity: w.severity
+            }))
+        } : null
     };
     
     gameState.responseTrail.push(trailItem);
@@ -1184,23 +1233,75 @@ function updateUI() {
 
 function updateTargetWords() {
     const container = document.getElementById('targetWords');
-    container.innerHTML = gameState.targetWords.map(word => {
+    const html = gameState.targetWords.map(word => {
         const matched = gameState.matchedWords.has(word);
-        return `<span class="word-tag ${matched ? 'matched' : ''}" style="${matched ? 'opacity: 0.5; text-decoration: line-through;' : ''}">${word}</span>`;
+        return `<span class="word-tag ${matched ? 'matched' : ''}" style="${matched ? 'opacity: 0.5; text-decoration: line-through;' : ''}">${DOMPurify.sanitize(word)}</span>`;
     }).join('');
+    container.innerHTML = DOMPurify.sanitize(html);
 }
 
 function updateBlacklistWords() {
     const container = document.getElementById('blacklistWords');
-    container.innerHTML = gameState.blacklistWords.map(word => 
-        `<span class="word-tag">${word}</span>`
+    const html = gameState.blacklistWords.map(word => 
+        `<span class="word-tag">${DOMPurify.sanitize(word)}</span>`
     ).join('');
+    container.innerHTML = DOMPurify.sanitize(html);
 }
 
 function updateScore() {
     document.getElementById('attempts').textContent = gameState.attempts;
     document.getElementById('totalTokens').textContent = gameState.totalTokens;
     document.getElementById('matches').textContent = `${gameState.matchedWords.size}/${gameState.targetWords.length}`;
+}
+
+function generateSecuritySignal(security) {
+    if (!security) {
+        return '';
+    }
+    
+    // Don't show signal if clean (no threats or warnings)
+    if (security.threatCount === 0 && security.warningCount === 0) {
+        return '';
+    }
+    
+    let signalClass = 'security-signal-warning';
+    let signalText = 'WARNING';
+    
+    if (security.threatCount > 0) {
+        signalClass = 'security-signal-threat';
+        signalText = 'THREAT DETECTED';
+    }
+    
+    const threatTypes = security.threats.map(t => t.type).join(', ');
+    const warningTypes = security.warnings.map(w => w.type).join(', ');
+    
+    let detailsHtml = '';
+    if (security.threatCount > 0 || security.warningCount > 0) {
+        detailsHtml = `
+            <div class="security-details">
+                ${security.threatCount > 0 ? `
+                    <div class="security-details-item">
+                        <span class="security-details-label">Threats:</span>
+                        <span class="security-details-value">${threatTypes}</span>
+                    </div>
+                ` : ''}
+                ${security.warningCount > 0 ? `
+                    <div class="security-details-item">
+                        <span class="security-details-label">Warnings:</span>
+                        <span class="security-details-value">${warningTypes}</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="security-signal ${signalClass}">
+            <span class="security-signal-indicator"></span>
+            <span class="security-signal-text">${signalText}</span>
+        </div>
+        ${detailsHtml}
+    `;
 }
 
 function updateResponseTrail() {
@@ -1213,7 +1314,7 @@ function updateResponseTrail() {
     
     const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
     
-    container.innerHTML = gameState.responseTrail.map((item, index) => {
+    const html = gameState.responseTrail.map((item, index) => {
         const isLastItem = index === gameState.responseTrail.length - 1;
         const isGameEnding = isLastItem && gameState.gameOver;
         const isVictory = isGameEnding && !item.violation && gameState.matchedWords.size === gameState.targetWords.length;
@@ -1233,19 +1334,20 @@ function updateResponseTrail() {
             <div class="trail-item ${itemClass}">
                 <div class="trail-header">
                     <span class="trail-number">${headerIcon}</span>
-                    <span class="trail-timestamp">${item.timestamp}</span>
+                    <span class="trail-timestamp">${DOMPurify.sanitize(item.timestamp)}</span>
                 </div>
-                <div class="trail-prompt">${escapeHtml(item.prompt)}</div>
-                <div class="trail-response">${escapeHtml(item.response)}</div>
+                <div class="trail-prompt">${DOMPurify.sanitize(item.prompt)}</div>
+                ${generateSecuritySignal(item.security)}
+                <div class="trail-response">${DOMPurify.sanitize(item.response)}</div>
                 ${item.violation ? `
                     <div style="color: var(--accent-red); font-weight: 600; margin-top: 10px;">
-                        ⚠️ Blacklist Violation: ${item.violatedWords.join(', ')}
+                        ⚠️ Blacklist Violation: ${DOMPurify.sanitize(item.violatedWords.join(', '))}
                     </div>
                 ` : ''}
                 ${item.foundWords && item.foundWords.length > 0 ? `
                     <div class="match-indicator">
                         <strong>Found:</strong>
-                        ${item.foundWords.map(w => `<span class="match-word found">${w}</span>`).join('')}
+                        ${item.foundWords.map(w => `<span class="match-word found">${DOMPurify.sanitize(w)}</span>`).join('')}
                         ${isVictory ? '<div class="all-matched">✓ ALL TARGETS MATCHED!</div>' : ''}
                     </div>
                 ` : ''}
@@ -1293,6 +1395,8 @@ function updateResponseTrail() {
         `;
     }).join('');
     
+    container.innerHTML = DOMPurify.sanitize(html);
+    
     // Auto-scroll to bottom if user was already at bottom
     if (wasAtBottom) {
         setTimeout(() => {
@@ -1301,11 +1405,7 @@ function updateResponseTrail() {
     }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+
 
 // Schema.org Metadata Management
 function updateSchemaMetadata() {

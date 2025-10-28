@@ -696,6 +696,149 @@ header::after {
     color: var(--text-dim);
 }
 
+/* Security Signal Indicator - Separate from prompt */
+.security-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: var(--spacing-xs);
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-family: 'Courier New', monospace;
+}
+
+.security-signal-clean {
+    background: rgba(133, 153, 0, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(133, 153, 0, 0.3);
+}
+
+.security-signal-warning {
+    background: rgba(181, 137, 0, 0.1);
+    color: var(--warning-color);
+    border: 1px solid rgba(181, 137, 0, 0.3);
+}
+
+.security-signal-threat {
+    background: rgba(220, 50, 47, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(220, 50, 47, 0.3);
+}
+
+.security-signal-blocked {
+    background: rgba(220, 50, 47, 0.15);
+    color: var(--error-color);
+    border: 1px solid rgba(220, 50, 47, 0.4);
+    font-weight: 900;
+}
+
+.security-signal-indicator {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.security-signal-clean .security-signal-indicator {
+    background: var(--success-color);
+    box-shadow: 0 0 4px var(--success-color);
+}
+
+.security-signal-warning .security-signal-indicator {
+    background: var(--warning-color);
+    box-shadow: 0 0 4px var(--warning-color);
+}
+
+.security-signal-threat .security-signal-indicator {
+    background: var(--error-color);
+    box-shadow: 0 0 4px var(--error-color);
+}
+
+.security-signal-blocked .security-signal-indicator {
+    background: var(--error-color);
+    box-shadow: 0 0 6px var(--error-color);
+}
+
+.security-signal-text {
+    line-height: 1;
+}
+
+/* Security Details (expandable) */
+.security-details {
+    margin-bottom: var(--spacing-xs);
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.1);
+    border-left: 2px solid currentColor;
+    border-radius: 0 3px 3px 0;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    font-family: 'Courier New', monospace;
+}
+
+.security-details-item {
+    margin: 2px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.security-details-label {
+    font-weight: 700;
+    min-width: 60px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.security-details-value {
+    opacity: 0.8;
+    word-break: break-word;
+}
+
+/* Match Indicator - Theme Aware */
+.match-indicator {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.7rem;
+}
+
+.match-indicator strong {
+    color: var(--text-dim);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+}
+
+.match-word {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.match-word.found {
+    background: rgba(133, 153, 0, 0.15);
+    color: var(--success-color);
+    border: 1px solid rgba(133, 153, 0, 0.4);
+}
+
+.match-word.not-found {
+    background: rgba(88, 110, 117, 0.1);
+    color: var(--text-dim);
+    border: 1px solid var(--border-color);
+}
+
 /* Compact Trail Stats - Score Card Inspired */
 .trail-stats-compact {
     display: flex;

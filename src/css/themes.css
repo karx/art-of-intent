@@ -249,3 +249,66 @@ h2 { font-size: var(--font-size-h2); }
 h3 { font-size: var(--font-size-h3); }
 small, .text-small { font-size: var(--font-size-small); }
 .text-large { font-size: var(--font-size-large); }
+
+/* ============================================
+   SECURITY SIGNALS - THEME AWARE
+   ============================================ */
+
+/* Security signal colors adapt to theme */
+[data-theme="polarized"] .security-signal-clean,
+[data-theme="light"] .security-signal-clean,
+[data-theme="cartoon"] .security-signal-clean {
+    background: rgba(72, 187, 120, 0.1);
+    border-color: rgba(72, 187, 120, 0.3);
+}
+
+[data-theme="dark"] .security-signal-clean {
+    background: rgba(63, 185, 80, 0.1);
+    border-color: rgba(63, 185, 80, 0.3);
+}
+
+[data-theme="polarized"] .security-signal-warning,
+[data-theme="light"] .security-signal-warning,
+[data-theme="cartoon"] .security-signal-warning {
+    background: rgba(237, 137, 54, 0.1);
+    border-color: rgba(237, 137, 54, 0.3);
+}
+
+[data-theme="dark"] .security-signal-warning {
+    background: rgba(210, 153, 34, 0.1);
+    border-color: rgba(210, 153, 34, 0.3);
+}
+
+[data-theme="polarized"] .security-signal-threat,
+[data-theme="light"] .security-signal-threat,
+[data-theme="cartoon"] .security-signal-threat,
+[data-theme="polarized"] .security-signal-blocked,
+[data-theme="light"] .security-signal-blocked,
+[data-theme="cartoon"] .security-signal-blocked {
+    background: rgba(245, 101, 101, 0.1);
+    border-color: rgba(245, 101, 101, 0.3);
+}
+
+[data-theme="dark"] .security-signal-threat,
+[data-theme="dark"] .security-signal-blocked {
+    background: rgba(248, 81, 73, 0.1);
+    border-color: rgba(248, 81, 73, 0.3);
+}
+
+/* ============================================
+   MATCH INDICATOR - THEME AWARE
+   ============================================ */
+
+/* Light themes - brighter match colors */
+[data-theme="polarized"] .match-word.found,
+[data-theme="light"] .match-word.found,
+[data-theme="cartoon"] .match-word.found {
+    background: rgba(72, 187, 120, 0.15);
+    border-color: rgba(72, 187, 120, 0.4);
+}
+
+/* Dark theme - adjusted match colors */
+[data-theme="dark"] .match-word.found {
+    background: rgba(63, 185, 80, 0.15);
+    border-color: rgba(63, 185, 80, 0.4);
+}

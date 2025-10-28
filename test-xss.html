@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XSS Test - Art of Intent (DOMPurify)</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            background: #0a0a0a;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #ffff00;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #000;
+        }
+        .pass { color: #00ff00; }
+        .fail { color: #ff0000; }
+    </style>
+</head>
+<body>
+    <h1>XSS Protection Test Suite (DOMPurify)</h1>
+    <div id="test-results"></div>
+
+    <!-- DOMPurify Library -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+    
+    <script>
+        // Simulate the game.js functions
+        function updateResponseTrail_WITHOUT_DOMPURIFY(items) {
+            // VULNERABLE: innerHTML without sanitization
+            const container = document.createElement('div');
+            const html = items.map(item => `
+                <div class="trail-prompt">${item.prompt}</div>
+                <div class="trail-response">${item.response}</div>
+            `).join('');
+            container.innerHTML = html;
+            return container;
+        }
+
+        function updateResponseTrail_WITH_DOMPURIFY(items) {
+            // SAFE: innerHTML with DOMPurify sanitization
+            const container = document.createElement('div');
+            const html = items.map(item => `
+                <div class="trail-prompt">${DOMPurify.sanitize(item.prompt)}</div>
+                <div class="trail-response">${DOMPurify.sanitize(item.response)}</div>
+            `).join('');
+            container.innerHTML = DOMPurify.sanitize(html);
+            return container;
+        }
+
+        // XSS test payloads
+        const xssPayloads = [
+          
+            {
+                name: "IMG with onerror",
+                payload: "<img src=x onerror=alert('XSS')>"
+            },
+            {
+                name: "SVG with onload",
+                payload: "<svg onload=alert('XSS')>"
+            },
+            {
+                name: "JavaScript URL",
+                payload: "<a href='javascript:alert(\"XSS\")'>Click</a>"
+            },
+            {
+                name: "Event Handler",
+                payload: "<div onmouseover='alert(\"XSS\")'>Hover</div>"
+            },
+            {
+                name: "Style with expression",
+                payload: "<div style='background:url(javascript:alert(\"XSS\"))'>Test</div>"
+            },
+            {
+                name: "HTML entities bypass attempt",
+                payload: "&#60;script&#62;alert('XSS')&#60;/script&#62;"
+            }
+        ];
+
+        // Run tests
+        const resultsContainer = document.getElementById('test-results');
+        let passCount = 0;
+        let failCount = 0;
+
+        xssPayloads.forEach((test, index) => {
+            const testDiv = document.createElement('div');
+            testDiv.className = 'test-case';
+            
+            const title = document.createElement('div');
+            title.className = 'test-title';
+            title.textContent = `Test ${index + 1}: ${test.name}`;
+            testDiv.appendChild(title);
+            
+            const payload = document.createElement('div');
+            payload.textContent = `Payload: ${test.payload}`;
+            testDiv.appendChild(payload);
+            
+            // // Test WITHOUT DOMPurify (check for dangerous content)
+            // const withoutResult = document.createElement('div');
+            // withoutResult.className = 'test-result';
+            // const withoutContainer = updateResponseTrail_WITHOUT_DOMPURIFY([{prompt: test.payload, response: test.payload}]);
+            // const hasScript = withoutContainer.querySelector('script') !== null;
+            // const hasEventHandler = withoutContainer.innerHTML.match(/on\w+\s*=/);
+            // const hasJavascriptUrl = withoutContainer.innerHTML.includes('javascript:');
+            // const isVulnerable = hasScript || hasEventHandler || hasJavascriptUrl;
+            
+            // withoutResult.innerHTML = `<strong>Without DOMPurify:</strong> ${isVulnerable ? '<span class="fail">❌ VULNERABLE</span>' : '<span class="pass">✅ Safe (escaped by browser)</span>'}`;
+            // testDiv.appendChild(withoutResult);
+            
+            // // Test WITH DOMPurify (should be safe)
+            const withResult = document.createElement('div');
+            withResult.className = 'test-result';
+            const withContainer = updateResponseTrail_WITH_DOMPURIFY([{prompt: test.payload, response: test.payload}]);
+            
+            // Check if DOMPurify stripped dangerous content
+            const hasScriptAfter = withContainer.querySelector('script') !== null;
+            const hasEventHandlerAfter = withContainer.innerHTML.match(/on\w+\s*=/);
+            const hasJavascriptUrlAfter = withContainer.innerHTML.includes('javascript:');
+            const isSafe = !hasScriptAfter && !hasEventHandlerAfter && !hasJavascriptUrlAfter;
+            
+            if (isSafe) {
+                withResult.innerHTML = `<strong>With DOMPurify:</strong> <span class="pass">✅ PROTECTED - Dangerous content stripped</span>`;
+                passCount++;
+            } else {
+                withResult.innerHTML = `<strong>With DOMPurify:</strong> <span class="fail">❌ STILL VULNERABLE</span>`;
+                failCount++;
+            }
+            testDiv.appendChild(withResult);
+            
+            resultsContainer.appendChild(testDiv);
+        });
+
+        // Summary
+        const summary = document.createElement('div');
+        summary.className = 'test-case';
+        summary.innerHTML = `
+            <div class="test-title">Test Summary</div>
+            <div class="test-result">
+                <span class="pass">✅ Passed: ${passCount}</span><br>
+                <span class="fail">❌ Failed: ${failCount}</span><br>
+                <strong>Total: ${xssPayloads.length}</strong>
+            </div>
+        `;
+        resultsContainer.appendChild(summary);
+    </script>
+</body>
+</html>
