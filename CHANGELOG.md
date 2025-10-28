@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Share Card Creep Display
+- **Creep Visualization**: Share cards now display creep level with darkness bar
+- **Visual Indicator**: 10-block bar (▓ filled, ░ empty) showing creep progression
+- **Color Coding**: Green (0-24), Yellow (25-74), Red (75-100)
+- **Numeric Display**: Shows "35/100" format alongside visual bar
+- **Theme Integration**: Colors adapt to active theme automatically
+- **Card Layout**: Expanded user info card to accommodate creep display
+
 ### Changed - Mechanics Cleanup & UX Refinement
 
 #### 🎯 User Input Validation

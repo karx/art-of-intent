@@ -11,7 +11,9 @@ function generateShareCardV3(data) {
         matches = '0/3',
         userName = 'Guest',
         responseTrail = [],
-        globalMaxTokens = 1000
+        globalMaxTokens = 1000,
+        creepLevel = 0,
+        creepThreshold = 100
     } = data;
     
     const width = 1200;
@@ -42,6 +44,19 @@ function generateShareCardV3(data) {
     const isWin = result === 'WIN';
     const resultColor = isWin ? colors.green : colors.red;
     const [matchNum, matchTotal] = matches.split('/').map(Number);
+    
+    // Calculate creep color and visualization
+    const creepPercentage = (creepLevel / creepThreshold) * 100;
+    let creepColor = colors.green;
+    if (creepPercentage >= 75) creepColor = colors.red;
+    else if (creepPercentage >= 50) creepColor = colors.yellow;
+    else if (creepPercentage >= 25) creepColor = colors.yellow;
+    
+    // Generate darkness blocks (▓) based on creep level
+    const maxBlocks = 10;
+    const filledBlocks = Math.ceil((creepLevel / creepThreshold) * maxBlocks);
+    const emptyBlocks = maxBlocks - filledBlocks;
+    const darknessBar = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
     
     // Calculate available space for trail
     const trailStartY = 195;
@@ -171,7 +186,7 @@ function generateShareCardV3(data) {
     
     <!-- User Info Card -->
     <g transform="translate(700, 50)">
-        <rect x="0" y="0" width="440" height="90" fill="${colors.backgroundAlt}" 
+        <rect x="0" y="0" width="440" height="110" fill="${colors.backgroundAlt}" 
               stroke="${colors.border}" stroke-width="2" rx="8"/>
         
         <!-- User name -->
@@ -188,6 +203,19 @@ function generateShareCardV3(data) {
         <text x="20" y="75" style="font-size: 14px; fill: ${colors.gray};">
             ${matchNum}/${matchTotal} words · ${attempts} attempts · ${tokens} tokens
         </text>
+        
+        <!-- Creep Bar -->
+        <g transform="translate(20, 82)">
+            <text x="0" y="0" style="font-size: 11px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 0.5px;">
+                Creep
+            </text>
+            <text x="50" y="0" style="font-size: 14px; fill: ${creepColor}; font-weight: bold; letter-spacing: 1px;">
+                ${darknessBar}
+            </text>
+            <text x="180" y="0" style="font-size: 11px; fill: ${creepColor};">
+                ${creepLevel}/${creepThreshold}
+            </text>
+        </g>
     </g>
     
     <!-- Response Trail Section -->

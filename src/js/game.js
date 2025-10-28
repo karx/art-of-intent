@@ -1188,7 +1188,9 @@ async function shareScore() {
             userName: userName,
             userPhoto: userPhoto,
             globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || []
+            responseTrail: gameState.responseTrail || [],
+            creepLevel: gameState.creepLevel || 0,
+            creepThreshold: gameState.creepThreshold || 100
         };
         
         // Generate SVG (v3 by default - minimalist with response trail)
@@ -1230,7 +1232,9 @@ function previewShareCard() {
             userName: userName,
             userPhoto: userPhoto,
             globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || []
+            responseTrail: gameState.responseTrail || [],
+            creepLevel: gameState.creepLevel || 0,
+            creepThreshold: gameState.creepThreshold || 100
         };
         
         // Generate and preview SVG (v3 by default)
@@ -1280,7 +1284,9 @@ async function shareWithText() {
             userName: userName,
             userPhoto: userPhoto,
             globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || []
+            responseTrail: gameState.responseTrail || [],
+            creepLevel: gameState.creepLevel || 0,
+            creepThreshold: gameState.creepThreshold || 100
         };
         
         // Generate SVG and convert to PNG (v3 by default)
