@@ -75,6 +75,9 @@ function generateShareCardV4(data) {
     // Calculate spacing to fit available space
     const attemptHeight = Math.min(40, Math.floor(availableHeight / maxAttempts));
     
+    // Calculate max tokens for scaling (use session total, not arbitrary 1000)
+    const maxTokensInSession = Math.max(...recentAttempts.map(a => a.totalTokens || 0), 1);
+    
     // Generate full-width trail visualization with event indicators
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
         const y = trailStartY + (idx * attemptHeight);
@@ -82,11 +85,17 @@ function generateShareCardV4(data) {
         
         // Calculate token split widths - use available trail width
         const labelWidth = 40; // "#1" label
-        const eventWidth = 80; // Event indicators
-        const tokenWidth = trailWidth - labelWidth - eventWidth - 40; // Remaining for tokens
+        const eventWidth = 100; // Event indicators (increased for prominence)
+        const tokenBarMaxWidth = trailWidth - labelWidth - eventWidth - 40; // Max width for tokens
         
-        const promptWidth = Math.min((attempt.promptTokens / 200) * tokenWidth, tokenWidth * 0.6);
-        const outputWidth = Math.min((attempt.outputTokens / 200) * tokenWidth, tokenWidth * 0.4);
+        // Scale based on session max (step chart - end-aligned)
+        const totalTokenRatio = (attempt.totalTokens || 0) / maxTokensInSession;
+        const tokenBarWidth = tokenBarMaxWidth * totalTokenRatio;
+        
+        // Split into prompt/output proportionally
+        const promptRatio = (attempt.promptTokens || 0) / (attempt.totalTokens || 1);
+        const promptWidth = tokenBarWidth * promptRatio;
+        const outputWidth = tokenBarWidth * (1 - promptRatio);
         
         // Determine event status
         const isViolation = attempt.violation || false;
@@ -96,58 +105,78 @@ function generateShareCardV4(data) {
         const hitCount = attempt.foundWords ? attempt.foundWords.length : 0;
         const hasHits = hitCount > 0;
         
-        // Generate event indicators (right side)
-        let eventIndicators = '';
-        const eventX = labelWidth + tokenWidth + 20;
+        // Categorize events: Prominent (hits/blacklist) vs Secondary (warnings/input creep)
+        const hasProminentEvent = hasHits || hasBlacklistInResponse || isViolation;
+        const hasSecondaryEvent = isDirectWordUsage || (hasCreepIncrease && !hasBlacklistInResponse);
         
-        // Hit indicators (green dots)
-        if (hasHits) {
-            for (let i = 0; i < Math.min(hitCount, 3); i++) {
+        // Calculate bar position (end-aligned for step chart effect)
+        const barEndX = labelWidth + tokenBarMaxWidth;
+        const barStartX = barEndX - tokenBarWidth;
+        
+        // Generate event indicators (right side, separated by type)
+        let eventIndicators = '';
+        const eventStartX = labelWidth + tokenBarMaxWidth + 20;
+        
+        // PROMINENT EVENTS (Target hits & Blacklist detection)
+        if (hasProminentEvent) {
+            let prominentX = eventStartX;
+            
+            // Target hits (green, prominent)
+            if (hasHits) {
+                // Large green indicator
                 eventIndicators += `
-                    <circle cx="${eventX + (i * 12)}" cy="15" r="5" 
-                            fill="${colors.green}" stroke="${colors.border}" stroke-width="1.5"/>
+                    <rect x="${prominentX}" y="8" width="35" height="16" 
+                          fill="${colors.green}" rx="3" opacity="0.9"/>
+                    <text x="${prominentX + 17.5}" y="19" 
+                          style="font-size: 11px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+                        ●${hitCount}
+                    </text>
                 `;
+                prominentX += 40;
             }
-            if (hitCount > 3) {
+            
+            // Blacklist in response (red, prominent)
+            if (hasBlacklistInResponse) {
+                const blacklistCount = attempt.blacklistWordsInResponse.length;
                 eventIndicators += `
-                    <text x="${eventX + (3 * 12) + 8}" y="18" 
-                          style="font-size: 9px; fill: ${colors.green}; font-weight: bold;">
-                        +${hitCount - 3}
+                    <rect x="${prominentX}" y="8" width="35" height="16" 
+                          fill="${colors.red}" rx="3" opacity="0.9"/>
+                    <text x="${prominentX + 17.5}" y="19" 
+                          style="font-size: 11px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+                        ▓${blacklistCount}
+                    </text>
+                `;
+                prominentX += 40;
+            }
+            
+            // Violation (red X, prominent)
+            if (isViolation) {
+                eventIndicators += `
+                    <circle cx="${prominentX + 10}" cy="15" r="8" 
+                            fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
+                    <text x="${prominentX + 10}" y="19" 
+                          style="font-size: 12px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
+                        ✗
                     </text>
                 `;
             }
         }
         
-        // Warning indicators (yellow)
-        if (isDirectWordUsage) {
-            eventIndicators += `
-                <text x="${eventX + 40}" y="18" 
-                      style="font-size: 10px; fill: ${colors.yellow}; font-weight: bold;">
-                    ⚠
-                </text>
-            `;
-        }
-        
-        // Darkness indicators (creep from Arty response)
-        if (hasBlacklistInResponse) {
-            eventIndicators += `
-                <text x="${eventX + 55}" y="18" 
-                      style="font-size: 10px; fill: ${colors.red};">
-                    ▓
-                </text>
-            `;
-        }
-        
-        // Violation indicator (severe)
-        if (isViolation) {
-            eventIndicators += `
-                <circle cx="${eventX + 70}" cy="15" r="7" 
-                        fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
-                <text x="${eventX + 70}" y="19" 
-                      style="font-size: 11px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
-                    ✗
-                </text>
-            `;
+        // SECONDARY EVENTS (Warnings & Input creep) - shown below if present
+        if (hasSecondaryEvent) {
+            let secondaryIndicators = '';
+            
+            // Direct word usage warning
+            if (isDirectWordUsage) {
+                secondaryIndicators += `
+                    <text x="${eventStartX}" y="30" 
+                          style="font-size: 8px; fill: ${colors.yellow}; opacity: 0.8;">
+                        ⚠ input
+                    </text>
+                `;
+            }
+            
+            eventIndicators += `<g opacity="0.7">${secondaryIndicators}</g>`;
         }
         
         return `
@@ -158,19 +187,19 @@ function generateShareCardV4(data) {
                 #${attempt.number}
             </text>
             
-            <!-- Token bars (full width) -->
-            <rect x="${labelWidth}" y="5" width="${promptWidth}" height="22" 
+            <!-- Token bars (end-aligned for step chart) -->
+            <rect x="${barStartX}" y="5" width="${promptWidth}" height="22" 
                   fill="${colors.cyan}" rx="3" opacity="0.7"/>
-            <rect x="${labelWidth + promptWidth}" y="5" width="${outputWidth}" height="22" 
+            <rect x="${barStartX + promptWidth}" y="5" width="${outputWidth}" height="22" 
                   fill="${colors.yellow}" rx="3" opacity="0.7"/>
             
             <!-- Token count (on bar) -->
-            <text x="${labelWidth + promptWidth + outputWidth - 5}" y="19" 
+            <text x="${barEndX - 5}" y="19" 
                   style="font-size: 10px; fill: ${colors.white}; text-anchor: end; opacity: 0.9;">
                 ${attempt.totalTokens}
             </text>
             
-            <!-- Event indicators -->
+            <!-- Event indicators (prominent and separated) -->
             ${eventIndicators}
         </g>
         `;
@@ -239,8 +268,8 @@ function generateShareCardV4(data) {
         <text x="0" y="0" style="font-size: 14px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">
             Response Trail
         </text>
-        <text x="${trailWidth - 200}" y="0" style="font-size: 10px; fill: ${colors.gray}; opacity: 0.7;">
-            ● = hits  ⚠ = warning  ▓ = darkness  ✗ = violation
+        <text x="${trailWidth - 250}" y="0" style="font-size: 10px; fill: ${colors.gray}; opacity: 0.7;">
+            Bars end-aligned · ●N = hits · ▓N = blacklist · ✗ = violation · ⚠ = warning
         </text>
     </g>
     <line x1="60" y1="${headerHeight + 5}" x2="${width - 60}" y2="${headerHeight + 5}" stroke="${colors.border}" stroke-width="1"/>

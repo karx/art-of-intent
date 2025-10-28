@@ -18,11 +18,18 @@ Share Card V4 redesigns the layout to maximize trail visualization space and add
 - **Full-Width Trail**: Spans nearly entire card width
 - **Event Indicators**: Dedicated space for all event types
 
-### 3. Event Visualization
-- **Hits**: Green dots (●) for target word matches
-- **Warnings**: Yellow warning symbol (⚠) for direct word usage
-- **Darkness**: Red darkness block (▓) for blacklist in Arty response
-- **Violations**: Red X (✗) for severe violations
+### 3. Smart Token Scaling
+- **Session-Based Max**: Bars scale to session's max tokens (not arbitrary 1000)
+- **End-Aligned Bars**: Creates step chart showing token progression
+- **Visual Comparison**: Easy to see which attempts used more tokens
+
+### 4. Event Visualization (Separated & Prominent)
+- **Prominent Events** (large badges):
+  - ●N = Target hits (green badge with count)
+  - ▓N = Blacklist detected (red badge with count)
+  - ✗ = Severe violation (red circle)
+- **Secondary Events** (subtle, below):
+  - ⚠ input = Direct word usage warning (yellow, small)
 
 ---
 
@@ -45,18 +52,23 @@ Margins: 60px left/right, 20px top/bottom
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Trail Layout (430px height)
+### Trail Layout (430px height) - End-Aligned Step Chart
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Response Trail              ● = hits  ⚠ = warning  ▓ = dark│
-├─────────────────────────────────────────────────────────────┤
-│ #1  ████████████████████████████████████ 45    ●●●         │
-│ #2  ██████████████████████████████ 38          ●●          │
-│ #3  ████████████████████████████████████ 42    ●●● ⚠       │
-│ #4  ██████████████████████████████████ 40      ●●          │
-│ #5  ████████████████████████████████████ 48    ●●● ▓       │
-│ ...                                                         │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Response Trail    Bars end-aligned · ●N = hits · ▓N = black│
+├──────────────────────────────────────────────────────────────┤
+│ #1      ████████████████████████████████████ 45    [●3]    │
+│ #2            ██████████████████████████ 38        [●2]    │
+│ #3      ████████████████████████████████████ 42    [●3]    │
+│         ⚠ input                                              │
+│ #4            ██████████████████████████ 40        [●2]    │
+│ #5  ████████████████████████████████████████ 48    [●3][▓1]│
+│ ...                                                          │
+└──────────────────────────────────────────────────────────────┘
+
+Note: Bars end at same position, creating step chart effect
+      Prominent events shown as badges: [●3] [▓1]
+      Secondary events shown below: ⚠ input
 ```
 
 ---
@@ -91,43 +103,45 @@ Token Bar End → [Hits: 0-36px] [Warning: 40px] [Darkness: 55px] [Violation: 70
 
 ## Event Types
 
-### 1. Target Word Hits (Green Dots)
+### 1. Target Word Hits (Green Badge) - PROMINENT
 **When**: Arty's response contains target words
-**Visual**: Green circles (●)
+**Visual**: Green badge with count (●3)
 **Position**: Right of token bar
+**Size**: 35x16px badge
 **Logic**:
 ```javascript
 if (hasHits) {
-    // Show up to 3 dots
-    for (let i = 0; i < Math.min(hitCount, 3); i++) {
-        // Green circle at eventX + (i * 12)
-    }
-    // Show "+N" if more than 3
-    if (hitCount > 3) {
-        // "+2" text
-    }
+    // Green badge with count
+    <rect fill="${colors.green}" width="35" height="16"/>
+    <text>●${hitCount}</text>
 }
 ```
 
-### 2. Direct Word Usage Warning (Yellow ⚠)
-**When**: User types target/blacklist words directly
-**Visual**: Yellow warning symbol
-**Position**: eventX + 40px
-**Logic**:
-```javascript
-if (isDirectWordUsage) {
-    // Yellow ⚠ symbol
-}
-```
-
-### 3. Darkness Creep (Red ▓)
+### 2. Blacklist Detection (Red Badge) - PROMINENT
 **When**: Arty's response contains blacklist words
-**Visual**: Red darkness block
-**Position**: eventX + 55px
+**Visual**: Red badge with count (▓2)
+**Position**: Right of hits badge
+**Size**: 35x16px badge
 **Logic**:
 ```javascript
 if (hasBlacklistInResponse) {
-    // Red ▓ symbol
+    const blacklistCount = attempt.blacklistWordsInResponse.length;
+    // Red badge with count
+    <rect fill="${colors.red}" width="35" height="16"/>
+    <text>▓${blacklistCount}</text>
+}
+```
+
+### 3. Direct Word Usage Warning (Yellow ⚠) - SECONDARY
+**When**: User types target/blacklist words directly
+**Visual**: Small yellow text below bar
+**Position**: Below token bar (y=30)
+**Size**: 8px text, 0.8 opacity
+**Logic**:
+```javascript
+if (isDirectWordUsage) {
+    // Small yellow warning below
+    <text y="30" opacity="0.8">⚠ input</text>
 }
 ```
 
@@ -157,14 +171,25 @@ const trailWidth = width - (trailMargin * 2); // ~1080px
 const attemptHeight = 40;           // Height per attempt
 ```
 
-#### Token Bar Calculation
+#### Token Bar Calculation (Session-Based Scaling)
 ```javascript
 const labelWidth = 40;              // "#1" label
-const eventWidth = 80;              // Event indicators
-const tokenWidth = trailWidth - labelWidth - eventWidth - 40;
+const eventWidth = 100;             // Event indicators (increased)
+const tokenBarMaxWidth = trailWidth - labelWidth - eventWidth - 40;
 
-const promptWidth = Math.min((attempt.promptTokens / 200) * tokenWidth, tokenWidth * 0.6);
-const outputWidth = Math.min((attempt.outputTokens / 200) * tokenWidth, tokenWidth * 0.4);
+// Scale based on session max (not arbitrary 1000)
+const maxTokensInSession = Math.max(...recentAttempts.map(a => a.totalTokens || 0), 1);
+const totalTokenRatio = (attempt.totalTokens || 0) / maxTokensInSession;
+const tokenBarWidth = tokenBarMaxWidth * totalTokenRatio;
+
+// Split into prompt/output proportionally
+const promptRatio = (attempt.promptTokens || 0) / (attempt.totalTokens || 1);
+const promptWidth = tokenBarWidth * promptRatio;
+const outputWidth = tokenBarWidth * (1 - promptRatio);
+
+// End-align for step chart effect
+const barEndX = labelWidth + tokenBarMaxWidth;
+const barStartX = barEndX - tokenBarWidth;
 ```
 
 #### Event Detection
@@ -206,35 +231,40 @@ const svg = shareCardGenerator.generateSVG(cardData, 'v1');
 
 ## Visual Examples
 
-### Example 1: Clean Run (No Events)
+### Example 1: Clean Run (No Events) - End-Aligned
 ```
-#1  ████████████████████████████████████ 45
-#2  ██████████████████████████████ 38
-#3  ████████████████████████████████████ 42
+#1      ████████████████████████████████████ 45
+#2            ██████████████████████████ 38
+#3      ████████████████████████████████████ 42
 ```
+Note: Bars end at same position, shorter bars start later
 
-### Example 2: Successful Hits
+### Example 2: Successful Hits (Prominent Badges)
 ```
-#1  ████████████████████████████████████ 45    ●●●
-#2  ██████████████████████████████ 38          ●●
-#3  ████████████████████████████████████ 42    ●●●
+#1      ████████████████████████████████████ 45    [●3]
+#2            ██████████████████████████ 38        [●2]
+#3      ████████████████████████████████████ 42    [●3]
 ```
+Note: Green badges show hit count prominently
 
-### Example 3: Mixed Events
+### Example 3: Mixed Events (Separated)
 ```
-#1  ████████████████████████████████████ 45    ●●●
-#2  ██████████████████████████████ 38          ●●
-#3  ████████████████████████████████████ 42    ●●● ⚠
-#4  ██████████████████████████████████ 40      ●●
-#5  ████████████████████████████████████ 48    ●●● ▓
+#1      ████████████████████████████████████ 45    [●3]
+#2            ██████████████████████████ 38        [●2]
+#3      ████████████████████████████████████ 42    [●3]
+        ⚠ input
+#4            ██████████████████████████ 40        [●2]
+#5  ████████████████████████████████████████ 48    [●3][▓1]
 ```
+Note: Prominent events (badges) vs secondary events (below)
 
-### Example 4: Violation
+### Example 4: Blacklist Detection (Red Badge)
 ```
-#1  ████████████████████████████████████ 45    ●●●
-#2  ██████████████████████████████ 38          ●●
-#3  ████████████████████████████████████ 42    ●●● ✗
+#1      ████████████████████████████████████ 45    [●3]
+#2            ██████████████████████████ 38        [●2]
+#3  ████████████████████████████████████████ 48    [●3][▓2]
 ```
+Note: Red badge shows blacklist count, very prominent
 
 ---
 

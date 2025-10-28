@@ -10,11 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Share Card V4 (Full-Width Trail)
 - **Full-Width Trail**: Trail now uses 90% of card width (1080px vs 800px)
 - **Compact Header**: Horizontal layout reduces header to 140px (vs 195px)
-- **Event Indicators**: Comprehensive visualization of all game events
-  - Green dots (●) for target word hits
-  - Yellow warning (⚠) for direct word usage
-  - Red darkness (▓) for blacklist in Arty response
-  - Red X (✗) for severe violations
+- **Smart Token Scaling**: Bars scale to session's max tokens (not arbitrary 1000)
+- **End-Aligned Step Chart**: Bars end at same position, creating visual progression
+- **Prominent Event Badges**: Large badges for important events
+  - [●3] = Target hits (green badge with count)
+  - [▓2] = Blacklist detected (red badge with count)
+  - [✗] = Severe violation (red circle)
+- **Secondary Events**: Subtle indicators below bars
+  - ⚠ input = Direct word usage warning (yellow, small)
+- **Event Separation**: Prominent vs secondary events clearly distinguished
 - **Legend Display**: Built-in legend explaining event symbols
 - **Space Efficiency**: 35% more space for trail visualization
 - **Default Version**: V4 is now the default share card
