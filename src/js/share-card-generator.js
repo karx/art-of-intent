@@ -24,10 +24,13 @@ class ShareCardGenerator {
     /**
      * Generate SVG share card
      * @param {object} data - Game data
-     * @param {string} version - Card version ('v1', 'v2', or 'v3')
+     * @param {string} version - Card version ('v1', 'v2', 'v3', or 'v4')
      * @returns {string} SVG string
      */
-    generateSVG(data, version = 'v3') {
+    generateSVG(data, version = 'v4') {
+        if (version === 'v4') {
+            return generateShareCardV4(data);
+        }
         if (version === 'v3') {
             return generateShareCardV3(data);
         }

@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Share Card Creep Display
+### Added - Share Card V4 (Full-Width Trail)
+- **Full-Width Trail**: Trail now uses 90% of card width (1080px vs 800px)
+- **Compact Header**: Horizontal layout reduces header to 140px (vs 195px)
+- **Event Indicators**: Comprehensive visualization of all game events
+  - Green dots (●) for target word hits
+  - Yellow warning (⚠) for direct word usage
+  - Red darkness (▓) for blacklist in Arty response
+  - Red X (✗) for severe violations
+- **Legend Display**: Built-in legend explaining event symbols
+- **Space Efficiency**: 35% more space for trail visualization
+- **Default Version**: V4 is now the default share card
+
+### Added - Share Card Creep Display (V3)
 - **Creep Visualization**: Share cards now display creep level with darkness bar
 - **Visual Indicator**: 10-block bar (▓ filled, ░ empty) showing creep progression
 - **Color Coding**: Green (0-24), Yellow (25-74), Red (75-100)

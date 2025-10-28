@@ -1194,7 +1194,7 @@ async function shareScore() {
         };
         
         // Generate SVG (v3 by default - minimalist with response trail)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
         
         // Share image
         await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
@@ -1238,7 +1238,7 @@ function previewShareCard() {
         };
         
         // Generate and preview SVG (v3 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
         shareCardGenerator.previewImage(svg);
         
     } catch (error) {
@@ -1290,7 +1290,7 @@ async function shareWithText() {
         };
         
         // Generate SVG and convert to PNG (v3 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v3');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
         const blob = await shareCardGenerator.svgToPNG(svg);
         const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
         
