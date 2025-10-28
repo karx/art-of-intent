@@ -59,7 +59,7 @@ function generateShareCardV4(data) {
     const darknessBar = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
     
     // V4 Layout: Compact header, full-width trail
-    const headerHeight = 140;
+    const headerHeight = 160;
     const trailStartY = headerHeight + 20;
     const footerMargin = 40;
     const availableHeight = height - trailStartY - footerMargin;
@@ -75,8 +75,10 @@ function generateShareCardV4(data) {
     // Calculate spacing to fit available space
     const attemptHeight = Math.min(40, Math.floor(availableHeight / maxAttempts));
     
-    // Calculate max tokens for scaling (use session total, not arbitrary 1000)
-    const maxTokensInSession = Math.max(...recentAttempts.map(a => a.totalTokens || 0), 1);
+   // Calculate max tokens for scaling (use session total)
+    const tokensInSession = recentAttempts.map(a => a.totalTokens || 0).reduce((sum, tokens) => sum + tokens, 1);
+    
+    let cumulativeTokenWidth = 0; // Track cumulative width for stacking
     
     // Generate full-width trail visualization with event indicators
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
@@ -89,7 +91,7 @@ function generateShareCardV4(data) {
         const tokenBarMaxWidth = trailWidth - labelWidth - eventWidth - 40; // Max width for tokens
         
         // Scale based on session max (step chart - end-aligned)
-        const totalTokenRatio = (attempt.totalTokens || 0) / maxTokensInSession;
+        const totalTokenRatio = (attempt.totalTokens || 0) / tokensInSession;
         const tokenBarWidth = tokenBarMaxWidth * totalTokenRatio;
         
         // Split into prompt/output proportionally
@@ -97,86 +99,46 @@ function generateShareCardV4(data) {
         const promptWidth = tokenBarWidth * promptRatio;
         const outputWidth = tokenBarWidth * (1 - promptRatio);
         
-        // Determine event status
-        const isViolation = attempt.violation || false;
-        const isDirectWordUsage = attempt.directWordUsage || false;
-        const hasCreepIncrease = (attempt.creepIncrease || 0) > 0;
-        const hasBlacklistInResponse = (attempt.blacklistWordsInResponse || []).length > 0;
+        // Determine hit status (V3 style - only show target hits)
         const hitCount = attempt.foundWords ? attempt.foundWords.length : 0;
         const hasHits = hitCount > 0;
         
-        // Categorize events: Prominent (hits/blacklist) vs Secondary (warnings/input creep)
-        const hasProminentEvent = hasHits || hasBlacklistInResponse || isViolation;
-        const hasSecondaryEvent = isDirectWordUsage || (hasCreepIncrease && !hasBlacklistInResponse);
+        // Calculate bar position (CUMULATIVE waterfall chart)
+        const baseBarStartX = labelWidth; // Base starting point for all bars
+        const barStartX = baseBarStartX + cumulativeTokenWidth;
+        const barEndX = barStartX + tokenBarWidth; // End of this specific bar
         
-        // Calculate bar position (end-aligned for step chart effect)
-        const barEndX = labelWidth + tokenBarMaxWidth;
-        const barStartX = barEndX - tokenBarWidth;
+        // Update cumulative width for the *next* iteration
+        cumulativeTokenWidth += tokenBarWidth;
         
-        // Generate event indicators (right side, separated by type)
-        let eventIndicators = '';
-        const eventStartX = labelWidth + tokenBarMaxWidth + 20;
+        // Generate hit indicators (V3 style - green circles)
+        let hitIndicators = '';
+        const hitStartX = barEndX + 20;
         
-        // PROMINENT EVENTS (Target hits & Blacklist detection)
-        if (hasProminentEvent) {
-            let prominentX = eventStartX;
-            
-            // Target hits (green, prominent)
-            if (hasHits) {
-                // Large green indicator
-                eventIndicators += `
-                    <rect x="${prominentX}" y="8" width="35" height="16" 
-                          fill="${colors.green}" rx="3" opacity="0.9"/>
-                    <text x="${prominentX + 17.5}" y="19" 
-                          style="font-size: 11px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
-                        ●${hitCount}
-                    </text>
+        if (hasHits) {
+            // Multiple green circles for multiple hits (up to 3)
+            for (let i = 0; i < Math.min(hitCount, 3); i++) {
+                const circleX = hitStartX + (i * 14);
+                hitIndicators += `
+                    <circle cx="${circleX}" cy="17" r="6" 
+                            fill="${colors.green}" stroke="${colors.border}" stroke-width="2"/>
                 `;
-                prominentX += 40;
             }
-            
-            // Blacklist in response (red, prominent)
-            if (hasBlacklistInResponse) {
-                const blacklistCount = attempt.blacklistWordsInResponse.length;
-                eventIndicators += `
-                    <rect x="${prominentX}" y="8" width="35" height="16" 
-                          fill="${colors.red}" rx="3" opacity="0.9"/>
-                    <text x="${prominentX + 17.5}" y="19" 
-                          style="font-size: 11px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
-                        ▓${blacklistCount}
-                    </text>
-                `;
-                prominentX += 40;
-            }
-            
-            // Violation (red X, prominent)
-            if (isViolation) {
-                eventIndicators += `
-                    <circle cx="${prominentX + 10}" cy="15" r="8" 
-                            fill="${colors.red}" stroke="${colors.border}" stroke-width="2"/>
-                    <text x="${prominentX + 10}" y="19" 
-                          style="font-size: 12px; fill: ${colors.white}; font-weight: bold; text-anchor: middle;">
-                        ✗
+            // Show count if more than 3
+            if (hitCount > 3) {
+                hitIndicators += `
+                    <text x="${hitStartX + (3 * 14) + 8}" y="20" 
+                          style="font-size: 11px; fill: ${colors.green}; font-weight: bold;">
+                        +${hitCount - 3}
                     </text>
                 `;
             }
-        }
-        
-        // SECONDARY EVENTS (Warnings & Input creep) - shown below if present
-        if (hasSecondaryEvent) {
-            let secondaryIndicators = '';
-            
-            // Direct word usage warning
-            if (isDirectWordUsage) {
-                secondaryIndicators += `
-                    <text x="${eventStartX}" y="30" 
-                          style="font-size: 8px; fill: ${colors.yellow}; opacity: 0.8;">
-                        ⚠ input
-                    </text>
-                `;
-            }
-            
-            eventIndicators += `<g opacity="0.7">${secondaryIndicators}</g>`;
+        } else {
+            // Gray circle for no hits
+            hitIndicators = `
+                <circle cx="${hitStartX}" cy="17" r="6" 
+                        fill="${colors.gray}" stroke="${colors.border}" stroke-width="2" opacity="0.5"/>
+            `;
         }
         
         return `
@@ -199,13 +161,48 @@ function generateShareCardV4(data) {
                 ${attempt.totalTokens}
             </text>
             
-            <!-- Event indicators (prominent and separated) -->
-            ${eventIndicators}
+            <!-- Hit indicators (V3 style) -->
+            ${hitIndicators}
         </g>
         `;
     }).join('');
     
-
+    // Generate creep overlay (grows with trail, aligned to tokensInSession)
+    const creepOverlay = (() => {
+        if (creepLevel === 0) return '';
+        
+        // Calculate creep width based on session tokens
+        const labelWidth = 40;
+        const eventWidth = 100;
+        const tokenBarMaxWidth = trailWidth - labelWidth - eventWidth - 40;
+        
+        // Creep grows proportionally to creep level
+        const creepRatio = creepLevel / creepThreshold;
+        const creepWidth = tokenBarMaxWidth * creepRatio;
+        
+        // Creep overlay spans all attempts
+        const overlayHeight = maxAttempts * attemptHeight;
+        
+        return `
+            <!-- Creep Overlay (darkness growing) -->
+            <g transform="translate(${trailMargin}, ${trailStartY})" opacity="0.15">
+                <defs>
+                    <linearGradient id="creepGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:${colors.red};stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:${colors.red};stop-opacity:0.8" />
+                    </linearGradient>
+                </defs>
+                <rect x="${labelWidth}" y="0" width="${creepWidth}" height="${overlayHeight}" 
+                      fill="url(#creepGradient)" rx="4"/>
+                
+                <!-- Creep level indicator -->
+                <text x="${labelWidth + creepWidth - 10}" y="${overlayHeight / 2}" 
+                      style="font-size: 14px; fill: ${colors.red}; font-weight: bold; opacity: 0.8; text-anchor: end;">
+                    CREEP ${creepLevel}
+                </text>
+            </g>
+        `;
+    })();
     
     return `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -236,30 +233,47 @@ function generateShareCardV4(data) {
             HAIKU CHALLENGE
         </text>
         
-        <!-- User & Result (horizontal layout) -->
+        <!-- User & Result Card (enhanced styling) -->
         <g transform="translate(0, 65)">
-            <text x="0" y="0" style="font-size: 18px; font-weight: bold; fill: ${colors.cyan};">
+            <!-- Background card -->
+            <rect x="-10" y="-15" width="700" height="70" 
+                  fill="${colors.backgroundAlt}" stroke="${colors.border}" 
+                  stroke-width="1" rx="6" opacity="0.5"/>
+            
+            <!-- User name (prominent) -->
+            <text x="10" y="10" style="font-size: 22px; font-weight: bold; fill: ${colors.cyan}; letter-spacing: 1px;">
                 ${userName}
             </text>
-            <text x="250" y="0" style="font-size: 14px; fill: ${colors.gray};">
-                RESULT: <tspan style="fill: ${resultColor}; font-weight: bold; font-size: 16px;">${result}</tspan>
-            </text>
-        </g>
-        
-        <!-- Stats & Creep (horizontal layout) -->
-        <g transform="translate(0, 85)">
-            <text x="0" y="0" style="font-size: 12px; fill: ${colors.gray};">
+            
+            <!-- Result badge -->
+            <g transform="translate(350, -5)">
+                <rect x="0" y="0" width="120" height="30" 
+                      fill="${resultColor}" rx="4" opacity="0.2"/>
+                <rect x="0" y="0" width="120" height="30" 
+                      fill="none" stroke="${resultColor}" stroke-width="2" rx="4"/>
+                <text x="60" y="20" 
+                      style="font-size: 16px; fill: ${resultColor}; font-weight: bold; text-anchor: middle; letter-spacing: 2px;">
+                    ${result}
+                </text>
+            </g>
+            
+            <!-- Stats row -->
+            <text x="10" y="40" style="font-size: 13px; fill: ${colors.white}; opacity: 0.9;">
                 ${matchNum}/${matchTotal} words · ${attempts} attempts · ${tokens} tokens
             </text>
-            <text x="400" y="0" style="font-size: 11px; fill: ${colors.gray};">
-                CREEP:
-            </text>
-            <text x="450" y="0" style="font-size: 12px; fill: ${creepColor}; font-weight: bold; letter-spacing: 1px;">
-                ${darknessBar}
-            </text>
-            <text x="580" y="0" style="font-size: 11px; fill: ${creepColor};">
-                ${creepLevel}/${creepThreshold}
-            </text>
+            
+            <!-- Creep indicator -->
+            <g transform="translate(500, 30)">
+                <text x="0" y="0" style="font-size: 10px; fill: ${colors.gray}; text-transform: uppercase;">
+                    CREEP
+                </text>
+                <text x="45" y="0" style="font-size: 11px; fill: ${creepColor}; font-weight: bold; letter-spacing: 1px;">
+                    ${darknessBar}
+                </text>
+                <text x="135" y="0" style="font-size: 10px; fill: ${creepColor};">
+                    ${creepLevel}/${creepThreshold}
+                </text>
+            </g>
         </g>
     </g>
     
@@ -268,11 +282,13 @@ function generateShareCardV4(data) {
         <text x="0" y="0" style="font-size: 14px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">
             Response Trail
         </text>
-        <text x="${trailWidth - 250}" y="0" style="font-size: 10px; fill: ${colors.gray}; opacity: 0.7;">
-            Bars end-aligned · ●N = hits · ▓N = blacklist · ✗ = violation · ⚠ = warning
+       <text x="${trailWidth - 250}" y="0" style="font-size: 10px; fill: ${colors.gray}; opacity: 0.7;">
+            
         </text>
     </g>
     <line x1="60" y1="${headerHeight + 5}" x2="${width - 60}" y2="${headerHeight + 5}" stroke="${colors.border}" stroke-width="1"/>
+    
+    ${creepOverlay}
     
     ${attemptVisuals}
     

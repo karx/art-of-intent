@@ -9,17 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - Share Card V4 (Full-Width Trail)
 - **Full-Width Trail**: Trail now uses 90% of card width (1080px vs 800px)
-- **Compact Header**: Horizontal layout reduces header to 140px (vs 195px)
-- **Smart Token Scaling**: Bars scale to session's max tokens (not arbitrary 1000)
-- **End-Aligned Step Chart**: Bars end at same position, creating visual progression
-- **Prominent Event Badges**: Large badges for important events
-  - [●3] = Target hits (green badge with count)
-  - [▓2] = Blacklist detected (red badge with count)
-  - [✗] = Severe violation (red circle)
-- **Secondary Events**: Subtle indicators below bars
-  - ⚠ input = Direct word usage warning (yellow, small)
-- **Event Separation**: Prominent vs secondary events clearly distinguished
-- **Legend Display**: Built-in legend explaining event symbols
+- **Waterfall Chart**: Cumulative token bars showing session progression
+- **Smart Token Scaling**: Bars scale to total session tokens (not arbitrary max)
+- **V3-Style Hit Indicators**: Green circles (up to 3) with +N for additional hits
+- **Creep Overlay**: Visual darkness growing across trail, aligned to session tokens
+  - Red gradient overlay showing creep progression
+  - "CREEP N" label at overlay edge
+  - Opacity 0.15 for subtle presence
+- **Enhanced User & Result Section**:
+  - Background card with border for prominence
+  - Larger user name (22px, cyan, bold)
+  - Result badge with colored border and fill
+  - Integrated stats and creep display
+- **Clean Visualization**: Only target hits shown, no clutter from other events
 - **Space Efficiency**: 35% more space for trail visualization
 - **Default Version**: V4 is now the default share card
 
