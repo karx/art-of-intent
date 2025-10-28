@@ -459,7 +459,16 @@
                         <p><strong>1. Write a Prompt:</strong> Craft instructions to guide Arty's response</p>
                         <p><strong>2. Arty Responds:</strong> The AI generates a haiku based on your prompt</p>
                         <p><strong>3. Match Words:</strong> Get all target words in Arty's responses</p>
-                        <p><strong>4. Avoid Blacklist:</strong> If Arty says a forbidden word, game over!</p>
+                        <p><strong>4. Manage Creep:</strong> If Arty says a blacklist word, creep increases by 25</p>
+                        <p><strong>5. Win or Lose:</strong> Match all targets before creep reaches 100!</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <h3>Creep System</h3>
+                        <p><strong>Darkness Meter:</strong> Tracks blacklist violations (0-100 scale)</p>
+                        <p><strong>+25 Creep:</strong> Each time Arty says a blacklist word</p>
+                        <p><strong>Game Over:</strong> When creep reaches 100 (4 violations max)</p>
+                        <p><strong>Strategy:</strong> Balance risk vs reward with mounting tension</p>
                     </div>
                     
                     <div class="help-section">
@@ -480,7 +489,8 @@
                         <p>• Be creative with your prompts</p>
                         <p>• Think about word associations</p>
                         <p>• Shorter prompts = fewer tokens</p>
-                        <p>• Each attempt costs tokens</p>
+                        <p>• You can afford 3-4 blacklist violations</p>
+                        <p>• Use creep strategically for risky prompts</p>
                     </div>
                 </div>
                 <div class="modal-actions">
