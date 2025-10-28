@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-alpha] - 2025-10-28
+
+### Added - The Black Update
+
+#### 🌑 Creep/Darkness System
+- **Progressive penalty system** for blacklist violations
+- **Creep level tracking** (0-100 scale)
+- **4 violations allowed** before game over (25 creep per violation)
+- **Visual feedback** with color-coded creep indicator
+- **Dynamic haiku responses** based on creep level
+- **Tension curve** - mounting pressure as darkness grows
+
+#### 🎮 Gameplay Changes
+- **Blacklist violations no longer instant game over**
+- **Creep accumulation** - darkness slowly consumes the game
+- **Strategic depth** - players must manage remaining "lives"
+- **Forgiveness** - room for mistakes while learning
+
+#### 🎨 UI Enhancements
+- **Creep indicator** in score bar (CREEP: X/100)
+- **Color-coded warnings**:
+  - Green (0-24): Safe
+  - Amber (25-49): Caution
+  - Red (50-74): Warning
+  - Red pulsing (75-99): Critical
+  - Red pulsing (100): Game Over
+- **Violation warning box** with creep change display
+- **Progressive messages** based on danger level
+
+#### 📊 Trail Item Updates
+- **Creep level changes** shown in violation items
+- **Warning messages** adapt to creep level
+- **Game over haiku** for creep threshold reached
+- **Visual distinction** between warning and game over
+
+### Changed
+
+#### 🔄 Game Mechanics
+- Blacklist violations increment creep instead of ending game
+- Game ends only when creep reaches 100
+- Different sound effects for warning vs game over
+- Analytics track creep progression
+
+#### 🎭 Haiku Responses
+- **Creep increasing**: "Shadows grow deeper now, / Darkness creeps (X → Y), / Tread carefully forth."
+- **Creep maxed**: "Darkness now consumes all, / The creep has claimed its victory, / Silence falls complete."
+
+### Technical Details
+
+#### Game State
+- Added `creepLevel` (0-100)
+- Added `creepThreshold` (100)
+- Added `creepPerViolation` (25)
+
+#### Trail Items
+- Added `creepIncrease` field
+- Added `creepLevel` field
+- Added `creepMaxed` boolean
+
+#### CSS Classes
+- `.creep-indicator` with 4 state variants
+- `.violation-warning` container
+- `.creep-change` display
+- Pulsing animation for critical states
+
+#### Analytics Events
+- `blacklist_violation_creep` - Non-fatal violation
+- `creep_threshold_reached` - Game over event
+
+### Documentation
+- **docs/CREEP_SYSTEM.md** - Complete system documentation
+
 ## [1.1.0-alpha] - 2025-10-28
 
 ### Added

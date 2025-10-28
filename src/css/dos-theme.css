@@ -839,6 +839,91 @@ header::after {
     border: 1px solid var(--border-color);
 }
 
+/* Creep/Darkness System */
+.creep-indicator {
+    font-weight: 700;
+    transition: color 0.3s ease;
+}
+
+.creep-indicator.creep-low {
+    color: var(--success-color);
+}
+
+.creep-indicator.creep-medium {
+    color: var(--warning-color);
+}
+
+.creep-indicator.creep-high {
+    color: var(--error-color);
+}
+
+.creep-indicator.creep-critical {
+    color: var(--error-color);
+    animation: creepPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes creepPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Violation Warning Box */
+.violation-warning {
+    margin-top: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    background: rgba(220, 50, 47, 0.1);
+    border: 2px solid var(--error-color);
+    border-radius: 4px;
+}
+
+.violation-header {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--error-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-xs);
+}
+
+.violation-words {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: var(--spacing-xs);
+}
+
+.creep-change {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--error-color);
+    font-family: 'Courier New', monospace;
+    margin-bottom: var(--spacing-xs);
+}
+
+.creep-warning {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--warning-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.creep-maxed {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--error-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    animation: creepPulse 1.5s ease-in-out infinite;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .creep-indicator.creep-critical,
+    .creep-maxed {
+        animation: none;
+    }
+}
+
 /* Compact Trail Stats - Score Card Inspired */
 .trail-stats-compact {
     display: flex;

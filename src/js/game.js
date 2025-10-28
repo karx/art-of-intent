@@ -152,7 +152,10 @@ const gameState = {
     sessionId: null,
     sessionStartTime: null,
     sessionEndTime: null,
-    events: []
+    events: [],
+    creepLevel: 0,              // NEW: Darkness/creep level (0-100)
+    creepThreshold: 100,        // NEW: Game ends when creep reaches this
+    creepPerViolation: 25       // NEW: Creep added per blacklist word
 };
 
 // Word pools for daily generation
@@ -733,40 +736,69 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
 
 function handleBlacklistViolation(prompt, violatedWords) {
     gameState.attempts++;
-    gameState.gameOver = true;
-    gameState.sessionEndTime = new Date().toISOString();
     
-    // Play defeat sound
-    if (typeof soundManager !== 'undefined') soundManager.playDefeat();
+    // Calculate creep increase (per word violated)
+    const creepIncrease = violatedWords.length * gameState.creepPerViolation;
+    const previousCreep = gameState.creepLevel;
+    gameState.creepLevel = Math.min(gameState.creepLevel + creepIncrease, gameState.creepThreshold);
     
-    trackEvent('game_over', {
-        reason: 'blacklist_violation',
-        violatedWords,
-        finalAttempts: gameState.attempts,
-        finalTokens: gameState.totalTokens,
-        wordsMatched: gameState.matchedWords.size,
-        wordsTotal: gameState.targetWords.length
-    });
+    // Check if creep threshold reached (game over)
+    const creepMaxed = gameState.creepLevel >= gameState.creepThreshold;
     
-    // Track game completion
-    GameAnalytics.gameComplete('defeat', {
-        totalTokens: gameState.totalTokens,
-        attempts: gameState.attempts,
-        duration: calculateDuration(),
-        efficiency: 0
-    });
+    if (creepMaxed) {
+        gameState.gameOver = true;
+        gameState.sessionEndTime = new Date().toISOString();
+        
+        // Play defeat sound
+        if (typeof soundManager !== 'undefined') soundManager.playDefeat();
+        
+        trackEvent('game_over', {
+            reason: 'creep_threshold_reached',
+            violatedWords,
+            finalAttempts: gameState.attempts,
+            finalTokens: gameState.totalTokens,
+            wordsMatched: gameState.matchedWords.size,
+            wordsTotal: gameState.targetWords.length,
+            finalCreepLevel: gameState.creepLevel
+        });
+        
+        // Track game completion
+        GameAnalytics.gameComplete('defeat', {
+            totalTokens: gameState.totalTokens,
+            attempts: gameState.attempts,
+            duration: calculateDuration(),
+            efficiency: 0,
+            creepLevel: gameState.creepLevel
+        });
+    } else {
+        // Play warning sound (not game over yet)
+        if (typeof soundManager !== 'undefined') soundManager.playError();
+        
+        trackEvent('blacklist_violation_creep', {
+            violatedWords,
+            creepIncrease,
+            previousCreep,
+            newCreep: gameState.creepLevel,
+            attemptsRemaining: Math.floor((gameState.creepThreshold - gameState.creepLevel) / gameState.creepPerViolation)
+        });
+    }
     
     const trailItem = {
         number: gameState.attempts,
         timestamp: new Date().toLocaleTimeString(),
         isoTimestamp: new Date().toISOString(),
         prompt: prompt,
-        response: 'Words are now proscribed,\nA silent path must be found,\nSpeak in a new way.',
+        response: creepMaxed 
+            ? 'Darkness now consumes all,\nThe creep has claimed its victory,\nSilence falls complete.'
+            : `Shadows grow deeper now,\nDarkness creeps (${previousCreep} → ${gameState.creepLevel}),\nTread carefully forth.`,
         promptTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
         violation: true,
-        violatedWords
+        violatedWords,
+        creepIncrease,
+        creepLevel: gameState.creepLevel,
+        creepMaxed
     };
     
     gameState.responseTrail.push(trailItem);
@@ -780,7 +812,10 @@ function handleBlacklistViolation(prompt, violatedWords) {
         });
     }
     
-    showGameOverModal(false, violatedWords);
+    // Only show game over modal if creep maxed
+    if (creepMaxed) {
+        showGameOverModal(false, violatedWords);
+    }
 }
 
 function handleGameWin() {
@@ -1252,6 +1287,24 @@ function updateScore() {
     document.getElementById('attempts').textContent = gameState.attempts;
     document.getElementById('totalTokens').textContent = gameState.totalTokens;
     document.getElementById('matches').textContent = `${gameState.matchedWords.size}/${gameState.targetWords.length}`;
+    
+    // Update creep level with color coding
+    const creepElement = document.getElementById('creepLevel');
+    if (creepElement) {
+        creepElement.textContent = gameState.creepLevel;
+        
+        // Color code based on danger level
+        creepElement.className = 'creep-indicator';
+        if (gameState.creepLevel >= 75) {
+            creepElement.classList.add('creep-critical');
+        } else if (gameState.creepLevel >= 50) {
+            creepElement.classList.add('creep-high');
+        } else if (gameState.creepLevel >= 25) {
+            creepElement.classList.add('creep-medium');
+        } else {
+            creepElement.classList.add('creep-low');
+        }
+    }
 }
 
 function generateSecuritySignal(security) {
@@ -1340,8 +1393,25 @@ function updateResponseTrail() {
                 ${generateSecuritySignal(item.security)}
                 <div class="trail-response">${DOMPurify.sanitize(item.response)}</div>
                 ${item.violation ? `
-                    <div style="color: var(--accent-red); font-weight: 600; margin-top: 10px;">
-                        ⚠️ Blacklist Violation: ${DOMPurify.sanitize(item.violatedWords.join(', '))}
+                    <div class="violation-warning">
+                        <div class="violation-header">
+                            ${item.creepMaxed ? '☠️ CREEP THRESHOLD REACHED' : '⚠️ BLACKLIST VIOLATION'}
+                        </div>
+                        <div class="violation-words">
+                            Forbidden: ${DOMPurify.sanitize(item.violatedWords.join(', '))}
+                        </div>
+                        <div class="creep-change">
+                            Creep: ${item.creepLevel - item.creepIncrease} → ${item.creepLevel} (+${item.creepIncrease})
+                        </div>
+                        ${item.creepMaxed ? `
+                            <div class="creep-maxed">Darkness has consumed all</div>
+                        ` : `
+                            <div class="creep-warning">
+                                ${item.creepLevel >= 75 ? 'CRITICAL: Darkness closing in' : 
+                                  item.creepLevel >= 50 ? 'WARNING: Shadows growing' : 
+                                  'CAUTION: Creep increasing'}
+                            </div>
+                        `}
                     </div>
                 ` : ''}
                 ${item.foundWords && item.foundWords.length > 0 ? `
