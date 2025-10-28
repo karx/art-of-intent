@@ -163,8 +163,9 @@
                 <li>Each day presents 3 new target words and 5-7 blacklist words</li>
                 <li>You have 10 attempts to make Arty say all target words</li>
                 <li>Type prompts to guide Arty's haiku responses</li>
-                <li>If Arty uses a blacklist word, you lose immediately</li>
-                <li>Match all 3 target words to win</li>
+                <li><strong>Creep System:</strong> If Arty uses a blacklist word, creep increases by 25</li>
+                <li>Game ends when creep reaches 100 (allows 4 violations)</li>
+                <li>Match all 3 target words before creep maxes out to win</li>
             </ul>
             
             <h3>Scoring</h3>
@@ -190,6 +191,8 @@
                 <li>Avoid directly asking for target words - be subtle</li>
                 <li>Watch your token usage - aim for under 40 tokens per attempt</li>
                 <li>Learn from the response trail to refine your approach</li>
+                <li><strong>Manage creep:</strong> You can afford 3-4 blacklist violations, use them strategically</li>
+                <li><strong>Share cards:</strong> Show your progress with visual step-based creep progression</li>
             </ul>
         </div>
 
@@ -303,7 +306,7 @@
 
         <div class="about-section">
             <h2>Version History</h2>
-            <p><strong>v1.2.0-alpha</strong> - Current Version (2025-10-28) - The Black Update</p>
+            <p><strong>v1.2.0-alpha</strong> - The Black Update (2025-10-28)</p>
             <ul>
                 <li><strong>Creep System:</strong> Progressive penalty for blacklist violations</li>
                 <li><strong>Gameplay:</strong> 4 violations allowed before game over (25 creep each)</li>
@@ -312,7 +315,16 @@
                 <li><strong>Strategy:</strong> Manage risk vs reward with mounting tension</li>
             </ul>
             
-            <p><strong>v1.1.0-alpha</strong> - Security Update (2025-10-28)</p>
+            <p><strong>v1.1.0-alpha</strong> - Current Version (2025-01-28) - Share Card Enhancement</p>
+            <ul>
+                <li><strong>Share Cards:</strong> Step-based creep visualization showing per-attempt progression</li>
+                <li><strong>Visual Design:</strong> Theme-appropriate darkness colors for creep (not red)</li>
+                <li><strong>Event Indicators:</strong> Small shape indicators for blacklist/security events</li>
+                <li><strong>Clarity:</strong> Creep growth visible per attempt with +X labels</li>
+                <li><strong>No Emojis:</strong> Simple geometric shapes (circles, rectangles, triangles, diamonds)</li>
+            </ul>
+            
+            <p><strong>v1.0.1-alpha</strong> - Security Update (2025-10-28)</p>
             <ul>
                 <li><strong>Security:</strong> XSS protection with DOMPurify</li>
                 <li><strong>Security:</strong> Prompt injection detection with PromptPurify</li>

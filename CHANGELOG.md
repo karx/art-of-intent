@@ -7,15 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0-alpha] - 2025-01-28
+
+### Changed - Share Card V4.1 (Step-Based Creep & Event Indicators)
+- **Step-Based Creep Visualization**: Replaced full rectangle overlay with per-attempt progression
+  - Shows creep growth per attempt as cumulative steps
+  - Uses theme darkness colors (not red) to match game mechanic
+  - Displays `+X` labels for creep increases ≥5
+  - Creates visual flow showing darkness accumulation
+- **Event Indicators**: Added small shape indicators for game events
+  - Green circles: Target hits (existing, 6px radius)
+  - Red rectangles: Blacklist word detection (8x10px)
+  - Red triangles: Security violations
+  - Yellow diamonds: Security warnings
+  - No emojis, only simple geometric shapes
+- **Improved Clarity**: Creep progression now visible per attempt instead of total overlay
+- **Theme Integration**: Creep uses `colors.dim` (darkness/shadow) from active theme
+
 ### Added - Share Card V4 (Full-Width Trail)
 - **Full-Width Trail**: Trail now uses 90% of card width (1080px vs 800px)
 - **Waterfall Chart**: Cumulative token bars showing session progression
 - **Smart Token Scaling**: Bars scale to total session tokens (not arbitrary max)
 - **V3-Style Hit Indicators**: Green circles (up to 3) with +N for additional hits
-- **Creep Overlay**: Visual darkness growing across trail, aligned to session tokens
-  - Red gradient overlay showing creep progression
-  - "CREEP N" label at overlay edge
-  - Opacity 0.15 for subtle presence
 - **Enhanced User & Result Section**:
   - Background card with border for prominence
   - Larger user name (22px, cyan, bold)

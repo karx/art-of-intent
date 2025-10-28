@@ -1,6 +1,6 @@
 {
   "name": "art-of-intent",
-  "version": "1.0.0-alpha",
+  "version": "1.1.0-alpha",
   "description": "Guide Arty the Haiku Bot to speak target words without using blacklisted words. A daily word puzzle game with AI interaction.",
   "main": "index.html",
   "type": "module",

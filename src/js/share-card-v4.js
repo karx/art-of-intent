@@ -59,7 +59,7 @@ function generateShareCardV4(data) {
     const darknessBar = '▓'.repeat(filledBlocks) + '░'.repeat(emptyBlocks);
     
     // V4 Layout: Compact header, full-width trail
-    const headerHeight = 160;
+    const headerHeight = 140;
     const trailStartY = headerHeight + 20;
     const footerMargin = 40;
     const availableHeight = height - trailStartY - footerMargin;
@@ -82,6 +82,7 @@ function generateShareCardV4(data) {
     
     // Generate full-width trail visualization with event indicators
     const attemptVisuals = recentAttempts.map((attempt, idx) => {
+        console.log({attempt});
         const y = trailStartY + (idx * attemptHeight);
         const x = trailMargin;
         
@@ -141,6 +142,36 @@ function generateShareCardV4(data) {
             `;
         }
         
+        // Add event indicators (small shapes for blacklist/security)
+        let eventIndicators = '';
+        let eventX = hitStartX + 50; // Position after hit indicators
+        
+        // Blacklist indicator (small rectangle)
+        if (attempt.blacklistWordsInResponse > 0) {
+            eventIndicators += `
+                <rect x="${eventX}" y="12" width="8" height="10" 
+                      fill="${colors.red}" opacity="0.8" rx="1"/>
+            `;
+            eventX += 12;
+        }
+        
+        // Security threat indicator (small triangle)
+        if (attempt.securityViolations > 0) {
+            eventIndicators += `
+                <polygon points="${eventX},22 ${eventX + 4},12 ${eventX + 8},22" 
+                         fill="${colors.red}" opacity="0.8"/>
+            `;
+            eventX += 12;
+        }
+        
+        // Security warning indicator (small diamond)
+        if (attempt.securityWarnings > 0) {
+            eventIndicators += `
+                <polygon points="${eventX + 4},12 ${eventX + 8},17 ${eventX + 4},22 ${eventX},17" 
+                         fill="${colors.yellow}" opacity="0.8"/>
+            `;
+        }
+        
         return `
         <!-- Attempt ${attempt.number} -->
         <g transform="translate(${x}, ${y})">
@@ -163,45 +194,55 @@ function generateShareCardV4(data) {
             
             <!-- Hit indicators (V3 style) -->
             ${hitIndicators}
+            
+            <!-- Event indicators (blacklist/security) -->
+            ${eventIndicators}
         </g>
         `;
     }).join('');
     
-    // Generate creep overlay (grows with trail, aligned to tokensInSession)
-    const creepOverlay = (() => {
+    // Generate creep step visualization (shows progression per attempt)
+    const creepSteps = (() => {
         if (creepLevel === 0) return '';
         
-        // Calculate creep width based on session tokens
         const labelWidth = 40;
         const eventWidth = 100;
         const tokenBarMaxWidth = trailWidth - labelWidth - eventWidth - 40;
         
-        // Creep grows proportionally to creep level
-        const creepRatio = creepLevel / creepThreshold;
-        const creepWidth = tokenBarMaxWidth * creepRatio;
+        // Creep color based on game mechanic (not red - it's darkness/shadow)
+        const creepColor = colors.dim; // Use dim/tertiary color for darkness theme
         
-        // Creep overlay spans all attempts
-        const overlayHeight = maxAttempts * attemptHeight;
-        
-        return `
-            <!-- Creep Overlay (darkness growing) -->
-            <g transform="translate(${trailMargin}, ${trailStartY})" opacity="0.15">
-                <defs>
-                    <linearGradient id="creepGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:${colors.red};stop-opacity:0.3" />
-                        <stop offset="100%" style="stop-color:${colors.red};stop-opacity:0.8" />
-                    </linearGradient>
-                </defs>
-                <rect x="${labelWidth}" y="0" width="${creepWidth}" height="${overlayHeight}" 
-                      fill="url(#creepGradient)" rx="4"/>
-                
-                <!-- Creep level indicator -->
-                <text x="${labelWidth + creepWidth - 10}" y="${overlayHeight / 2}" 
-                      style="font-size: 14px; fill: ${colors.red}; font-weight: bold; opacity: 0.8; text-anchor: end;">
-                    CREEP ${creepLevel}
+        let cumulativeCreep = 0;
+        const steps = recentAttempts.map((attempt, idx) => {
+            const creepIncrease = attempt.creepIncrease || 0;
+            if (creepIncrease === 0) return '';
+            
+            const previousCreep = cumulativeCreep;
+            cumulativeCreep += creepIncrease;
+            
+            const y = trailStartY + (idx * attemptHeight);
+            
+            // Calculate width based on creep increase
+            const creepRatio = creepIncrease / creepThreshold;
+            const stepWidth = tokenBarMaxWidth * creepRatio;
+            
+            // Position based on previous cumulative creep
+            const previousRatio = previousCreep / creepThreshold;
+            const startX = labelWidth + (tokenBarMaxWidth * previousRatio);
+            
+            return `
+                <!-- Creep step for attempt ${attempt.number} -->
+                <rect x="${trailMargin + startX}" y="${y + 5}" 
+                      width="${stepWidth}" height="22" 
+                      fill="${creepColor}" opacity="0.3" rx="3"/>
+                <text x="${trailMargin + startX + stepWidth - 3}" y="${y + 18}" 
+                      style="font-size: 8px; fill: ${creepColor}; opacity: 0.6; text-anchor: end;">
+                    +${creepIncrease}
                 </text>
-            </g>
-        `;
+            `;
+        }).join('');
+        
+        return steps;
     })();
     
     return `
@@ -234,7 +275,7 @@ function generateShareCardV4(data) {
         </text>
         
         <!-- User & Result Card (enhanced styling) -->
-        <g transform="translate(0, 65)">
+        <g transform="translate(400, 10)">
             <!-- Background card -->
             <rect x="-10" y="-15" width="700" height="70" 
                   fill="${colors.backgroundAlt}" stroke="${colors.border}" 
@@ -246,7 +287,7 @@ function generateShareCardV4(data) {
             </text>
             
             <!-- Result badge -->
-            <g transform="translate(350, -5)">
+            <g transform="translate(500, -5)">
                 <rect x="0" y="0" width="120" height="30" 
                       fill="${resultColor}" rx="4" opacity="0.2"/>
                 <rect x="0" y="0" width="120" height="30" 
@@ -258,12 +299,31 @@ function generateShareCardV4(data) {
             </g>
             
             <!-- Stats row -->
-            <text x="10" y="40" style="font-size: 13px; fill: ${colors.white}; opacity: 0.9;">
-                ${matchNum}/${matchTotal} words · ${attempts} attempts · ${tokens} tokens
-            </text>
+            <g transform="translate(10, 40)">
+                                <text x="0" y="0" style="font-size: 10px; fill: ${colors.gray}; text-transform: uppercase;">
+                    WORDS
+                </text>
+                <text x="50" y="0" style="font-size: 13px; fill: ${colors.white}; font-weight: bold;">
+                    ${matchNum}/${matchTotal}
+                </text>
+                
+                                <text x="110" y="0" style="font-size: 10px; fill: ${colors.gray}; text-transform: uppercase;">
+                    ATTEMPTS
+                </text>
+              <text x="180" y="0" style="font-size: 13px; fill: ${colors.white}; font-weight: bold;">
+                    ${attempts}
+                </text>
+                
+                                <text x="230" y="0" style="font-size: 10px; fill: ${colors.gray}; text-transform: uppercase;">
+                    TOKENS
+                </text>
+                <text x="285" y="0" style="font-size: 13px; fill: ${colors.white}; font-weight: bold;">
+                    ${tokens}
+                </text>
+            </g>
             
             <!-- Creep indicator -->
-            <g transform="translate(500, 30)">
+            <g transform="translate(500, 40)">
                 <text x="0" y="0" style="font-size: 10px; fill: ${colors.gray}; text-transform: uppercase;">
                     CREEP
                 </text>
@@ -288,7 +348,7 @@ function generateShareCardV4(data) {
     </g>
     <line x1="60" y1="${headerHeight + 5}" x2="${width - 60}" y2="${headerHeight + 5}" stroke="${colors.border}" stroke-width="1"/>
     
-    ${creepOverlay}
+    ${creepSteps}
     
     ${attemptVisuals}
     

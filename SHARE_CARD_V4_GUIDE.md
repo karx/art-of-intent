@@ -24,12 +24,18 @@ Share Card V4 redesigns the layout to maximize trail visualization space and add
 - **Visual Comparison**: Easy to see which attempts used more tokens
 
 ### 4. Event Visualization (Separated & Prominent)
-- **Prominent Events** (large badges):
-  - ●N = Target hits (green badge with count)
-  - ▓N = Blacklist detected (red badge with count)
-  - ✗ = Severe violation (red circle)
-- **Secondary Events** (subtle, below):
-  - ⚠ input = Direct word usage warning (yellow, small)
+- **Target Hits**: Green circles (6px radius)
+- **Blacklist Detection**: Small red rectangles (8x10px)
+- **Security Violations**: Small red triangles
+- **Security Warnings**: Small yellow diamonds
+- All indicators positioned after hit circles, no emojis
+
+### 5. Creep Visualization (Step-Based Progression)
+- **Step-Based**: Shows creep growth per attempt (not full overlay)
+- **Theme Colors**: Uses darkness/shadow colors from theme
+- **Cumulative Display**: Each step shows creep accumulation
+- **Labels**: Shows `+X` for creep increases ≥5
+- **Visual Flow**: Creates step progression showing darkness growth
 
 ---
 
@@ -55,20 +61,22 @@ Margins: 60px left/right, 20px top/bottom
 ### Trail Layout (430px height) - End-Aligned Step Chart
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Response Trail    Bars end-aligned · ●N = hits · ▓N = black│
+│ Response Trail                                               │
 ├──────────────────────────────────────────────────────────────┤
-│ #1      ████████████████████████████████████ 45    [●3]    │
-│ #2            ██████████████████████████ 38        [●2]    │
-│ #3      ████████████████████████████████████ 42    [●3]    │
-│         ⚠ input                                              │
-│ #4            ██████████████████████████ 40        [●2]    │
-│ #5  ████████████████████████████████████████ 48    [●3][▓1]│
+│ #1      ████████████████████████████████████ 45    ●●●      │
+│ #2      ░░░░░░░░░░██████████████████████ 38        ●●       │
+│ #3      ████████████████████████████████████ 42    ●●● ▭    │
+│ #4      ░░░░░░░░░░██████████████████████ 40        ●● ▲     │
+│ #5  ████████████████████████████████████████ 48    ●●●      │
 │ ...                                                          │
 └──────────────────────────────────────────────────────────────┘
 
 Note: Bars end at same position, creating step chart effect
-      Prominent events shown as badges: [●3] [▓1]
-      Secondary events shown below: ⚠ input
+      ░ = Creep steps (darkness progression)
+      ● = Target hits (green circles)
+      ▭ = Blacklist detected (red rectangle)
+      ▲ = Security violation (red triangle)
+      ◆ = Security warning (yellow diamond)
 ```
 
 ---
@@ -103,56 +111,70 @@ Token Bar End → [Hits: 0-36px] [Warning: 40px] [Darkness: 55px] [Violation: 70
 
 ## Event Types
 
-### 1. Target Word Hits (Green Badge) - PROMINENT
+### 1. Target Word Hits (Green Circles)
 **When**: Arty's response contains target words
-**Visual**: Green badge with count (●3)
+**Visual**: Green circles (6px radius)
 **Position**: Right of token bar
-**Size**: 35x16px badge
 **Logic**:
 ```javascript
 if (hasHits) {
-    // Green badge with count
-    <rect fill="${colors.green}" width="35" height="16"/>
-    <text>●${hitCount}</text>
+    for (let i = 0; i < Math.min(hitCount, 3); i++) {
+        const circleX = hitStartX + (i * 14);
+        <circle cx="${circleX}" cy="17" r="6" fill="${colors.green}"/>
+    }
 }
 ```
 
-### 2. Blacklist Detection (Red Badge) - PROMINENT
+### 2. Blacklist Detection (Red Rectangle)
 **When**: Arty's response contains blacklist words
-**Visual**: Red badge with count (▓2)
-**Position**: Right of hits badge
-**Size**: 35x16px badge
+**Visual**: Small red rectangle (8x10px)
+**Position**: After hit indicators
 **Logic**:
 ```javascript
-if (hasBlacklistInResponse) {
-    const blacklistCount = attempt.blacklistWordsInResponse.length;
-    // Red badge with count
-    <rect fill="${colors.red}" width="35" height="16"/>
-    <text>▓${blacklistCount}</text>
+if (attempt.blacklistWordsInResponse > 0) {
+    <rect x="${eventX}" y="12" width="8" height="10" 
+          fill="${colors.red}" opacity="0.8" rx="1"/>
 }
 ```
 
-### 3. Direct Word Usage Warning (Yellow ⚠) - SECONDARY
-**When**: User types target/blacklist words directly
-**Visual**: Small yellow text below bar
-**Position**: Below token bar (y=30)
-**Size**: 8px text, 0.8 opacity
+### 3. Security Violations (Red Triangle)
+**When**: Security threat detected
+**Visual**: Small red triangle
+**Position**: After blacklist indicator
 **Logic**:
 ```javascript
-if (isDirectWordUsage) {
-    // Small yellow warning below
-    <text y="30" opacity="0.8">⚠ input</text>
+if (attempt.securityViolations > 0) {
+    <polygon points="${eventX},22 ${eventX + 4},12 ${eventX + 8},22" 
+             fill="${colors.red}" opacity="0.8"/>
 }
 ```
 
-### 4. Severe Violation (Red ✗)
-**When**: Legacy blacklist violation (game-ending)
-**Visual**: Red circle with X
-**Position**: eventX + 70px
+### 4. Security Warnings (Yellow Diamond)
+**When**: Security warning detected
+**Visual**: Small yellow diamond
+**Position**: After security violation indicator
 **Logic**:
 ```javascript
-if (isViolation) {
-    // Red circle + white ✗
+if (attempt.securityWarnings > 0) {
+    <polygon points="${eventX + 4},12 ${eventX + 8},17 ${eventX + 4},22 ${eventX},17" 
+             fill="${colors.yellow}" opacity="0.8"/>
+}
+```
+
+### 5. Creep Progression (Step-Based)
+**When**: Creep increases during attempt
+**Visual**: Darkness-colored steps showing cumulative growth
+**Position**: Overlaid on token bars
+**Logic**:
+```javascript
+if (attempt.creepIncrease > 0) {
+    const creepHeight = (attempt.creepLevel / 100) * barHeight;
+    <rect x="${startX}" y="${y}" width="${stepWidth}" height="${creepHeight}" 
+          fill="${colors.dim}" opacity="0.3"/>
+    // Show +X label for increases ≥5
+    if (attempt.creepIncrease >= 5) {
+        <text>+${attempt.creepIncrease}</text>
+    }
 }
 ```
 
@@ -247,24 +269,23 @@ Note: Bars end at same position, shorter bars start later
 ```
 Note: Green badges show hit count prominently
 
-### Example 3: Mixed Events (Separated)
+### Example 3: Mixed Events with Creep
 ```
-#1      ████████████████████████████████████ 45    [●3]
-#2            ██████████████████████████ 38        [●2]
-#3      ████████████████████████████████████ 42    [●3]
-        ⚠ input
-#4            ██████████████████████████ 40        [●2]
-#5  ████████████████████████████████████████ 48    [●3][▓1]
+#1      ████████████████████████████████████ 45    ●●●
+#2      ░░░░░░░░░░██████████████████████ 38        ●●
+#3      ████████████████████████████████████ 42    ●●● ▭
+#4      ░░░░░░░░░░██████████████████████ 40        ●● ▲
+#5  ████████████████████████████████████████ 48    ●●●
 ```
-Note: Prominent events (badges) vs secondary events (below)
+Note: ░ shows creep steps, ▭ = blacklist, ▲ = security threat
 
-### Example 4: Blacklist Detection (Red Badge)
+### Example 4: Creep Progression
 ```
-#1      ████████████████████████████████████ 45    [●3]
-#2            ██████████████████████████ 38        [●2]
-#3  ████████████████████████████████████████ 48    [●3][▓2]
+#1      ████████████████████████████████████ 45    ●●●
+#2      ░░░░░░░░░░██████████████████████ 38  +5    ●●
+#3      ░░░░░░░░░░░░░░░░████████████████ 42  +8    ●●●
 ```
-Note: Red badge shows blacklist count, very prominent
+Note: Creep steps show cumulative growth, +X labels for increases
 
 ---
 
@@ -273,12 +294,13 @@ Note: Red badge shows blacklist count, very prominent
 The trail header includes a legend for event indicators:
 
 ```
-Response Trail              ● = hits  ⚠ = warning  ▓ = darkness  ✗ = violation
+Response Trail              ● = hits  ▭ = blacklist  ▲ = threat  ◆ = warning
 ```
 
 **Position**: Right side of trail header
 **Font**: 10px, gray, 0.7 opacity
 **Purpose**: Help viewers understand event symbols
+**Note**: No emojis used, only simple geometric shapes
 
 ---
 
@@ -326,21 +348,20 @@ Colors automatically adapt to active theme (Solarized, Polarized, Dark, Light, C
 const hasNewEvent = attempt.newEventFlag || false;
 ```
 
-2. **Add indicator**:
+2. **Add indicator** (use simple shapes, no emojis):
 ```javascript
 if (hasNewEvent) {
     eventIndicators += `
-        <text x="${eventX + 85}" y="18" 
-              style="font-size: 10px; fill: ${colors.blue};">
-            ★
-        </text>
+        <circle cx="${eventX}" cy="17" r="5" 
+                fill="${colors.blue}" opacity="0.8"/>
     `;
+    eventX += 12;
 }
 ```
 
 3. **Update legend**:
 ```javascript
-<text>● = hits  ⚠ = warning  ▓ = darkness  ✗ = violation  ★ = new</text>
+<text>● = hits  ▭ = blacklist  ▲ = threat  ◆ = warning  ○ = new</text>
 ```
 
 ### Adjusting Layout
@@ -373,10 +394,11 @@ const attemptHeight = 40; // Increase/decrease spacing
 - [ ] All themes render correctly
 
 ### Event Testing
-- [ ] Green dots show for hits
-- [ ] Yellow ⚠ shows for direct word usage
-- [ ] Red ▓ shows for blacklist in response
-- [ ] Red ✗ shows for violations
+- [ ] Green circles show for hits
+- [ ] Red rectangles show for blacklist detection
+- [ ] Red triangles show for security violations
+- [ ] Yellow diamonds show for security warnings
+- [ ] Creep steps show progression per attempt
 - [ ] Multiple events display together
 - [ ] No events = clean trail
 
@@ -411,10 +433,10 @@ const svg = shareCardGenerator.generateSVG(cardData, 'v3');
 
 ### Potential Improvements
 1. **Animated Events**: Pulsing indicators for critical events
-2. **Creep Progression**: Visual creep increase per attempt
-3. **Token Efficiency**: Color-code by efficiency
-4. **Attempt Grouping**: Collapse similar attempts
-5. **Interactive Legend**: Hover to highlight events
+2. **Token Efficiency**: Color-code by efficiency
+3. **Attempt Grouping**: Collapse similar attempts
+4. **Interactive Legend**: Hover to highlight events
+5. **Creep Threshold Indicator**: Show when creep reaches critical levels
 
 ---
 
@@ -434,6 +456,7 @@ const svg = shareCardGenerator.generateSVG(cardData, 'v3');
 - **v2.0**: Minimalist redesign
 - **v3.0**: Added creep display
 - **v4.0**: Full-width trail with event indicators
+- **v4.1**: Step-based creep progression and shape-based event indicators
 
 ---
 
