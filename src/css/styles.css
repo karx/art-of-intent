@@ -767,6 +767,9 @@ body.nav-expanded .top-bar {
     border: 1px solid var(--border-color);
 }
 
+/* Feedback styling moved to themes.css for theme consistency */
+/* See themes.css: FEEDBACK SYSTEM - INLINE INDICATORS section */
+
 .input-section {
     position: sticky;
     bottom: 20px;

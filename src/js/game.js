@@ -327,6 +327,7 @@ function loadSavedGame() {
     gameState.sessionId = localStorage.getItem('sessionId') || generateSessionId();
     gameState.sessionStartTime = localStorage.getItem('sessionStartTime') || new Date().toISOString();
     gameState.events = JSON.parse(localStorage.getItem('events') || '[]');
+    gameState.creepLevel = parseInt(localStorage.getItem('creepLevel') || '0');
 }
 
 function saveGameState() {
@@ -338,6 +339,7 @@ function saveGameState() {
     localStorage.setItem('sessionId', gameState.sessionId);
     localStorage.setItem('sessionStartTime', gameState.sessionStartTime);
     localStorage.setItem('events', JSON.stringify(gameState.events));
+    localStorage.setItem('creepLevel', gameState.creepLevel);
     if (gameState.sessionEndTime) {
         localStorage.setItem('sessionEndTime', gameState.sessionEndTime);
     }
@@ -353,6 +355,7 @@ function resetGameState() {
     gameState.sessionStartTime = new Date().toISOString();
     gameState.sessionEndTime = null;
     gameState.events = [];
+    gameState.creepLevel = 0;
     saveGameState();
 }
 
@@ -501,19 +504,23 @@ async function handleSubmit() {
     // Track prompt submission
     GameAnalytics.promptSubmit(sanitizedPrompt.length, 0); // Token count updated after API response
     
-    // Check for blacklist words in user prompt
+    // Check for target or blacklist words in user prompt (instruction1)
     const promptLower = sanitizedPrompt.toLowerCase();
-    const violatedWords = gameState.blacklistWords.filter(word => 
+    
+    // Check for target words in user input
+    const targetWordsInPrompt = gameState.targetWords.filter(word => 
         promptLower.includes(word.toLowerCase())
     );
     
-    if (violatedWords.length > 0) {
-        trackEvent('blacklist_violation_detected', { 
-            violatedWords: violatedWords,
-            promptLength: sanitizedPrompt.length 
-        });
-        GameAnalytics.blacklistViolation(violatedWords[0], gameState.attempts + 1);
-        handleBlacklistViolation(sanitizedPrompt, violatedWords);
+    // Check for blacklist words in user input
+    const blacklistWordsInPrompt = gameState.blacklistWords.filter(word => 
+        promptLower.includes(word.toLowerCase())
+    );
+    
+    // If user uses target or blacklist words directly, reject with simple message
+    if (targetWordsInPrompt.length > 0 || blacklistWordsInPrompt.length > 0) {
+        const forbiddenWords = [...targetWordsInPrompt, ...blacklistWordsInPrompt];
+        handleDirectWordUsage(sanitizedPrompt, forbiddenWords);
         return;
     }
     
@@ -676,6 +683,29 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
         soundManager.playMatch();
     }
     
+    // Check for blacklist words in Arty's response
+    const blacklistWordsInResponse = gameState.blacklistWords.filter(word => 
+        responseLower.includes(word.toLowerCase())
+    );
+    
+    // If Arty says blacklist words, increase creep
+    let creepIncrease = 0;
+    if (blacklistWordsInResponse.length > 0) {
+        creepIncrease = blacklistWordsInResponse.length * gameState.creepPerViolation;
+        const previousCreep = gameState.creepLevel;
+        gameState.creepLevel = Math.min(gameState.creepLevel + creepIncrease, gameState.creepThreshold);
+        
+        trackEvent('arty_blacklist_violation', {
+            blacklistWords: blacklistWordsInResponse,
+            creepIncrease,
+            previousCreep,
+            newCreep: gameState.creepLevel
+        });
+        
+        // Play warning sound
+        if (typeof soundManager !== 'undefined') soundManager.playError();
+    }
+    
     // Track response processing
     trackEvent('response_processed', {
         attemptNumber: gameState.attempts,
@@ -700,6 +730,9 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
         totalTokens: adjustedTotalTokens, // Adjusted total
         foundWords,
         matchedSoFar: [...gameState.matchedWords],
+        blacklistWordsInResponse: blacklistWordsInResponse.length > 0 ? blacklistWordsInResponse : undefined,
+        creepIncrease: creepIncrease > 0 ? creepIncrease : undefined,
+        creepLevel: gameState.creepLevel,
         security: securityAnalysis ? {
             isClean: securityAnalysis.isClean,
             threatCount: securityAnalysis.threats.length,
@@ -728,9 +761,134 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
         console.log('🔇 Not speaking (lastInputWasVoice:', lastInputWasVoice, ')');
     }
     
+    // Check if creep threshold reached (game over)
+    if (gameState.creepLevel >= gameState.creepThreshold) {
+        gameState.gameOver = true;
+        gameState.sessionEndTime = new Date().toISOString();
+        
+        // Play defeat sound
+        if (typeof soundManager !== 'undefined') soundManager.playDefeat();
+        
+        trackEvent('game_over', {
+            reason: 'creep_threshold_reached_arty_response',
+            blacklistWords: blacklistWordsInResponse,
+            finalAttempts: gameState.attempts,
+            finalTokens: gameState.totalTokens,
+            wordsMatched: gameState.matchedWords.size,
+            wordsTotal: gameState.targetWords.length,
+            finalCreepLevel: gameState.creepLevel
+        });
+        
+        // Track game completion
+        GameAnalytics.gameComplete('defeat', {
+            totalTokens: gameState.totalTokens,
+            attempts: gameState.attempts,
+            duration: calculateDuration(),
+            efficiency: 0,
+            creepLevel: gameState.creepLevel
+        });
+        
+        saveGameState();
+        
+        // Save to Firestore
+        if (window.saveGameToFirestore) {
+            window.saveGameToFirestore(gameState).catch(err => {
+                console.error('Failed to save to Firestore:', err);
+            });
+        }
+        
+        showGameOverModal(false, blacklistWordsInResponse);
+        return;
+    }
+    
     // Check win condition
     if (gameState.matchedWords.size === gameState.targetWords.length) {
         handleGameWin();
+    }
+}
+
+function handleDirectWordUsage(prompt, forbiddenWords) {
+    // User directly used target or blacklist words - simple rejection with minor creep
+    gameState.attempts++;
+    
+    const creepIncrease = 10;
+    const previousCreep = gameState.creepLevel;
+    gameState.creepLevel = Math.min(gameState.creepLevel + creepIncrease, gameState.creepThreshold);
+    
+    // Check if creep threshold reached (game over)
+    const creepMaxed = gameState.creepLevel >= gameState.creepThreshold;
+    
+    if (creepMaxed) {
+        gameState.gameOver = true;
+        gameState.sessionEndTime = new Date().toISOString();
+        
+        // Play defeat sound
+        if (typeof soundManager !== 'undefined') soundManager.playDefeat();
+        
+        trackEvent('game_over', {
+            reason: 'creep_threshold_reached_direct_word_usage',
+            forbiddenWords,
+            finalAttempts: gameState.attempts,
+            finalTokens: gameState.totalTokens,
+            wordsMatched: gameState.matchedWords.size,
+            wordsTotal: gameState.targetWords.length,
+            finalCreepLevel: gameState.creepLevel
+        });
+        
+        // Track game completion
+        GameAnalytics.gameComplete('defeat', {
+            totalTokens: gameState.totalTokens,
+            attempts: gameState.attempts,
+            duration: calculateDuration(),
+            efficiency: 0,
+            creepLevel: gameState.creepLevel
+        });
+    } else {
+        // Play error sound (not game over yet)
+        if (typeof soundManager !== 'undefined') soundManager.playError();
+    }
+    
+    trackEvent('direct_word_usage', {
+        forbiddenWords,
+        creepIncrease,
+        previousCreep,
+        newCreep: gameState.creepLevel,
+        attemptNumber: gameState.attempts,
+        gameOver: creepMaxed
+    });
+    
+    const trailItem = {
+        number: gameState.attempts,
+        timestamp: new Date().toLocaleTimeString(),
+        isoTimestamp: new Date().toISOString(),
+        prompt: prompt,
+        response: creepMaxed 
+            ? "Darkness now consumes all. The creep has claimed its victory. Silence falls complete."
+            : "Don't use these words directly—it's no fun then! The game is about clever prompting, not direct usage.",
+        promptTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        directWordUsage: true,
+        forbiddenWords,
+        creepIncrease,
+        creepLevel: gameState.creepLevel,
+        creepMaxed
+    };
+    
+    gameState.responseTrail.push(trailItem);
+    saveGameState();
+    updateUI();
+    
+    // Save to Firestore
+    if (window.saveGameToFirestore) {
+        window.saveGameToFirestore(gameState).catch(err => {
+            console.error('Failed to save to Firestore:', err);
+        });
+    }
+    
+    // Show game over modal if creep maxed
+    if (creepMaxed) {
+        showGameOverModal(false, forbiddenWords);
     }
 }
 
@@ -1370,8 +1528,8 @@ function updateResponseTrail() {
     const html = gameState.responseTrail.map((item, index) => {
         const isLastItem = index === gameState.responseTrail.length - 1;
         const isGameEnding = isLastItem && gameState.gameOver;
-        const isVictory = isGameEnding && !item.violation && gameState.matchedWords.size === gameState.targetWords.length;
-        const isDefeat = isGameEnding && item.violation;
+        const isVictory = isGameEnding && !item.violation && !item.creepMaxed && gameState.matchedWords.size === gameState.targetWords.length;
+        const isDefeat = isGameEnding && (item.violation || item.creepMaxed);
         
         let itemClass = '';
         if (isVictory) itemClass = 'trail-item--victory';
@@ -1379,8 +1537,8 @@ function updateResponseTrail() {
         else if (item.foundWords && item.foundWords.length > 0) itemClass = 'trail-item--success';
         
         let headerIcon = '';
-        if (isVictory) headerIcon = '🏆 VICTORY';
-        else if (isDefeat) headerIcon = '⚠️ VIOLATION';
+        if (isVictory) headerIcon = 'VICTORY';
+        else if (isDefeat) headerIcon = 'VIOLATION';
         else headerIcon = `Attempt #${item.number}`;
         
         return `
@@ -1391,34 +1549,47 @@ function updateResponseTrail() {
                 </div>
                 <div class="trail-prompt">${DOMPurify.sanitize(item.prompt)}</div>
                 ${generateSecuritySignal(item.security)}
-                <div class="trail-response">${DOMPurify.sanitize(item.response)}</div>
+                <div class="trail-response ${item.directWordUsage && !item.creepMaxed ? 'trail-response--rejected' : ''}">${DOMPurify.sanitize(item.response)}</div>
+                ${item.directWordUsage && !item.creepMaxed ? `
+                    <div class="feedback-inline feedback-inline--rejected">
+                        <span class="feedback-label">input rejected</span>
+                        <span class="feedback-words">${DOMPurify.sanitize(item.forbiddenWords.join(', '))}</span>
+                        <span class="feedback-creep">creep +${item.creepIncrease}</span>
+                        <span class="feedback-hint">no tokens consumed</span>
+                    </div>
+                ` : ''}
+                ${item.directWordUsage && item.creepMaxed ? `
+                    <div class="feedback-inline feedback-inline--critical">
+                        <span class="feedback-icon">▓▓▓</span>
+                        <span class="feedback-label">threshold reached</span>
+                        <span class="feedback-words">${DOMPurify.sanitize(item.forbiddenWords.join(', '))}</span>
+                        <span class="feedback-creep">+${item.creepIncrease}</span>
+                        <span class="feedback-level">${item.creepLevel}/${gameState.creepThreshold}</span>
+                    </div>
+                ` : ''}
+                ${item.blacklistWordsInResponse && item.blacklistWordsInResponse.length > 0 ? `
+                    <div class="feedback-inline feedback-inline--darkness">
+                        <span class="feedback-icon">▓</span>
+                        <span class="feedback-label">darkness creeps</span>
+                        <span class="feedback-words">${DOMPurify.sanitize(item.blacklistWordsInResponse.join(', '))}</span>
+                        <span class="feedback-creep">+${item.creepIncrease}</span>
+                        <span class="feedback-level">${item.creepLevel}/${gameState.creepThreshold}</span>
+                    </div>
+                ` : ''}
                 ${item.violation ? `
-                    <div class="violation-warning">
-                        <div class="violation-header">
-                            ${item.creepMaxed ? '☠️ CREEP THRESHOLD REACHED' : '⚠️ BLACKLIST VIOLATION'}
-                        </div>
-                        <div class="violation-words">
-                            Forbidden: ${DOMPurify.sanitize(item.violatedWords.join(', '))}
-                        </div>
-                        <div class="creep-change">
-                            Creep: ${item.creepLevel - item.creepIncrease} → ${item.creepLevel} (+${item.creepIncrease})
-                        </div>
-                        ${item.creepMaxed ? `
-                            <div class="creep-maxed">Darkness has consumed all</div>
-                        ` : `
-                            <div class="creep-warning">
-                                ${item.creepLevel >= 75 ? 'CRITICAL: Darkness closing in' : 
-                                  item.creepLevel >= 50 ? 'WARNING: Shadows growing' : 
-                                  'CAUTION: Creep increasing'}
-                            </div>
-                        `}
+                    <div class="feedback-inline feedback-inline--critical">
+                        <span class="feedback-icon">▓▓▓</span>
+                        <span class="feedback-label">${item.creepMaxed ? 'threshold reached' : 'blacklist violation'}</span>
+                        <span class="feedback-words">${DOMPurify.sanitize(item.violatedWords.join(', '))}</span>
+                        <span class="feedback-creep">+${item.creepIncrease}</span>
+                        <span class="feedback-level">${item.creepLevel}/${gameState.creepThreshold}</span>
                     </div>
                 ` : ''}
                 ${item.foundWords && item.foundWords.length > 0 ? `
                     <div class="match-indicator">
                         <strong>Found:</strong>
                         ${item.foundWords.map(w => `<span class="match-word found">${DOMPurify.sanitize(w)}</span>`).join('')}
-                        ${isVictory ? '<div class="all-matched">✓ ALL TARGETS MATCHED!</div>' : ''}
+                        ${isVictory ? '<div class="all-matched">[ALL TARGETS MATCHED]</div>' : ''}
                     </div>
                 ` : ''}
                 ${!item.violation ? `

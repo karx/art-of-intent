@@ -312,3 +312,154 @@ small, .text-small { font-size: var(--font-size-small); }
     background: rgba(63, 185, 80, 0.15);
     border-color: rgba(63, 185, 80, 0.4);
 }
+
+/* ============================================
+   FEEDBACK SYSTEM - INLINE INDICATORS
+   Brand-aligned, contemplative feedback
+   ============================================ */
+
+/* 
+   DESIGN PHILOSOPHY:
+   - Feedback whispers, doesn't shout
+   - Inline, not boxed (space efficient)
+   - Poetic language ("darkness creeps" not "violation")
+   - Clear token consumption distinction
+   
+   FEEDBACK TYPES:
+   1. Input Rejected (--rejected): User input blocked, no tokens consumed
+   2. Darkness Creeps (--darkness): Arty said blacklist word, tokens consumed
+   3. Critical (--critical): Severe violation, game-ending
+   
+   MAINTAINER NOTES:
+   - Keep font sizes small (0.65-0.7rem) for subtlety
+   - Use low opacity (0.6-0.8) to reduce visual weight
+   - Maintain monospace font for terminal aesthetic
+   - Colors should use theme variables for consistency
+*/
+
+/* Base inline feedback structure */
+.feedback-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 4px 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    flex-wrap: wrap;
+}
+
+/* Input rejected - no tokens consumed (gentle warning) */
+.feedback-inline--rejected {
+    opacity: 0.6;
+}
+
+/* Dimmed response for rejected inputs */
+.trail-response--rejected {
+    opacity: 0.5;
+    font-style: normal;
+}
+
+/* Darkness creeps - Arty said blacklist word (game progression) */
+.feedback-inline--darkness {
+    opacity: 0.8;
+}
+
+/* Critical violation (severe, game-ending) */
+.feedback-inline--critical {
+    opacity: 0.9;
+}
+
+/* Darkness icon (▓) - suggests creeping shadow */
+.feedback-icon {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    opacity: 0.5;
+}
+
+/* Label text (lowercase for gentleness) */
+.feedback-label {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    text-transform: lowercase;
+    letter-spacing: 0.5px;
+}
+
+/* Label colors by feedback type */
+.feedback-inline--rejected .feedback-label {
+    color: var(--warning-color); /* Yellow - gentle warning */
+}
+
+.feedback-inline--darkness .feedback-label {
+    color: var(--text-secondary); /* Neutral - game mechanic */
+}
+
+.feedback-inline--critical .feedback-label {
+    color: var(--error-color); /* Red - severe */
+}
+
+/* Violated words display */
+.feedback-words {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    opacity: 0.8;
+}
+
+/* Parentheses around words */
+.feedback-words::before {
+    content: '(';
+    opacity: 0.5;
+}
+
+.feedback-words::after {
+    content: ')';
+    opacity: 0.5;
+}
+
+/* Creep change indicator */
+.feedback-creep {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+/* Creep colors by feedback type */
+.feedback-inline--rejected .feedback-creep {
+    color: var(--warning-color); /* Yellow */
+}
+
+.feedback-inline--darkness .feedback-creep {
+    color: var(--text-secondary); /* Neutral */
+}
+
+.feedback-inline--critical .feedback-creep {
+    color: var(--error-color); /* Red */
+}
+
+/* Creep level display [current/max] */
+.feedback-level {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    opacity: 0.6;
+}
+
+/* Brackets around level */
+.feedback-level::before {
+    content: '[';
+    opacity: 0.5;
+}
+
+.feedback-level::after {
+    content: ']';
+    opacity: 0.5;
+}
+
+/* Hint text (e.g., "no tokens consumed") */
+.feedback-hint {
+    color: var(--text-secondary);
+    font-size: 0.6rem;
+    opacity: 0.5;
+    font-style: italic;
+}

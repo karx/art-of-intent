@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - Mechanics Cleanup & UX Refinement
+
+#### 🎯 User Input Validation
+- **Direct word usage prevention**: Users can no longer use target or blacklist words directly in their prompts
+- **Simple rejection message**: "Don't use these words directly—it's no fun then! The game is about clever prompting, not direct usage."
+- **Minor creep penalty**: +10 creep for direct word usage (instead of instant game over)
+- **Maintains game flow**: Encourages creative prompting without harsh punishment
+
+#### 🤖 Arty Response Handling
+- **Target word matching**: Unchanged - score increases when Arty says target words ✅
+- **Blacklist word detection**: Arty's responses now checked for blacklist words
+- **Creep increase**: +25 creep per blacklist word in Arty's response
+- **Game over condition**: Game ends when creep reaches 100 from Arty's violations
+
+#### 🎮 Improved Game Balance
+- **User mistakes**: Gentle correction with minor penalty (10 creep)
+- **Arty violations**: Significant penalty (25 creep per word)
+- **Strategic depth**: Players must craft prompts that avoid triggering blacklist words in Arty's responses
+- **Fair gameplay**: Prevents cheating while maintaining challenge
+
+#### 🎨 Feedback System Redesign - Brand-Aligned
+- **Contemplative, Not Punitive**: Blacklist hits treated as game progression, not errors
+- **Inline Feedback**: Replaced large warning boxes with subtle inline indicators
+- **Space Efficient**: 67% reduction in vertical space (60px → 20px)
+- **Poetic Language**: "darkness creeps" instead of "violation detected"
+- **Token Clarity**: Explicit distinction between token-free rejections and AI responses
+  - Input rejected: Dimmed response + "no tokens consumed" hint
+  - Darkness creeps: Normal response + subtle darkness indicator (▓)
+  - Critical: Multiple darkness icons (▓▓▓) for severity
+- **Subtle Presence**: 0.6-0.8 opacity, 0.65rem font, lowercase labels
+- **Brand Consistency**: Aligned with Arty's contemplative, poetic nature
+- **Creep Persistence**: Creep level now saves/loads correctly across page refreshes
+
+#### 🔧 Technical Improvements
+- **Theme System Integration**: Moved feedback styling to `themes.css` for theme consistency
+- **Theme Variables**: All colors use CSS variables (`--warning-color`, `--error-color`, etc.)
+- **Maintainer Documentation**: Comprehensive guide for future team members
+  - `FEEDBACK_SYSTEM_MAINTAINER_GUIDE.md` - Complete technical reference
+  - Inline comments in `themes.css` explaining design decisions
+  - Architecture documentation and troubleshooting guide
+
+#### 🐛 Bug Fixes
+- **Game Over Detection**: Fixed bug where game didn't end when creep reached 100 via user input
+- **Threshold Checking**: All three creep paths now properly check threshold
+  - User input rejection path
+  - Arty response violation path
+  - Legacy blacklist violation path
+
 ## [1.2.0-alpha] - 2025-10-28
 
 ### Added - The Black Update
