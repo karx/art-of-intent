@@ -205,7 +205,7 @@ function generateShareCardV3(data) {
         </text>
         
         <!-- Creep Bar -->
-        <g transform="translate(20, 82)">
+        <g transform="translate(20, 95)">
             <text x="0" y="0" style="font-size: 11px; fill: ${colors.gray}; text-transform: uppercase; letter-spacing: 0.5px;">
                 Creep
             </text>
