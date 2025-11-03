@@ -5,6 +5,9 @@
 // Import analytics
 import { GameAnalytics, UserAnalytics } from './analytics.js';
 
+// Import Firebase Functions
+import { functions, httpsCallable, db, collection, doc, getDoc } from './firebase-config.js';
+
 // Track if last input was via voice
 let lastInputWasVoice = false;
 
@@ -258,11 +261,11 @@ async function loadDailyWords() {
     
     try {
         // Try to load from Firestore first
-        const docRef = firebase.firestore().collection('dailyWords').doc(dateKey);
-        const doc = await docRef.get();
+        const docRef = doc(db, 'dailyWords', dateKey);
+        const docSnap = await getDoc(docRef);
         
-        if (doc.exists) {
-            const data = doc.data();
+        if (docSnap.exists()) {
+            const data = docSnap.data();
             gameState.targetWords = data.targetWords;
             gameState.blacklistWords = data.blacklistWords;
             
@@ -597,7 +600,7 @@ async function callArtyAPI(userPrompt) {
     
     try {
         // Call Firebase Cloud Function instead of direct API
-        const artyGenerateHaiku = firebase.functions().httpsCallable('artyGenerateHaiku');
+        const artyGenerateHaiku = httpsCallable(functions, 'artyGenerateHaiku');
         
         const result = await artyGenerateHaiku({
             userPrompt,

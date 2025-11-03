@@ -24,8 +24,14 @@ import {
     limit,
     onSnapshot,
     serverTimestamp,
+    // Functions
+    httpsCallable,
     enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { 
+    getFunctions,
+    httpsCallable
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -46,6 +52,9 @@ const auth = getAuth(app);
 
 // Connect to the 'alpha' database
 const db = getFirestore(app, 'alpha');
+
+// Initialize Cloud Functions
+const functions = getFunctions(app);
 
 // Enable offline persistence (optional - disable if causing issues)
 enableIndexedDbPersistence(db)
@@ -71,6 +80,7 @@ export {
     analytics,
     auth,
     db,
+    functions,
     googleProvider,
     // Auth functions
     signInAnonymously,
@@ -89,7 +99,9 @@ export {
     orderBy,
     limit,
     onSnapshot,
-    serverTimestamp
+    serverTimestamp,
+    // Functions
+    httpsCallable
 };
 
 // Firebase state
