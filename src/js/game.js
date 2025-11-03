@@ -174,8 +174,8 @@ const getConfig = () => window.CONFIG || {
 };
 
 // Initialize game on page load
-document.addEventListener('DOMContentLoaded', () => {
-    initializeGame();
+document.addEventListener('DOMContentLoaded', async () => {
+    await initializeGame();
     setupEventListeners();
     updateSchemaMetadata();
     checkFirstTimeUser();
@@ -190,7 +190,7 @@ function getDailyDateKey() {
     return `${year}-${month}-${day}`;
 }
 
-function initializeGame() {
+async function initializeGame() {
     const today = getDailyDateKey();
     
     // Check if we need to generate new words for today
@@ -203,8 +203,8 @@ function initializeGame() {
     });
     
     if (savedDate !== today) {
-        console.log('🔄 Generating new words for', today);
-        generateDailyWords();
+        console.log('🔄 Loading new words for', today);
+        await loadDailyWords();
         resetGameState();
         localStorage.setItem('gameDate', today);
         trackEvent('session_start', { reason: 'new_day', date: today });
@@ -219,7 +219,7 @@ function initializeGame() {
     }
     
     // Validate words are available
-    ensureWordsAvailable();
+    await ensureWordsAvailable();
     
     updateUI();
     
@@ -229,28 +229,64 @@ function initializeGame() {
     }
 }
 
-function ensureWordsAvailable() {
+async function ensureWordsAvailable() {
     // Fallback: regenerate if words are missing
     if (gameState.targetWords.length === 0 || gameState.blacklistWords.length === 0) {
-        console.warn('⚠️ Words missing, regenerating...');
-        generateDailyWords();
+        console.warn('⚠️ Words missing, loading...');
+        await loadDailyWords();
     }
     
     // Validate word counts
     if (gameState.targetWords.length !== 3) {
         console.error('❌ Invalid target count:', gameState.targetWords.length);
-        generateDailyWords();
+        await loadDailyWords();
     }
     
     if (gameState.blacklistWords.length < 5 || gameState.blacklistWords.length > 7) {
         console.error('❌ Invalid blacklist count:', gameState.blacklistWords.length);
-        generateDailyWords();
+        await loadDailyWords();
     }
     
     console.log('✅ Words validated:', {
         target: gameState.targetWords,
         blacklist: gameState.blacklistWords
     });
+}
+
+async function loadDailyWords() {
+    const dateKey = getDailyDateKey();
+    
+    try {
+        // Try to load from Firestore first
+        const docRef = firebase.firestore().collection('dailyWords').doc(dateKey);
+        const doc = await docRef.get();
+        
+        if (doc.exists) {
+            const data = doc.data();
+            gameState.targetWords = data.targetWords;
+            gameState.blacklistWords = data.blacklistWords;
+            
+            console.log('✅ Loaded daily words from Firestore:', {
+                target: gameState.targetWords,
+                blacklist: gameState.blacklistWords,
+                date: dateKey
+            });
+            
+            // Save to localStorage for offline access
+            localStorage.setItem('targetWords', JSON.stringify(gameState.targetWords));
+            localStorage.setItem('blacklistWords', JSON.stringify(gameState.blacklistWords));
+            localStorage.setItem('wordsDate', dateKey);
+            
+            return true;
+        }
+    } catch (error) {
+        console.warn('⚠️ Could not load words from Firestore:', error);
+    }
+    
+    // Fallback to client-side generation
+    console.log('⚠️ Using client-side word generation (fallback)');
+    generateDailyWords();
+    return false;
 }
 
 function generateDailyWords() {
@@ -557,34 +593,37 @@ async function handleSubmit() {
 }
 
 async function callArtyAPI(userPrompt) {
-    const config = getConfig();
     const systemInstruction = generateSystemInstruction();
     
-    const requestBody = {
-        system_instruction: {
-            parts: [{ text: systemInstruction }]
-        },
-        contents: [
-            {
-                parts: [{ text: userPrompt }]
-            }
-        ]
-    };
-    
-    const response = await fetch(config.GEMINI_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': config.GEMINI_API_KEY
-        },
-        body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+    try {
+        // Call Firebase Cloud Function instead of direct API
+        const artyGenerateHaiku = firebase.functions().httpsCallable('artyGenerateHaiku');
+        
+        const result = await artyGenerateHaiku({
+            userPrompt,
+            systemInstruction,
+            sessionId: gameState.sessionId
+        });
+        
+        if (!result.data.success) {
+            throw new Error(result.data.error || 'Failed to generate haiku');
+        }
+        
+        // Return the full API response format for compatibility
+        return result.data.data.fullResponse;
+        
+    } catch (error) {
+        console.error('Firebase function error:', error);
+        
+        // Provide user-friendly error messages
+        if (error.code === 'unauthenticated') {
+            throw new Error('Please sign in to play');
+        } else if (error.code === 'invalid-argument') {
+            throw new Error('Invalid prompt. Please try again.');
+        } else {
+            throw new Error('Failed to generate haiku. Please try again.');
+        }
     }
-    
-    return await response.json();
 }
 
 function generateSystemInstruction() {

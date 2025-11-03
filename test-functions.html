@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Firebase Functions - Art of Intent</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0a0a0f;
+            color: #e8e6e3;
+        }
+        h1 {
+            color: #00d9ff;
+        }
+        button {
+            background: #00d9ff;
+            color: #0a0a0f;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #00ff88;
+        }
+        .output {
+            background: #1a1625;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #2d2438;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success {
+            color: #00ff88;
+        }
+        .error {
+            color: #ff4444;
+        }
+        .info {
+            color: #00d9ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Firebase Functions Test</h1>
+    
+    <div>
+        <h2>1. Test artyGenerateHaiku</h2>
+        <button onclick="testGenerateHaiku()">Test Generate Haiku</button>
+        <div id="haikuOutput" class="output"></div>
+    </div>
+    
+    <div>
+        <h2>2. Test Daily Words Loading</h2>
+        <button onclick="testLoadDailyWords()">Load Daily Words</button>
+        <div id="wordsOutput" class="output"></div>
+    </div>
+    
+    <div>
+        <h2>3. Test Authentication</h2>
+        <button onclick="testAuth()">Check Auth Status</button>
+        <button onclick="signInAnonymously()">Sign In Anonymously</button>
+        <div id="authOutput" class="output"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script type="module">
+        import { firebaseConfig } from './src/js/firebase-config.js';
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Make firebase available globally for test functions
+        window.firebase = firebase;
+        
+        console.log('Firebase initialized');
+    </script>
+    
+    <script>
+        function log(elementId, message, type = 'info') {
+            const output = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+        }
+        
+        async function testGenerateHaiku() {
+            const output = document.getElementById('haikuOutput');
+            output.innerHTML = '';
+            
+            try {
+                log('haikuOutput', 'Testing artyGenerateHaiku function...', 'info');
+                
+                // Check auth
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    log('haikuOutput', 'Not authenticated. Please sign in first.', 'error');
+                    return;
+                }
+                
+                log('haikuOutput', `Authenticated as: ${user.uid}`, 'success');
+                
+                // Call function
+                const artyGenerateHaiku = firebase.functions().httpsCallable('artyGenerateHaiku');
+                
+                log('haikuOutput', 'Calling function with test prompt...', 'info');
+                
+                const result = await artyGenerateHaiku({
+                    userPrompt: 'Write a haiku about mountains',
+                    systemInstruction: 'You are a haiku bot. Respond only with a haiku in 5-7-5 syllable format.',
+                    sessionId: 'test-session-' + Date.now()
+                });
+                
+                log('haikuOutput', 'Function call successful!', 'success');
+                log('haikuOutput', 'Response: ' + JSON.stringify(result.data, null, 2), 'success');
+                
+                if (result.data.success) {
+                    log('haikuOutput', '\nGenerated Haiku:\n' + result.data.data.responseText, 'success');
+                    log('haikuOutput', '\nToken Usage: ' + JSON.stringify(result.data.data.usageMetadata, null, 2), 'info');
+                }
+                
+            } catch (error) {
+                log('haikuOutput', 'Error: ' + error.message, 'error');
+                log('haikuOutput', 'Code: ' + error.code, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        async function testLoadDailyWords() {
+            const output = document.getElementById('wordsOutput');
+            output.innerHTML = '';
+            
+            try {
+                log('wordsOutput', 'Loading daily words from Firestore...', 'info');
+                
+                const dateKey = new Date().toISOString().split('T')[0];
+                log('wordsOutput', `Date key: ${dateKey}`, 'info');
+                
+                const docRef = firebase.firestore().collection('dailyWords').doc(dateKey);
+                const doc = await docRef.get();
+                
+                if (doc.exists) {
+                    const data = doc.data();
+                    log('wordsOutput', 'Daily words found!', 'success');
+                    log('wordsOutput', 'Target words: ' + JSON.stringify(data.targetWords), 'success');
+                    log('wordsOutput', 'Blacklist words: ' + JSON.stringify(data.blacklistWords), 'success');
+                    log('wordsOutput', 'Seed: ' + data.seed, 'info');
+                    log('wordsOutput', 'Created: ' + data.createdAt?.toDate(), 'info');
+                } else {
+                    log('wordsOutput', 'No daily words found for today.', 'error');
+                    log('wordsOutput', 'The generateDailyWords function may not have run yet.', 'info');
+                    log('wordsOutput', 'You can trigger it manually or wait for the scheduled run.', 'info');
+                }
+                
+            } catch (error) {
+                log('wordsOutput', 'Error: ' + error.message, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        async function testAuth() {
+            const output = document.getElementById('authOutput');
+            output.innerHTML = '';
+            
+            const user = firebase.auth().currentUser;
+            
+            if (user) {
+                log('authOutput', 'Authenticated!', 'success');
+                log('authOutput', 'User ID: ' + user.uid, 'info');
+                log('authOutput', 'Anonymous: ' + user.isAnonymous, 'info');
+                log('authOutput', 'Email: ' + (user.email || 'N/A'), 'info');
+            } else {
+                log('authOutput', 'Not authenticated', 'error');
+                log('authOutput', 'Click "Sign In Anonymously" to authenticate', 'info');
+            }
+        }
+        
+        async function signInAnonymously() {
+            const output = document.getElementById('authOutput');
+            output.innerHTML = '';
+            
+            try {
+                log('authOutput', 'Signing in anonymously...', 'info');
+                
+                const result = await firebase.auth().signInAnonymously();
+                
+                log('authOutput', 'Sign in successful!', 'success');
+                log('authOutput', 'User ID: ' + result.user.uid, 'success');
+                
+            } catch (error) {
+                log('authOutput', 'Error: ' + error.message, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Listen for auth state changes
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                console.log('User signed in:', user.uid);
+            } else {
+                console.log('User signed out');
+            }
+        });
+    </script>
+</body>
+</html>
