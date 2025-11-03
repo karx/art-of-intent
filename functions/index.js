@@ -13,8 +13,11 @@ const {getFirestore, FieldValue} = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 
 // Initialize Firebase Admin
-initializeApp();
+initializeApp({
+    databaseId: 'alpha'
+});
 const db = getFirestore();
+db.settings({ databaseId: 'alpha' });
 
 // Word pools for daily word generation (same as client-side)
 const wordPools = {
