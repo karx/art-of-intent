@@ -14,11 +14,20 @@
   "engines": {
     "node": "20"
   },
-  "keywords": ["firebase", "functions", "gemini", "ai"],
+  "keywords": [
+    "firebase",
+    "functions",
+    "gemini",
+    "ai"
+  ],
   "author": "karx",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^17.2.3",
     "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.6.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
   }
 }
