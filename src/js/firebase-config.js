@@ -28,8 +28,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { 
     getFunctions,
-    httpsCallable
+    httpsCallable,
+    connectFunctionsEmulator
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+
+import { connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -53,6 +57,20 @@ const db = getFirestore(app, 'alpha');
 
 // Initialize Cloud Functions
 const functions = getFunctions(app);
+
+// Use emulators if running locally
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('DEV MODE: Using Firebase emulators');
+
+    // Point Auth to the emulator
+    connectAuthEmulator(auth, 'http://localhost:9099');
+
+    // Point Firestore to the emulator
+    connectFirestoreEmulator(db, 'localhost', 8080);
+
+    // Point Functions to the emulator
+    connectFunctionsEmulator(functions, 'localhost', 5001);
+}
 
 // Enable offline persistence (optional - disable if causing issues)
 enableIndexedDbPersistence(db)
