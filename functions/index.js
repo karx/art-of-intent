@@ -6,11 +6,30 @@
  * - generateDailyWords: Generate daily target/blacklist words (scheduled)
  */
 
-const {onCall, HttpsError} = require('firebase-functions/v2/https');
+const {onRequest} = require('firebase-functions/v2/https');
 const {onSchedule} = require('firebase-functions/v2/scheduler');
 const {initializeApp} = require('firebase-admin/app');
+const {getAuth} = require('firebase-admin/auth');
 const {getFirestore, FieldValue} = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
+const cors = require('cors');
+
+// CORS configuration
+const allowedOrigins = [
+    'https://art-of-intent.netlify.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000'
+];
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
+};
+const corsMiddleware = cors(corsOptions);
 
 // Initialize Firebase Admin
 initializeApp({
@@ -34,117 +53,135 @@ const wordPools = {
 /**
  * Generate haiku via Gemini API
  * 
- * Callable function that proxies requests to Gemini API
+ * HTTP function that proxies requests to Gemini API
  * to keep API keys secure on the backend.
  */
-exports.artyGenerateHaiku = onCall({
+exports.artyGenerateHaiku = onRequest({
     maxInstances: 10,
     timeoutSeconds: 30,
     memory: '256MiB',
-    cors: true
-}, async (request) => {
-    const {userPrompt, systemInstruction, sessionId} = request.data;
-    
-    // Validate authentication
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'Must be authenticated to generate haiku');
-    }
-    
-    // Validate input
-    if (!userPrompt || typeof userPrompt !== 'string') {
-        throw new HttpsError('invalid-argument', 'userPrompt is required and must be a string');
-    }
-    
-    if (userPrompt.length > 500) {
-        throw new HttpsError('invalid-argument', 'userPrompt must be 500 characters or less');
-    }
-    
-    if (!systemInstruction || typeof systemInstruction !== 'string') {
-        throw new HttpsError('invalid-argument', 'systemInstruction is required and must be a string');
-    }
-    
-    try {
-        // Get Gemini API configuration from environment
-        const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = process.env.GEMINI_API_URL || 
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
-        
-        if (!geminiApiKey) {
-            logger.error('GEMINI_API_KEY not configured');
-            throw new HttpsError('failed-precondition', 'API configuration error');
+}, (req, res) => {
+    corsMiddleware(req, res, async () => {
+        // Handle preflight request
+        if (req.method === 'OPTIONS') {
+            res.status(204).send('');
+            return;
         }
-        
-        // Prepare request body
-        const requestBody = {
-            system_instruction: {
-                parts: [{text: systemInstruction}]
-            },
-            contents: [
-                {
-                    parts: [{text: userPrompt}]
-                }
-            ]
-        };
-        
-        logger.info('Calling Gemini API', {
-            sessionId,
-            promptLength: userPrompt.length,
-            userId: request.auth.uid
-        });
-        
-        // Call Gemini API
-        const response = await fetch(geminiApiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': geminiApiKey
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error('Gemini API error', {
-                status: response.status,
-                error: errorText
-            });
-            throw new HttpsError('internal', `API request failed: ${response.status}`);
+
+        // Verify authentication
+        const idToken = req.headers.authorization?.split('Bearer ')[1];
+        if (!idToken) {
+            res.status(401).send({success: false, error: 'unauthenticated'});
+            return;
         }
-        
-        const apiResponse = await response.json();
-        
-        // Extract response data
-        const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-        const usageMetadata = apiResponse.usageMetadata || {};
-        
-        logger.info('Gemini API success', {
-            sessionId,
-            responseLength: responseText.length,
-            tokens: usageMetadata.totalTokenCount
-        });
-        
-        return {
-            success: true,
-            data: {
-                responseText,
-                usageMetadata,
-                fullResponse: apiResponse
+
+        try {
+            const decodedToken = await getAuth().verifyIdToken(idToken);
+            const uid = decodedToken.uid;
+
+            const {userPrompt, systemInstruction, sessionId} = req.body;
+
+            // Validate input
+            if (!userPrompt || typeof userPrompt !== 'string') {
+                res.status(400).send({success: false, error: 'invalid-argument', message: 'userPrompt is required and must be a string'});
+                return;
             }
-        };
-        
-    } catch (error) {
-        logger.error('Error in artyGenerateHaiku', {
-            error: error.message,
-            stack: error.stack
-        });
-        
-        if (error instanceof HttpsError) {
-            throw error;
+
+            if (userPrompt.length > 500) {
+                res.status(400).send({success: false, error: 'invalid-argument', message: 'userPrompt must be 500 characters or less'});
+                return;
+            }
+
+            if (!systemInstruction || typeof systemInstruction !== 'string') {
+                res.status(400).send({success: false, error: 'invalid-argument', message: 'systemInstruction is required and must be a string'});
+                return;
+            }
+
+            // Get Gemini API configuration from environment
+            const geminiApiKey = process.env.GEMINI_API_KEY;
+            const geminiApiUrl = process.env.GEMINI_API_URL ||
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+
+            if (!geminiApiKey) {
+                logger.error('GEMINI_API_KEY not configured');
+                res.status(500).send({success: false, error: 'failed-precondition', message: 'API configuration error'});
+                return;
+            }
+
+            // Prepare request body
+            const requestBody = {
+                system_instruction: {
+                    parts: [{text: systemInstruction}]
+                },
+                contents: [
+                    {
+                        parts: [{text: userPrompt}]
+                    }
+                ]
+            };
+
+            logger.info('Calling Gemini API', {
+                sessionId,
+                promptLength: userPrompt.length,
+                userId: uid
+            });
+
+            // Call Gemini API
+            const response = await fetch(geminiApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': geminiApiKey
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('Gemini API error', {
+                    status: response.status,
+                    error: errorText
+                });
+                res.status(500).send({success: false, error: 'internal', message: `API request failed: ${response.status}`});
+                return;
+            }
+
+            const apiResponse = await response.json();
+
+            // Extract response data
+            const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+            const usageMetadata = apiResponse.usageMetadata || {};
+
+            logger.info('Gemini API success', {
+                sessionId,
+                responseLength: responseText.length,
+                tokens: usageMetadata.totalTokenCount
+            });
+
+            res.status(200).send({
+                success: true,
+                data: {
+                    responseText,
+                    usageMetadata,
+                    fullResponse: apiResponse
+                }
+            });
+
+        } catch (error) {
+            logger.error('Error in artyGenerateHaiku', {
+                error: error.message,
+                stack: error.stack
+            });
+
+            if (error.code === 'auth/id-token-expired') {
+                res.status(401).send({success: false, error: 'unauthenticated', message: 'Token expired'});
+            } else {
+                res.status(500).send({success: false, error: 'internal', message: 'Failed to generate haiku'});
+            }
         }
-        
-        throw new HttpsError('internal', 'Failed to generate haiku');
-    }
+    });
 });
+
 
 /**
  * Generate daily words and store in Firestore

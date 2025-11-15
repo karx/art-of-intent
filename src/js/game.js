@@ -6,7 +6,7 @@
 import { GameAnalytics, UserAnalytics } from './analytics.js';
 
 // Import Firebase Functions
-import { functions, httpsCallable, db, collection, doc, getDoc } from './firebase-config.js';
+import { functions, httpsCallable, db, collection, doc, getDoc, auth } from './firebase-config.js';
 
 // Track if last input was via voice
 let lastInputWasVoice = false;
@@ -599,29 +599,50 @@ async function callArtyAPI(userPrompt) {
     const systemInstruction = generateSystemInstruction();
     
     try {
-        // Call Firebase Cloud Function instead of direct API
-        const artyGenerateHaiku = httpsCallable(functions, 'artyGenerateHaiku');
+        // Get Firebase ID token for authentication
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error('unauthenticated');
+        }
+        const idToken = await user.getIdToken();
+
+        // Get function URL from config
+        const functionUrl = 'https://us-central1-art-of-intent-422521.cloudfunctions.net/artyGenerateHaiku';
         
-        const result = await artyGenerateHaiku({
-            userPrompt,
-            systemInstruction,
-            sessionId: gameState.sessionId
+        const response = await fetch(functionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+                userPrompt,
+                systemInstruction,
+                sessionId: gameState.sessionId
+            })
         });
-        
-        if (!result.data.success) {
-            throw new Error(result.data.error || 'Failed to generate haiku');
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to generate haiku');
         }
         
         // Return the full API response format for compatibility
-        return result.data.data.fullResponse;
+        return result.data.fullResponse;
         
     } catch (error) {
-        console.error('Firebase function error:', error);
+        console.error('API call error:', error);
         
         // Provide user-friendly error messages
-        if (error.code === 'unauthenticated') {
+        if (error.message === 'unauthenticated') {
             throw new Error('Please sign in to play');
-        } else if (error.code === 'invalid-argument') {
+        } else if (error.message === 'invalid-argument') {
             throw new Error('Invalid prompt. Please try again.');
         } else {
             throw new Error('Failed to generate haiku. Please try again.');
