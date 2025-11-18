@@ -19,16 +19,78 @@ initializeApp({
 const db = getFirestore();
 db.settings({ databaseId: 'alpha' });
 
-// Word pools for daily word generation (same as client-side)
 const wordPools = {
-    nature: ['mountain', 'river', 'forest', 'ocean', 'desert', 'valley', 'meadow', 'canyon'],
-    weather: ['rain', 'snow', 'wind', 'storm', 'thunder', 'lightning', 'fog', 'mist'],
-    time: ['dawn', 'dusk', 'midnight', 'noon', 'twilight', 'sunrise', 'sunset', 'evening'],
-    seasons: ['spring', 'summer', 'autumn', 'winter', 'harvest', 'bloom', 'frost', 'thaw'],
-    emotions: ['joy', 'sorrow', 'peace', 'longing', 'wonder', 'fear', 'hope', 'love'],
-    elements: ['fire', 'water', 'earth', 'air', 'stone', 'flame', 'wave', 'breeze'],
-    creatures: ['bird', 'fish', 'deer', 'wolf', 'bear', 'eagle', 'fox', 'owl'],
-    plants: ['tree', 'flower', 'grass', 'leaf', 'seed', 'root', 'branch', 'petal']
+    nature: [
+        'mountain', 'river', 'forest', 'ocean', 'desert', 'valley', 'meadow', 'canyon',
+        'cliff', 'cave', 'island', 'shore', 'reef', 'tundra', 'jungle', 'plain',
+        'glacier', 'swamp', 'marsh', 'dune', 'volcano', 'crater', 'lagoon', 'plateau',
+        'ridge', 'peak', 'grove', 'thicket', 'wetland', 'oasis', 'cavern', 'abyss'
+    ],
+    weather: [
+        'rain', 'snow', 'wind', 'storm', 'thunder', 'lightning', 'fog', 'mist',
+        'hail', 'sleet', 'blizzard', 'drought', 'monsoon', 'cyclone', 'tornado', 'breeze',
+        'gale', 'gust', 'tempest', 'cloud', 'rainbow', 'frost', 'dew', 'humidity',
+        'overcast', 'shower', 'downpour', 'heatwave', 'chill', 'flurry', 'smog', 'haze'
+    ],
+    time: [
+        'dawn', 'dusk', 'midnight', 'noon', 'twilight', 'sunrise', 'sunset', 'evening',
+        'morning', 'night', 'afternoon', 'day', 'week', 'month', 'year', 'century',
+        'second', 'minute', 'hour', 'moment', 'instant', 'eternal', 'future', 'past',
+        'era', 'epoch', 'age', 'forever', 'today', 'tomorrow', 'yesterday', 'history'
+    ],
+    seasons: [
+        'spring', 'summer', 'autumn', 'winter', 'harvest', 'bloom', 'thaw', 'solstice',
+        'equinox', 'dry', 'wet', 'migration', 'hibernation', 'growth', 'decay', 'rebirth',
+        'cycle', 'season', 'festival', 'planting', 'reaping', 'fallow', 'dormant', 'ripen'
+    ],
+    emotions: [
+        'joy', 'sorrow', 'peace', 'longing', 'wonder', 'fear', 'hope', 'love',
+        'anger', 'rage', 'bliss', 'calm', 'envy', 'pride', 'guilt', 'shame',
+        'awe', 'grief', 'delight', 'panic', 'courage', 'anxiety', 'nostalgia', 'regret',
+        'passion', 'mercy', 'pity', 'boredom', 'relief', 'surprise', 'trust', 'doubt'
+    ],
+    elements: [
+        'fire', 'water', 'earth', 'air', 'stone', 'flame', 'wave', 'spark',
+        'metal', 'iron', 'gold', 'silver', 'copper', 'wood', 'crystal', 'glass',
+        'ash', 'dust', 'smoke', 'ice', 'magma', 'steam', 'vapor', 'plasma',
+        'clay', 'sand', 'mud', 'soil', 'rock', 'pebble', 'gravel', 'lava'
+    ],
+    creatures: [
+        'bird', 'fish', 'deer', 'wolf', 'bear', 'eagle', 'fox', 'owl',
+        'lion', 'tiger', 'whale', 'shark', 'snake', 'frog', 'hawk', 'crow',
+        'ant', 'bee', 'spider', 'butterfly', 'moth', 'beetle', 'cricket', 'worm',
+        'turtle', 'lizard', 'crane', 'swan', 'raven', 'mouse', 'rat', 'rabbit'
+    ],
+    plants: [
+        'tree', 'flower', 'grass', 'leaf', 'seed', 'root', 'branch', 'petal',
+        'rose', 'lily', 'oak', 'pine', 'moss', 'fern', 'vine', 'thorn',
+        'bark', 'stem', 'fruit', 'berry', 'grain', 'wheat', 'corn', 'rice',
+        'weed', 'bush', 'shrub', 'cactus', 'palm', 'willow', 'maple', 'ivy'
+    ],
+    cosmos: [
+        'star', 'planet', 'moon', 'sun', 'comet', 'asteroid', 'meteor', 'galaxy',
+        'nebula', 'orbit', 'space', 'void', 'universe', 'cosmos', 'eclipse', 'constellation',
+        'gravity', 'light', 'dark', 'blackhole', 'supernova', 'solar', 'lunar', 'alien',
+        'sky', 'horizon', 'zenith', 'nadir', 'zodiac', 'stardust', 'vacuum', 'rocket'
+    ],
+    structures: [
+        'house', 'home', 'castle', 'tower', 'bridge', 'wall', 'gate', 'door',
+        'ruin', 'temple', 'shrine', 'city', 'village', 'town', 'road', 'path',
+        'stairs', 'room', 'roof', 'floor', 'window', 'fence', 'garden', 'park',
+        'pyramid', 'monument', 'statue', 'pillar', 'arch', 'dome', 'tunnel', 'mine'
+    ],
+    abstract: [
+        'life', 'death', 'soul', 'mind', 'dream', 'memory', 'truth', 'lie',
+        'fate', 'luck', 'wish', 'secret', 'idea', 'thought', 'knowledge', 'wisdom',
+        'power', 'energy', 'spirit', 'ghost', 'magic', 'spell', 'curse', 'blessing',
+        'art', 'music', 'song', 'dance', 'word', 'silence', 'noise', 'sound'
+    ],
+    textures: [
+        'smooth', 'rough', 'soft', 'hard', 'sharp', 'dull', 'sticky', 'wet',
+        'dry', 'slime', 'oil', 'grease', 'rust', 'rot', 'mold', 'silk',
+        'velvet', 'wool', 'cotton', 'leather', 'fur', 'feather', 'scale', 'skin',
+        'paper', 'card', 'cloth', 'fabric', 'rope', 'string', 'wire', 'chain'
+    ]
 };
 
 /**
