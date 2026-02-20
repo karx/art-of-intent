@@ -1,0 +1,105 @@
+
+/* API Diagnostic Widget */
+.api-diagnostic-widget {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+}
+
+.api-diagnostic-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.api-diagnostic-title {
+    font-weight: bold;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.05em;
+}
+
+.api-diagnostic-status-bar {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap; /* Ensure robustness on small screens */
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-dim);
+    color: var(--text-dim);
+}
+
+.status-indicator.success {
+    border-color: var(--success-color);
+    color: var(--success-color);
+    background: rgba(var(--success-rgb), 0.1);
+}
+
+.status-indicator.error {
+    border-color: var(--error-color);
+    color: var(--error-color);
+    background: rgba(var(--error-rgb), 0.1);
+}
+
+.status-indicator.pending {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
+.api-diagnostic-details {
+    margin-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-dim);
+    padding-top: var(--spacing-sm);
+}
+
+.details-section {
+    margin-bottom: var(--spacing-sm);
+}
+
+.details-label {
+    font-size: 0.75em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.details-content {
+    background: var(--bg-primary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 2px;
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 150px;
+    overflow-y: auto;
+    color: var(--code-color);
+    margin-top: 4px; /* Slight spacing */
+}
+
+.code-block {
+    font-family: monospace;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.diagnostic-btn {
+    font-size: 0.85em;
+    padding: 4px 12px;
+    min-width: auto;
+}

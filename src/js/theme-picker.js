@@ -2,6 +2,7 @@
  * Theme Picker UI Component
  * Modal for selecting theme and text size
  */
+import ApiDiagnosticWidget from './api-diagnostic.js';
 
 class ThemePicker {
     constructor(themeManager) {
@@ -9,6 +10,7 @@ class ThemePicker {
         this.modal = null;
         this.previewTheme = null;
         this.previewTextSize = null;
+        this.apiDiagnostic = null;
         
         this.init();
     }
@@ -89,6 +91,11 @@ class ThemePicker {
                             🔊 Test Voice
                         </button>
                     </div>
+
+                    <!-- API Diagnostics -->
+                    <div class="settings-section">
+                         <div id="apiDiagnosticContainer"></div>
+                    </div>
                 </div>
                 
                 <div class="modal-footer">
@@ -103,6 +110,12 @@ class ThemePicker {
         
         document.body.appendChild(modal);
         this.modal = modal;
+
+        // Initialize API Diagnostic Widget
+        const diagnosticContainer = modal.querySelector('#apiDiagnosticContainer');
+        if (diagnosticContainer) {
+            this.apiDiagnostic = new ApiDiagnosticWidget(diagnosticContainer);
+        }
     }
     
     renderThemeOptions() {
