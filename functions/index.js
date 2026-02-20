@@ -66,8 +66,14 @@ exports.artyGenerateHaiku = onCall({
     try {
         // Get Gemini API configuration from environment
         const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = process.env.GEMINI_API_URL || 
+        let geminiApiUrl = process.env.GEMINI_API_URL ||
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+        // Check for deprecated experimental model in environment variable
+        if (geminiApiUrl.includes('gemini-2.0-flash-exp')) {
+            logger.warn('Deprecated model gemini-2.0-flash-exp detected in configuration, switching to gemini-2.0-flash');
+            geminiApiUrl = geminiApiUrl.replace('gemini-2.0-flash-exp', 'gemini-2.0-flash');
+        }
         
         if (!geminiApiKey) {
             logger.error('GEMINI_API_KEY not configured');
