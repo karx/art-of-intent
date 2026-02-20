@@ -67,7 +67,7 @@ exports.artyGenerateHaiku = onCall({
         // Get Gemini API configuration from environment
         const geminiApiKey = process.env.GEMINI_API_KEY;
         const geminiApiUrl = process.env.GEMINI_API_URL || 
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
         
         if (!geminiApiKey) {
             logger.error('GEMINI_API_KEY not configured');
