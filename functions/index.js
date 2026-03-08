@@ -94,10 +94,76 @@ const wordPools = {
 };
 
 /**
+ * Build system instruction server-side from Firestore daily words.
+ * This ensures the system prompt cannot be injected or tampered with by the client.
+ */
+function buildSystemInstruction(targetWords, blacklistWords) {
+    const forbiddenWords = blacklistWords.join(', ');
+
+    let instruction = `<prompt>
+    <role_and_goal>
+        You are "Haiku Bot," a serene and wise AI poet. Your singular purpose is to observe the user's input and reflect its essence back in the form of a perfect haiku. You communicate ONLY through haikus.
+    </role_and_goal>
+
+    <instructions>
+        1.  **Analyze:** Deeply analyze the user's prompt to understand its central theme, subject, or emotion.
+        2.  **Synthesize:** Distill this core idea into a few key concepts suitable for a haiku.
+        3.  **Compose:** Craft a single, elegant haiku with a three-line structure of 5, 7, and 5 syllables respectively.
+        4.  **Respond:** Output ONLY the haiku. Do not include any other text, greetings, or explanations.
+    </instructions>
+
+    <constraints>
+        <output_format>
+            - Your response MUST be a single haiku.
+            - Strictly adhere to the 5-7-5 syllable structure.
+            - Do not add any introductory or concluding text (e.g., "Here is a haiku:").
+        </output_format>
+        <user_input_rules>
+            - The user is forbidden from using the following words in their prompt: ${forbiddenWords}.
+            - **Violation Protocol:** If a user includes a forbidden word, DO NOT address their query. Instead, you must respond with this specific haiku:
+
+                Words are now proscribed,
+                A silent path must be found,
+                Speak in a new way.
+        </user_input_rules>
+    </constraints>
+
+    <examples>
+        <example>
+            <user_input>Tell me about the vastness of space.</user_input>
+            <agent_response>
+                Silent, cold, and deep,
+                Ancient stars in dark expanse,
+                Galaxies ignite.
+            </agent_response>
+        </example>`;
+
+    blacklistWords.forEach((word) => {
+        instruction += `
+        <example>
+            <user_input>What is the point of ${word}?</user_input>
+            <agent_response>
+                Words are now proscribed,
+                A silent path must be found,
+                Speak in a new way.
+            </agent_response>
+        </example>`;
+    });
+
+    instruction += `
+    </examples>
+</prompt>`;
+
+    return instruction;
+}
+
+/**
  * Generate haiku via Gemini API
- * 
+ *
  * Callable function that proxies requests to Gemini API
  * to keep API keys secure on the backend.
+ * System prompt is built server-side from Firestore daily words —
+ * the client cannot influence or inject the system instruction.
  */
 exports.artyGenerateHaiku = onCall({
     maxInstances: 10,
@@ -105,37 +171,45 @@ exports.artyGenerateHaiku = onCall({
     memory: '256MiB',
     cors: true
 }, async (request) => {
-    const {userPrompt, systemInstruction, sessionId} = request.data;
-    
+    const {userPrompt, sessionId} = request.data;
+
     // Validate authentication
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Must be authenticated to generate haiku');
     }
-    
+
     // Validate input
     if (!userPrompt || typeof userPrompt !== 'string') {
         throw new HttpsError('invalid-argument', 'userPrompt is required and must be a string');
     }
-    
+
     if (userPrompt.length > 500) {
         throw new HttpsError('invalid-argument', 'userPrompt must be 500 characters or less');
     }
-    
-    if (!systemInstruction || typeof systemInstruction !== 'string') {
-        throw new HttpsError('invalid-argument', 'systemInstruction is required and must be a string');
-    }
-    
+
     try {
         // Get Gemini API configuration from environment
         const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = process.env.GEMINI_API_URL || 
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-        
+        const geminiApiUrl = process.env.GEMINI_API_URL ||
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
         if (!geminiApiKey) {
             logger.error('GEMINI_API_KEY not configured');
             throw new HttpsError('failed-precondition', 'API configuration error');
         }
-        
+
+        // Load today's daily words from Firestore (server-side — not trusted from client)
+        const dateKey = new Date().toISOString().split('T')[0];
+        const dailyDoc = await db.collection('dailyWords').doc(dateKey).get();
+        if (!dailyDoc.exists) {
+            logger.error('Daily words not found for date', {dateKey});
+            throw new HttpsError('not-found', 'Daily words not available yet. Please try again later.');
+        }
+        const {targetWords, blacklistWords} = dailyDoc.data();
+
+        // Build system instruction entirely server-side
+        const systemInstruction = buildSystemInstruction(targetWords, blacklistWords);
+
         // Prepare request body
         const requestBody = {
             system_instruction: {
