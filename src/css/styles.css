@@ -780,6 +780,29 @@ body.nav-expanded .top-bar {
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
 }
 
+.input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.char-counter {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s;
+}
+
+.char-counter.warn {
+    color: var(--accent-yellow);
+}
+
+.char-counter.danger {
+    color: var(--accent-red);
+    font-weight: 600;
+}
+
 .input-wrapper {
     display: flex;
     flex-direction: column;
@@ -900,6 +923,8 @@ body.nav-expanded .top-bar {
     max-width: 500px;
     width: 100%;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    max-height: 85vh;
+    overflow-y: auto;
 }
 
 .modal-content h2 {
@@ -1056,7 +1081,35 @@ body.nav-expanded .top-bar {
         width: 100%;
         justify-content: center;
     }
-    
+
+    /* Prevent iOS/Android auto-zoom on input focus.
+       Any font-size < 16px triggers zoom; pin all inputs to 16px on mobile. */
+    .code-editor-input,
+    .pen-name-input,
+    input[type="text"],
+    input[type="email"],
+    textarea {
+        font-size: 16px !important;
+    }
+
+    /* Fix input above the 56px bottom nav; JS adjusts bottom further when keyboard opens */
+    .input-section {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 56px;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        margin: 0;
+        z-index: 100;
+    }
+
+    /* Ensure last trail item isn't hidden behind fixed input (~160px) + bottom nav */
+    .main-content {
+        padding-bottom: 220px;
+    }
+
     .achievement-notification {
         right: 10px;
         left: 10px;

@@ -435,7 +435,29 @@ function setupEventListeners() {
             handleSubmit();
         }
     });
-    
+
+    // Char counter
+    const charCounter = document.getElementById('charCounter');
+    const MAX_PROMPT = 500;
+    promptInput.addEventListener('input', () => {
+        const len = promptInput.value.length;
+        if (charCounter) {
+            charCounter.textContent = `${len} / ${MAX_PROMPT}`;
+            charCounter.classList.toggle('warn', len >= MAX_PROMPT * 0.8 && len < MAX_PROMPT * 0.95);
+            charCounter.classList.toggle('danger', len >= MAX_PROMPT * 0.95);
+        }
+    });
+
+    // Keep input above virtual keyboard on mobile (visualViewport API)
+    if (window.visualViewport) {
+        const inputSection = document.querySelector('.input-section');
+        window.visualViewport.addEventListener('resize', () => {
+            if (!inputSection || window.innerWidth > 768) return;
+            const gap = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+            inputSection.style.bottom = gap > 50 ? `${gap}px` : '';
+        });
+    }
+
     voiceBtn.addEventListener('click', handleVoiceInput);
     closeModalBtn.addEventListener('click', closeModal);
     shareBtn.addEventListener('click', shareScore);
@@ -1129,6 +1151,28 @@ Play at: https://art-of-intent.netlify.app`;
     return shareText;
 }
 
+function buildCardData(userName, userPhoto) {
+    const isWin = gameState.matchedWords.size === gameState.targetWords.length;
+    const efficiency = gameState.attempts > 0
+        ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
+    return {
+        result: isWin ? 'WIN' : 'LOSS',
+        attempts: gameState.attempts,
+        tokens: gameState.totalTokens,
+        matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+        efficiency,
+        date: new Date().toLocaleDateString('en-CA'),
+        userName,
+        userPhoto,
+        globalMaxTokens: 1000,
+        responseTrail: gameState.responseTrail || [],
+        targetWords: gameState.targetWords || [],
+        matchedWords: [...(gameState.matchedWords || [])],
+        creepLevel: gameState.creepLevel || 0,
+        creepThreshold: gameState.creepThreshold || 100
+    };
+}
+
 async function shareScore() {
     // Track share click
     UserAnalytics.shareClick('image');
@@ -1152,28 +1196,9 @@ async function shareScore() {
         // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
         
-        // Generate share card data
-        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
-        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
-        
-        const cardData = {
-            result: isWin ? 'WIN' : 'LOSS',
-            attempts: gameState.attempts,
-            tokens: gameState.totalTokens,
-            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
-            efficiency: efficiency,
-            date: new Date().toLocaleDateString(),
-            userName: userName,
-            userPhoto: userPhoto,
-            globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || [],
-            creepLevel: gameState.creepLevel || 0,
-            creepThreshold: gameState.creepThreshold || 100
-        };
-        
-        // Generate SVG (v3 by default - minimalist with response trail)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
-        
+        const cardData = buildCardData(userName, userPhoto);
+        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
+
         // Share image
         await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
         
@@ -1196,27 +1221,8 @@ function previewShareCard() {
         // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
         
-        // Generate share card data
-        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
-        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
-        
-        const cardData = {
-            result: isWin ? 'WIN' : 'LOSS',
-            attempts: gameState.attempts,
-            tokens: gameState.totalTokens,
-            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
-            efficiency: efficiency,
-            date: new Date().toLocaleDateString(),
-            userName: userName,
-            userPhoto: userPhoto,
-            globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || [],
-            creepLevel: gameState.creepLevel || 0,
-            creepThreshold: gameState.creepThreshold || 100
-        };
-        
-        // Generate and preview SVG (v3 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
+        const cardData = buildCardData(userName, userPhoto);
+        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
         shareCardGenerator.previewImage(svg);
         
     } catch (error) {
@@ -1248,27 +1254,8 @@ async function shareWithText() {
         // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
         
-        // Generate share card data
-        const isWin = gameState.matchedWords.size === gameState.targetWords.length;
-        const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : '0.0';
-        
-        const cardData = {
-            result: isWin ? 'WIN' : 'LOSS',
-            attempts: gameState.attempts,
-            tokens: gameState.totalTokens,
-            matches: `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
-            efficiency: efficiency,
-            date: new Date().toLocaleDateString(),
-            userName: userName,
-            userPhoto: userPhoto,
-            globalMaxTokens: 1000,
-            responseTrail: gameState.responseTrail || [],
-            creepLevel: gameState.creepLevel || 0,
-            creepThreshold: gameState.creepThreshold || 100
-        };
-        
-        // Generate SVG and convert to PNG (v3 by default)
-        const svg = shareCardGenerator.generateSVG(cardData, 'v4');
+        const cardData = buildCardData(userName, userPhoto);
+        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
         const blob = await shareCardGenerator.svgToPNG(svg);
         const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
         
