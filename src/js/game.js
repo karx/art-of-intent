@@ -182,7 +182,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     updateSchemaMetadata();
     checkFirstTimeUser();
+    dismissSplash();
 });
+
+function dismissSplash() {
+    const splash = document.getElementById('splash-screen');
+    if (!splash) return;
+
+    // Reveal "Ready." line
+    const readyLine = document.getElementById('splash-ready');
+    if (readyLine) readyLine.style.opacity = '1';
+
+    // Brief pause so the user reads "Ready.", then fade out
+    setTimeout(() => {
+        splash.classList.add('dismissed');
+        splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+    }, 650);
+}
 
 function getDailyDateKey() {
     // Use UTC date for consistency across timezones

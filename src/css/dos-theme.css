@@ -250,6 +250,109 @@ header::after {
 }
 
 /* ============================================
+   SPLASH SCREEN - Boot Sequence
+   ============================================ */
+
+#splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s ease;
+}
+
+#splash-screen.dismissed {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.splash-content {
+    font-family: 'DOS VGA', 'Courier New', monospace;
+    color: var(--text-primary);
+    padding: 2rem;
+    min-width: 280px;
+}
+
+.splash-title {
+    color: var(--accent-primary);
+    font-size: 1.4rem;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    animation: splashFadeIn 0.4s ease forwards 0.1s;
+}
+
+.splash-divider {
+    color: var(--text-dim);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: splashFadeIn 0.4s ease forwards 0.35s;
+}
+
+.splash-line {
+    margin: 0.3rem 0;
+    opacity: 0;
+}
+
+.splash-prompt {
+    color: var(--accent-primary);
+}
+
+.splash-line--1 {
+    animation: splashSlideIn 0.3s ease forwards 0.65s;
+}
+
+.splash-line--2 {
+    animation: splashSlideIn 0.3s ease forwards 1.05s;
+}
+
+/* line 3 (Ready.) is revealed by JS — no CSS animation */
+.splash-line--3 {
+    transition: opacity 0.35s ease;
+}
+
+.splash-cursor {
+    color: var(--accent-primary);
+    margin-top: 0.75rem;
+    opacity: 0;
+    animation: splashFadeIn 0.1s ease forwards 0.55s, blink-cursor 1s step-end infinite 0.65s;
+}
+
+@keyframes splashFadeIn {
+    to { opacity: 1; }
+}
+
+@keyframes splashSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #splash-screen {
+        transition: none;
+    }
+    .splash-title,
+    .splash-divider,
+    .splash-line--1,
+    .splash-line--2,
+    .splash-cursor {
+        animation: none;
+        opacity: 1;
+    }
+    .splash-line--3 {
+        transition: none;
+    }
+}
+
+/* ============================================
    GAME WORDS SECTION (Top - Fixed)
    ============================================ */
 .game-words-section {

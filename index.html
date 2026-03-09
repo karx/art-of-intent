@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- No-FOUC: apply saved theme before first paint -->
+    <script>(function(){try{var p=JSON.parse(localStorage.getItem('artOfIntent_preferences')||'{}');if(p.theme)document.documentElement.setAttribute('data-theme',p.theme);}catch(e){}}());</script>
     <title>Art of Intent - Master the Art of Prompt Engineering</title>
     <meta name="description" content="Guide Arty the Haiku Bot using clever prompts. Daily AI word puzzle where you craft instructions to hit targets while avoiding forbidden words. Compete on the leaderboard!">
     <meta name="keywords" content="prompt engineering, AI game, word puzzle, haiku bot, daily challenge, LLM game, token optimization, leaderboard">
@@ -223,6 +225,18 @@
     <link rel="stylesheet" href="src/css/themes.css">
 </head>
 <body>
+    <!-- Splash / Boot Screen -->
+    <div id="splash-screen" role="status" aria-label="Loading Art of Intent" aria-live="polite">
+        <div class="splash-content">
+            <div class="splash-title">ART OF INTENT</div>
+            <div class="splash-divider">────────────────────────</div>
+            <div class="splash-line splash-line--1"><span class="splash-prompt">&gt;</span> ARTY SYSTEM BOOT</div>
+            <div class="splash-line splash-line--2 loading"><span class="splash-prompt">&gt;</span> Loading today's words...</div>
+            <div class="splash-line splash-line--3" id="splash-ready"><span class="splash-prompt">&gt;</span> Ready.</div>
+            <div class="splash-cursor" aria-hidden="true">█</div>
+        </div>
+    </div>
+
     <!-- Side Navigation -->
     <nav id="sideNav" class="side-nav" aria-label="Main navigation">
         <button id="navToggle" class="nav-item nav-toggle" aria-label="Toggle navigation menu" aria-expanded="false" title="Menu (Ctrl+B)">

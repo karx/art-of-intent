@@ -152,3 +152,9 @@ Let's break them apart, and fix the styling.
 
 
 The styling is now powered by themes, the style.css changes would not reflect. 
+
+```
+ let's also build the proposed In-trial API loader where Arty contemplates while we get the response from server. Instead of a static contemplating text,
+  let's add a list of fun quirky remarks that would be added during this response API loader. Maintain these quirky responses in a seperate JSON file that
+  can be improved easily.
+```
