@@ -505,6 +505,34 @@ body.nav-expanded .top-bar {
     background: var(--text-secondary);
 }
 
+.trail-error {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    background: rgba(248, 81, 73, 0.08);
+    border: 1px solid var(--accent-red);
+    border-radius: 6px;
+    animation: trailErrorIn 0.2s ease;
+}
+
+@keyframes trailErrorIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.trail-error-icon {
+    color: var(--accent-red);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.trail-error-msg {
+    color: var(--accent-red);
+    font-size: 0.9rem;
+}
+
 .empty-state {
     text-align: center;
     color: var(--text-secondary);

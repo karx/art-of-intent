@@ -222,12 +222,14 @@ exports.artyGenerateHaiku = onCall({
             ]
         };
         
-        logger.info('Calling Gemini API', {
+        const callStart = Date.now();
+        logger.info('gemini_request', {
             sessionId,
+            userId: request.auth.uid,
             promptLength: userPrompt.length,
-            userId: request.auth.uid
+            model: geminiApiUrl.match(/models\/([^:]+)/)?.[1] || 'unknown',
         });
-        
+
         // Call Gemini API
         const response = await fetch(geminiApiUrl, {
             method: 'POST',
@@ -237,28 +239,102 @@ exports.artyGenerateHaiku = onCall({
             },
             body: JSON.stringify(requestBody)
         });
-        
+
+        const latencyMs = Date.now() - callStart;
+
         if (!response.ok) {
-            const errorText = await response.text();
-            logger.error('Gemini API error', {
-                status: response.status,
-                error: errorText
+            // Parse structured Gemini error — preserve all detail for logs and client
+            let geminiError = {};
+            try {
+                const body = await response.json();
+                geminiError = body.error || {};
+            } catch {
+                geminiError.message = await response.text().catch(() => '');
+            }
+
+            const geminiStatus  = geminiError.status  || 'UNKNOWN';
+            const geminiMessage = geminiError.message || '';
+
+            // Extract retry-after seconds from the error message (e.g. "retry in 1.97s")
+            const retryMatch = geminiMessage.match(/retry in ([\d.]+)s/i);
+            const retryAfterSeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+
+            // Extract quota metric name for ops visibility
+            const quotaMetric = geminiError.details
+                ?.find(d => d['@type']?.includes('QuotaFailure'))
+                ?.violations?.[0]?.quotaMetric || null;
+
+            logger.error('gemini_error', {
+                sessionId,
+                userId: request.auth.uid,
+                httpStatus: response.status,
+                geminiStatus,
+                geminiMessage,
+                retryAfterSeconds,
+                quotaMetric,
+                latencyMs,
+                promptLength: userPrompt.length,
             });
-            throw new HttpsError('internal', `API request failed: ${response.status}`);
+
+            // Map Gemini HTTP status → Firebase HttpsError with structured details
+            const details = { geminiStatus, retryAfterSeconds, quotaMetric };
+            switch (response.status) {
+                case 429:
+                    throw new HttpsError('resource-exhausted',
+                        retryAfterSeconds
+                            ? `Arty needs a moment. Try again in ${retryAfterSeconds}s.`
+                            : 'Too many requests. Please wait a moment and try again.',
+                        details);
+                case 400:
+                    throw new HttpsError('invalid-argument',
+                        'The request was rejected by the AI. Please try a different prompt.',
+                        details);
+                case 401:
+                case 403:
+                    throw new HttpsError('permission-denied',
+                        'API authentication error. Please contact support.',
+                        details);
+                case 500:
+                case 502:
+                case 503:
+                    throw new HttpsError('unavailable',
+                        'Arty is temporarily unavailable. Please try again shortly.',
+                        details);
+                default:
+                    throw new HttpsError('internal',
+                        `Unexpected error from AI service (${response.status}). Please try again.`,
+                        details);
+            }
         }
-        
+
         const apiResponse = await response.json();
-        
+
         // Extract response data
         const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
         const usageMetadata = apiResponse.usageMetadata || {};
-        
-        logger.info('Gemini API success', {
+
+        // Check for safety/finish reason issues
+        const finishReason = apiResponse.candidates?.[0]?.finishReason;
+        if (finishReason && finishReason !== 'STOP') {
+            logger.warn('gemini_unusual_finish', {
+                sessionId,
+                userId: request.auth.uid,
+                finishReason,
+                promptLength: userPrompt.length,
+            });
+        }
+
+        logger.info('gemini_success', {
             sessionId,
+            userId: request.auth.uid,
+            latencyMs,
             responseLength: responseText.length,
-            tokens: usageMetadata.totalTokenCount
+            totalTokens: usageMetadata.totalTokenCount,
+            promptTokens: usageMetadata.promptTokenCount,
+            candidateTokens: usageMetadata.candidatesTokenCount,
+            finishReason,
         });
-        
+
         return {
             success: true,
             data: {
@@ -267,18 +343,21 @@ exports.artyGenerateHaiku = onCall({
                 fullResponse: apiResponse
             }
         };
-        
+
     } catch (error) {
-        logger.error('Error in artyGenerateHaiku', {
-            error: error.message,
-            stack: error.stack
-        });
-        
         if (error instanceof HttpsError) {
-            throw error;
+            throw error; // already structured — pass through as-is
         }
-        
-        throw new HttpsError('internal', 'Failed to generate haiku');
+
+        // Unexpected runtime error (network failure, JSON parse error, etc.)
+        logger.error('artyGenerateHaiku_unexpected', {
+            error: error.message,
+            stack: error.stack,
+            sessionId,
+            userId: request.auth?.uid,
+        });
+
+        throw new HttpsError('internal', 'Unexpected error. Please try again.');
     }
 });
 

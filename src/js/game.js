@@ -601,21 +601,19 @@ async function handleSubmit() {
     try {
         const response = await callArtyAPI(sanitizedPrompt);
         const apiCallDuration = Date.now() - apiCallStart;
-        
-        trackEvent('api_response_received', { 
+
+        trackEvent('api_response_received', {
             duration: apiCallDuration,
-            hasResponse: !!response 
+            hasResponse: !!response
         });
-        
+
         processResponse(sanitizedPrompt, response, purifyResult);
     } catch (error) {
         console.error('Error calling API:', error);
-        trackEvent('api_error', { 
-            error: error.message,
-            duration: Date.now() - apiCallStart 
-        });
+        const duration = Date.now() - apiCallStart;
+        trackEvent('api_error', { error: error.message, duration });
         GameAnalytics.apiError('api_call_failed', error.message);
-        alert('Error communicating with Arty. Please try again.');
+        showArtyError(error.message);
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Send Prompt';
@@ -625,35 +623,74 @@ async function handleSubmit() {
 
 async function callArtyAPI(userPrompt) {
     try {
-        // Call Firebase Cloud Function instead of direct API
         const artyGenerateHaiku = httpsCallable(functions, 'artyGenerateHaiku');
-
         const result = await artyGenerateHaiku({
             userPrompt,
             sessionId: gameState.sessionId
         });
-        
+
         if (!result.data.success) {
             throw new Error(result.data.error || 'Failed to generate haiku');
         }
-        
-        // Return the full API response format for compatibility
+
         return result.data.data.fullResponse;
-        
+
     } catch (error) {
         console.error('Firebase function error:', error);
-        
-        // Provide user-friendly error messages
-        if (error.code === 'unauthenticated') {
-            throw new Error('Please sign in to play');
-        } else if (error.code === 'invalid-argument') {
-            throw new Error('Invalid prompt. Please try again.');
-        } else {
-            throw new Error('Failed to generate haiku. Please try again.');
+
+        // Map Firebase HttpsError codes to user-facing messages.
+        // error.code is the HttpsError code; error.details carries structured info from the function.
+        const retryAfter = error.details?.retryAfterSeconds;
+        switch (error.code) {
+            case 'unauthenticated':
+                throw new Error('Please sign in to play.');
+            case 'invalid-argument':
+                throw new Error('Your prompt was rejected. Please try a different approach.');
+            case 'resource-exhausted':
+                throw new Error(
+                    retryAfter
+                        ? `Arty is resting. Try again in ${retryAfter}s.`
+                        : 'Too many requests. Please wait a moment and try again.'
+                );
+            case 'unavailable':
+                throw new Error('Arty is temporarily unavailable. Please try again shortly.');
+            case 'deadline-exceeded':
+                throw new Error('Arty took too long to respond. Please try again.');
+            case 'not-found':
+                throw new Error("Today's words aren't loaded yet. Try refreshing the page.");
+            case 'permission-denied':
+                throw new Error('Service configuration error. Please contact support.');
+            default:
+                throw new Error(error.message || 'Could not reach Arty. Please try again.');
         }
     }
 }
 
+
+/**
+ * Display an API error inline in the response trail instead of blocking with alert().
+ * Keeps the user in context and preserves their prompt text.
+ */
+function showArtyError(message) {
+    const trail = document.getElementById('trailContainer');
+    if (!trail) { showToast(message, 'error'); return; }
+
+    // Remove any previous error entry (avoid stacking)
+    const prev = trail.querySelector('.trail-error');
+    if (prev) prev.remove();
+
+    const el = document.createElement('div');
+    el.className = 'trail-error';
+    el.innerHTML = `
+        <span class="trail-error-icon">⚠</span>
+        <span class="trail-error-msg">${message}</span>
+    `;
+    trail.appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Auto-remove after 8 s so stale errors don't confuse later attempts
+    setTimeout(() => el.remove(), 8000);
+}
 
 function processResponse(prompt, apiResponse, securityAnalysis = null) {
     gameState.attempts++;
