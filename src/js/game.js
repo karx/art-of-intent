@@ -463,6 +463,12 @@ function setupEventListeners() {
     shareBtn.addEventListener('click', shareScore);
     previewCardBtn.addEventListener('click', previewShareCard);
     shareWithTextBtn.addEventListener('click', shareWithText);
+
+    // Adapt button labels to platform
+    if (navigator.share) {
+        if (shareBtn) shareBtn.textContent = 'Share Card';
+        if (shareWithTextBtn) shareWithTextBtn.textContent = 'Share';
+    }
     
     // Help modal
     if (helpBtn) {
@@ -1034,8 +1040,8 @@ function morphInputToShare() {
                 </h3>
                 <div style="display: flex; gap: var(--spacing-md); justify-content: center; flex-wrap: wrap;">
                     <button id="previewCardScoreBtn" class="btn-primary" style="min-width: 120px;">Preview</button>
-                    <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">Share Image</button>
-                    <button id="shareWithTextScoreBtn" class="btn-primary" style="min-width: 120px;">Share to Social</button>
+                    <button id="shareScoreBtn" class="btn-primary" style="min-width: 120px;">${navigator.share ? 'Share Card' : 'Share Image'}</button>
+                    <button id="shareWithTextScoreBtn" class="btn-primary" style="min-width: 120px;">${navigator.share ? 'Share' : 'Share to Social'}</button>
                     <button id="copyTrailScoreBtn" class="btn-primary" style="min-width: 120px;">Copy Text</button>
                 </div>
                 <p style="color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px; text-transform: uppercase;">
@@ -1151,6 +1157,60 @@ Play at: https://art-of-intent.netlify.app`;
     return shareText;
 }
 
+/**
+ * Brief toast notification — replaces all alert() calls in share flows.
+ * @param {string} message
+ * @param {'info'|'success'|'error'} type
+ */
+function showToast(message, type = 'info') {
+    const existing = document.getElementById('shareToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'shareToast';
+    const colors = { success: 'var(--accent-green)', error: 'var(--accent-red)', info: 'var(--accent-blue)' };
+    toast.style.cssText = `
+        position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+        background: var(--bg-secondary); border: 1px solid ${colors[type] || colors.info};
+        color: var(--text-primary); padding: 10px 20px; border-radius: 6px;
+        font-size: 14px; z-index: 9999; white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        animation: toastIn 0.2s ease;
+    `;
+    toast.textContent = message;
+
+    // Inject keyframe once
+    if (!document.getElementById('toastStyle')) {
+        const s = document.createElement('style');
+        s.id = 'toastStyle';
+        s.textContent = '@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(8px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }';
+        document.head.appendChild(s);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+/**
+ * Build the hook text used in native share sheets and social posts.
+ * Includes the first line of the best matching haiku as an intriguing preview.
+ */
+function buildShareText() {
+    const isWin = gameState.matchedWords.size === gameState.targetWords.length;
+    const bestAttempt = (gameState.responseTrail || [])
+        .filter(a => a.foundWords && a.foundWords.length > 0)
+        .sort((a, b) => b.foundWords.length - a.foundWords.length)[0];
+
+    const firstLine = bestAttempt?.response?.trim().split('\n')[0] || '';
+    const haikuHint = firstLine ? `\n"${firstLine}…"` : '';
+
+    if (isWin) {
+        return `🎯 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words in ${gameState.attempts} attempts${haikuHint}\n\nCan you beat it? → https://art-of-intent.netlify.app`;
+    } else {
+        return `🎮 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words. This haiku bot is tricky!${haikuHint}\n\nTry today's puzzle → https://art-of-intent.netlify.app`;
+    }
+}
+
 function buildCardData(userName, userPhoto) {
     const isWin = gameState.matchedWords.size === gameState.targetWords.length;
     const efficiency = gameState.attempts > 0
@@ -1174,146 +1234,101 @@ function buildCardData(userName, userPhoto) {
 }
 
 async function shareScore() {
-    // Track share click
     UserAnalytics.shareClick('image');
-    
+
     if (typeof shareCardGenerator === 'undefined') {
-        // Fallback to text sharing
-        const shareText = generateShareText(false);
+        const shareText = buildShareText();
         if (navigator.share) {
-            navigator.share({
-                title: 'Art of Intent',
-                text: shareText
-            }).catch(err => console.log('Share cancelled:', err));
+            navigator.share({ title: 'Art of Intent', text: shareText, url: 'https://art-of-intent.netlify.app' })
+                .catch(err => { if (err.name !== 'AbortError') console.error(err); });
         } else {
             navigator.clipboard.writeText(shareText);
-            alert('Score copied to clipboard!');
+            showToast('Score copied to clipboard!', 'success');
         }
         return;
     }
-    
+
     try {
-        // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
-        
         const cardData = buildCardData(userName, userPhoto);
         const svg = shareCardGenerator.generateSVG(cardData, 'v5');
+        const shareText = buildShareText();
 
-        // Share image
-        await shareCardGenerator.shareImage(svg, 'Art of Intent Score');
-        
+        const outcome = await shareCardGenerator.shareImage(svg, 'Art of Intent', shareText);
+        if (outcome === 'downloaded') showToast('Card saved — share it anywhere!', 'success');
+
     } catch (error) {
         console.error('Error sharing image:', error);
-        // Fallback to text
-        const shareText = generateShareText(false);
-        navigator.clipboard.writeText(shareText);
-        alert('Image share failed. Score copied to clipboard!');
+        try {
+            await navigator.clipboard.writeText(buildShareText());
+            showToast('Could not share image. Score copied instead.', 'info');
+        } catch { /* clipboard denied */ }
     }
 }
 
 function previewShareCard() {
     if (typeof shareCardGenerator === 'undefined') {
-        alert('Share card generator not available');
+        showToast('Share card not available', 'error');
         return;
     }
-    
+
     try {
-        // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
-        
         const cardData = buildCardData(userName, userPhoto);
         const svg = shareCardGenerator.generateSVG(cardData, 'v5');
         shareCardGenerator.previewImage(svg);
-        
     } catch (error) {
         console.error('Error previewing card:', error);
-        alert('Error generating preview');
+        showToast('Could not generate preview', 'error');
     }
 }
 
 async function shareWithText() {
-    // Track share click
     UserAnalytics.shareClick('text');
-    
+
+    const shareText = buildShareText();
+
     if (typeof shareCardGenerator === 'undefined') {
-        // Fallback to text only
-        const shareText = generateShareText(false);
         if (navigator.share) {
-            navigator.share({
-                title: 'Art of Intent',
-                text: shareText
-            }).catch(err => console.log('Share cancelled:', err));
+            navigator.share({ title: 'Art of Intent', text: shareText, url: 'https://art-of-intent.netlify.app' })
+                .catch(err => { if (err.name !== 'AbortError') console.error(err); });
         } else {
             navigator.clipboard.writeText(shareText);
-            alert('Score copied to clipboard!');
+            showToast('Score copied to clipboard!', 'success');
         }
         return;
     }
-    
+
     try {
-        // Get user info
         const { userName, userPhoto } = getUserDisplayInfo();
-        
         const cardData = buildCardData(userName, userPhoto);
         const svg = shareCardGenerator.generateSVG(cardData, 'v5');
-        const blob = await shareCardGenerator.svgToPNG(svg);
-        const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
-        
-        // Create hook text
-        const hookText = isWin 
-            ? `🎯 I just won Art of Intent! Guided Arty to say all target words in ${gameState.attempts} attempts using ${gameState.totalTokens} tokens. Can you beat my score?`
-            : `🎮 Played Art of Intent today! Made it to ${gameState.matchedWords.size}/${gameState.targetWords.length} words. This haiku bot is tricky! Can you do better?`;
-        
-        const shareUrl = 'https://art-of-intent.netlify.app';
-        const fullText = `${hookText}\n\nPlay now: ${shareUrl}`;
-        
-        // Try Web Share API with both image and text
+
         if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Art of Intent - Haiku Challenge',
-                    text: fullText,
-                    files: [file]
-                });
-            } catch (shareError) {
-                // If sharing with files fails, try text only
-                if (shareError.name !== 'AbortError') {
-                    try {
-                        await navigator.share({
-                            title: 'Art of Intent - Haiku Challenge',
-                            text: fullText
-                        });
-                    } catch (textShareError) {
-                        if (textShareError.name !== 'AbortError') {
-                            throw textShareError;
-                        }
-                    }
-                }
-            }
+            // Mobile: native share sheet handles image + text together
+            const outcome = await shareCardGenerator.shareImage(svg, 'Art of Intent', shareText);
+            if (outcome === 'downloaded') showToast('Card saved — share it anywhere!', 'success');
         } else {
-            // Fallback: download image and copy text
+            // Desktop: download card + copy text to clipboard
             await shareCardGenerator.downloadImage(svg);
-            navigator.clipboard.writeText(fullText);
-            alert('Image downloaded and text copied to clipboard! You can now share them manually.');
+            await navigator.clipboard.writeText(shareText);
+            showToast('Card downloaded + text copied!', 'success');
         }
-        
+
     } catch (error) {
         console.error('Error sharing:', error);
-        // Fallback to text only
-        const shareText = generateShareText(false);
-        navigator.clipboard.writeText(shareText);
-        alert('Share failed. Score copied to clipboard!');
+        try {
+            await navigator.clipboard.writeText(shareText);
+            showToast('Could not share image. Text copied instead.', 'info');
+        } catch { /* clipboard denied */ }
     }
 }
 
 function copyWithTrail() {
     const shareText = generateShareText(true);
-    navigator.clipboard.writeText(shareText).then(() => {
-        alert('Score and conversation trail copied to clipboard!');
-    }).catch(err => {
-        console.error('Failed to copy:', err);
-        alert('Failed to copy to clipboard');
-    });
+    navigator.clipboard.writeText(shareText)
+        .then(() => showToast('Score + trail copied!', 'success'))
+        .catch(() => showToast('Could not copy to clipboard', 'error'));
 }
 
 function handleVoiceInput() {
