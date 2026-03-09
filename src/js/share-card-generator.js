@@ -490,28 +490,39 @@ class ShareCardGenerator {
     }
     
     /**
-     * Share image using Web Share API
+     * Share via Web Share API (mobile native sheet) or download (desktop fallback).
+     * @param {string} svgString
+     * @param {string} title      - Share sheet title
+     * @param {string} shareText  - Hook text shown in the share sheet
+     * @returns {Promise<'shared'|'downloaded'>}
      */
-    async shareImage(svgString, title = 'Art of Intent Score') {
-        try {
-            const blob = await this.svgToPNG(svgString);
-            const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
-            
-            if (navigator.share && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    title: title,
-                    text: 'Check out my Art of Intent score!',
-                    files: [file]
-                });
-            } else {
-                // Fallback: download image
-                await this.downloadImage(svgString);
-                alert('Image downloaded! You can now share it manually.');
+    async shareImage(svgString, title = 'Art of Intent Score', shareText = '') {
+        const blob = await this.svgToPNG(svgString);
+        const file = new File([blob], 'art-of-intent-score.png', { type: 'image/png' });
+
+        if (navigator.share) {
+            try {
+                // Prefer sharing with the image file
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ title, text: shareText, files: [file] });
+                } else {
+                    // Browser supports share but not file sharing (e.g. some Android WebViews)
+                    await navigator.share({
+                        title,
+                        text: shareText,
+                        url: 'https://art-of-intent.netlify.app'
+                    });
+                }
+                return 'shared';
+            } catch (err) {
+                if (err.name === 'AbortError') return 'cancelled'; // user dismissed sheet
+                throw err; // real error — let caller handle
             }
-        } catch (error) {
-            console.error('Error sharing image:', error);
-            throw error;
         }
+
+        // Desktop / unsupported: download the PNG
+        await this.downloadImage(svgString);
+        return 'downloaded';
     }
     
     /**
