@@ -8,6 +8,13 @@ import { GameAnalytics, UserAnalytics } from './analytics.js';
 // Import Firebase Functions
 import { functions, httpsCallable, db, collection, doc, getDoc } from './firebase-config.js';
 
+// Arty thinking remarks — loaded from JSON, fallback if fetch fails
+let artyRemarks = ['contemplating...'];
+fetch('src/data/arty-remarks.json')
+    .then(r => r.json())
+    .then(data => { if (Array.isArray(data.remarks)) artyRemarks = data.remarks; })
+    .catch(() => {});
+
 // Track if last input was via voice
 let lastInputWasVoice = false;
 
@@ -524,6 +531,56 @@ function updateSoundIcon() {
     }
 }
 
+// ============================================
+// Arty Thinking Placeholder
+// ============================================
+
+function getRandomRemark(exclude = new Set()) {
+    const pool = artyRemarks.filter(r => !exclude.has(r));
+    const source = pool.length > 0 ? pool : artyRemarks;
+    return source[Math.floor(Math.random() * source.length)];
+}
+
+function showArtyThinking() {
+    const trail = document.getElementById('trailContainer');
+    if (!trail) return null;
+
+    const remark = getRandomRemark();
+    const el = document.createElement('div');
+    el.id = 'arty-thinking';
+    el.className = 'trail-item trail-item--thinking';
+    el.innerHTML = `
+        <div class="thinking-header">
+            <span class="thinking-label">ARTY</span>
+            <span class="loading" aria-hidden="true"></span>
+        </div>
+        <div class="thinking-remark">${remark}</div>
+    `;
+    trail.appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Cycle remarks every 2.5 s
+    const remarkEl = el.querySelector('.thinking-remark');
+    const seen = new Set([remark]);
+    el._remarkInterval = setInterval(() => {
+        const next = getRandomRemark(seen);
+        seen.add(next);
+        remarkEl.classList.add('thinking-remark--fade');
+        setTimeout(() => {
+            remarkEl.textContent = next;
+            remarkEl.classList.remove('thinking-remark--fade');
+        }, 300);
+    }, 2500);
+
+    return el;
+}
+
+function removeArtyThinking(el) {
+    if (!el) return;
+    clearInterval(el._remarkInterval);
+    el.remove();
+}
+
 async function handleSubmit() {
     if (gameState.gameOver) {
         alert('Game is over! Wait for tomorrow\'s challenge.');
@@ -611,9 +668,10 @@ async function handleSubmit() {
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Thinking...';
-    
+
+    const thinkingEl = showArtyThinking();
     const apiCallStart = Date.now();
-    
+
     try {
         const response = await callArtyAPI(sanitizedPrompt);
         const apiCallDuration = Date.now() - apiCallStart;
@@ -623,8 +681,10 @@ async function handleSubmit() {
             hasResponse: !!response
         });
 
+        removeArtyThinking(thinkingEl);
         processResponse(sanitizedPrompt, response, purifyResult);
     } catch (error) {
+        removeArtyThinking(thinkingEl);
         console.error('Error calling API:', error);
         const duration = Date.now() - apiCallStart;
         trackEvent('api_error', { error: error.message, duration });
