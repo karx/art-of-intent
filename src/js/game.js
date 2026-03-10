@@ -24,33 +24,29 @@ const SYSTEM_PROMPT_TOKENS = 915;
 
 // Text-to-Speech function
 function speakText(text) {
-    if (!('speechSynthesis' in window)) {
-        console.log('Text-to-speech not supported');
-        return;
-    }
-    
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Get voice settings from theme manager if available
-    if (window.themeManager) {
-        const settings = window.themeManager.getVoiceSettings();
-        if (settings.voice) {
-            utterance.voice = settings.voice;
+    try {
+        if (!('speechSynthesis' in window)) return;
+
+        window.speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        if (window.themeManager) {
+            const settings = window.themeManager.getVoiceSettings();
+            if (settings.voice) utterance.voice = settings.voice;
+            utterance.rate = settings.rate;
+            utterance.pitch = settings.pitch;
+            utterance.volume = settings.volume;
+        } else {
+            utterance.rate = 0.7;
+            utterance.pitch = 0.9;
+            utterance.volume = 1.0;
         }
-        utterance.rate = settings.rate;
-        utterance.pitch = settings.pitch;
-        utterance.volume = settings.volume;
-    } else {
-        // Fallback to contemplative defaults
-        utterance.rate = 0.7;
-        utterance.pitch = 0.9;
-        utterance.volume = 1.0;
+
+        window.speechSynthesis.speak(utterance);
+    } catch (err) {
+        console.warn('speakText failed (non-fatal):', err);
     }
-    
-    window.speechSynthesis.speak(utterance);
 }
 
 function generateProgressBar(value, max, width = 10) {
@@ -871,13 +867,10 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
     saveGameState();
     updateUI();
     
-    // If voice input was used, read the response back
+    // If voice input was used, read the response back (isolated — must never interrupt game logic)
     if (lastInputWasVoice) {
-        console.log('🔊 Speaking response:', responseText);
-        speakText(responseText);
-        lastInputWasVoice = false; // Reset flag
-    } else {
-        console.log('🔇 Not speaking (lastInputWasVoice:', lastInputWasVoice, ')');
+        lastInputWasVoice = false;
+        try { speakText(responseText); } catch (err) { console.warn('speakText error:', err); }
     }
     
     // Check if creep threshold reached (game over)
@@ -919,7 +912,7 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
         showGameOverModal(false, blacklistWordsInResponse);
         return;
     }
-    
+
     // Check win condition
     if (gameState.matchedWords.size === gameState.targetWords.length) {
         handleGameWin();
