@@ -122,8 +122,15 @@ class ThemeManager {
             const loadVoiceList = () => {
                 this.availableVoices = window.speechSynthesis.getVoices();
                 console.log('🔊 Loaded voices:', this.availableVoices.length);
-                
-                // Set default voice if not set
+
+                // If currentVoice is a saved name string (from localStorage), resolve it
+                // to an actual SpeechSynthesisVoice object now that voices are available
+                if (typeof this.currentVoice === 'string') {
+                    const saved = this.availableVoices.find(v => v.name === this.currentVoice);
+                    this.currentVoice = saved || null;
+                }
+
+                // Set default voice if still unresolved
                 if (!this.currentVoice && this.availableVoices.length > 0) {
                     // Prefer English voices
                     const englishVoice = this.availableVoices.find(v => v.lang.startsWith('en'));
@@ -212,8 +219,10 @@ class ThemeManager {
     
     getVoiceSettings() {
         const style = this.voiceStyles[this.currentVoiceStyle];
+        // Guard: only pass a resolved SpeechSynthesisVoice object, never a string
+        const voice = this.currentVoice && typeof this.currentVoice === 'object' ? this.currentVoice : null;
         return {
-            voice: this.currentVoice,
+            voice,
             rate: style.rate,
             pitch: style.pitch,
             volume: 1.0
