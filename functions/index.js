@@ -362,8 +362,93 @@ exports.artyGenerateHaiku = onCall({
 });
 
 /**
+ * Generate dictionary haikus for a single target word.
+ * Calls Gemini to produce 10 haikus containing the word.
+ *
+ * @param {string} word - The target word to feature in haikus
+ * @param {string} apiKey - Gemini API key
+ * @param {string} apiUrl - Gemini API endpoint URL
+ * @returns {{ haikus: string[], tokensUsed: number, wordCount: number }}
+ */
+async function generateDictionaryHaikusForWord(word, apiKey, apiUrl) {
+    const systemInstruction = `You are a haiku poet. Your task is to write exactly 10 different haikus.\nEach haiku MUST contain the word "${word}".\nEach haiku must follow the strict 5-7-5 syllable pattern.\nEach haiku should explore a different theme or scene.\nOutput ONLY the haikus, separated by the delimiter "---" on its own line.\nNo numbering, no titles, no commentary.`;
+
+    const requestBody = {
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ parts: [{ text: `Write 10 haikus containing the word "${word}".` }] }]
+    };
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini API error ${response.status} for word "${word}": ${errText.slice(0, 200)}`);
+    }
+
+    const apiResponse = await response.json();
+    const rawText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const tokensUsed = apiResponse.usageMetadata?.totalTokenCount || 0;
+
+    // Parse haikus separated by ---
+    const haikus = rawText
+        .split(/^---$/m)
+        .map(h => h.trim())
+        .filter(h => h.length > 0)
+        .slice(0, 10);
+
+    // Count how many haikus visibly contain the target word (case-insensitive)
+    const wordCount = haikus.filter(h => h.toLowerCase().includes(word.toLowerCase())).length;
+
+    return { haikus, tokensUsed, wordCount };
+}
+
+/**
+ * Generate dictionary haikus for all 3 target words and store in Firestore.
+ * Called after generateDailyWords succeeds. Non-fatal — errors are logged only.
+ *
+ * @param {string[]} targetWords - The 3 target words for the day
+ * @param {string} dateKey - Firestore document ID (YYYY-MM-DD)
+ * @param {FirebaseFirestore.DocumentReference} docRef - Reference to dailyWords doc
+ */
+async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const apiUrl = process.env.GEMINI_API_URL ||
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+
+    const dictionaryHaikus = {};
+
+    for (const word of targetWords) {
+        try {
+            const result = await generateDictionaryHaikusForWord(word, apiKey, apiUrl);
+            dictionaryHaikus[word] = {
+                haikus: result.haikus,
+                tokensUsed: result.tokensUsed,
+                wordCount: result.wordCount,
+                generatedAt: FieldValue.serverTimestamp()
+            };
+            logger.info('Dictionary haikus generated for word', {
+                dateKey, word, count: result.haikus.length, wordCount: result.wordCount
+            });
+        } catch (err) {
+            logger.error('Failed to generate dictionary haikus for word', {
+                dateKey, word, error: err.message
+            });
+            // Continue with remaining words
+        }
+    }
+
+    if (Object.keys(dictionaryHaikus).length > 0) {
+        await docRef.update({ dictionaryHaikus });
+    }
+}
+
+/**
  * Generate daily words and store in Firestore
- * 
+ *
  * Scheduled function that runs daily at 00:00 UTC
  * to generate consistent target and blacklist words for all users.
  */
@@ -371,7 +456,7 @@ exports.generateDailyWords = onSchedule({
     schedule: '0 0 * * *',
     timeZone: 'UTC',
     memory: '256MiB',
-    timeoutSeconds: 60
+    timeoutSeconds: 120
 }, async (event) => {
     try {
         // Get current date in UTC
@@ -445,7 +530,17 @@ exports.generateDailyWords = onSchedule({
             blacklistWords,
             seed
         });
-        
+
+        // Generate dictionary haikus (non-fatal — failure does not break the game)
+        try {
+            await generateDictionaryHaikus(targetWords, dateKey, docRef);
+            logger.info('Dictionary haikus stored', { dateKey });
+        } catch (dictError) {
+            logger.error('Dictionary haiku generation failed (non-fatal)', {
+                error: dictError.message
+            });
+        }
+
     } catch (error) {
         logger.error('Error generating daily words', {
             error: error.message,

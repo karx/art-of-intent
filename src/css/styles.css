@@ -1144,3 +1144,56 @@ body.nav-expanded .top-bar {
         max-width: none;
     }
 }
+
+/* ============================================
+   Dictionary Modal
+   ============================================ */
+
+.word-dict-btn {
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: bold;
+    opacity: 0.5;
+    margin-left: 3px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    line-height: 1;
+    transition: opacity 0.15s;
+}
+
+.word-dict-btn:hover {
+    opacity: 1;
+}
+
+.dictionary-modal {
+    max-width: 480px;
+}
+
+.dict-word {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 1.2rem 0;
+    font-size: 1rem;
+}
+
+.dict-haiku {
+    font-style: italic;
+    padding: 0.6rem 1rem;
+    border-left: 2px solid var(--color-primary, #0f0);
+    margin-bottom: 0.75rem;
+    line-height: 1.7;
+    font-size: 0.95rem;
+}
+
+.dict-stats {
+    font-size: 0.75rem;
+    opacity: 0.55;
+    margin-top: 1rem;
+    text-align: right;
+}

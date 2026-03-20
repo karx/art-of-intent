@@ -161,7 +161,8 @@ const gameState = {
     events: [],
     creepLevel: 0,              // NEW: Darkness/creep level (0-100)
     creepThreshold: 100,        // NEW: Game ends when creep reaches this
-    creepPerViolation: 25       // NEW: Creep added per blacklist word
+    creepPerViolation: 25,      // NEW: Creep added per blacklist word
+    dictionaryHaikus: null      // Dictionary haikus per target word (from Firestore)
 };
 
 // Word pools for daily generation
@@ -287,6 +288,7 @@ async function loadDailyWords() {
             const data = docSnap.data();
             gameState.targetWords = data.targetWords;
             gameState.blacklistWords = data.blacklistWords;
+            gameState.dictionaryHaikus = data.dictionaryHaikus || null;
             
             console.log('✅ Loaded daily words from Firestore:', {
                 target: gameState.targetWords,
@@ -495,6 +497,18 @@ function setupEventListeners() {
     }
     if (closeHelpBtn) {
         closeHelpBtn.addEventListener('click', closeGettingStarted);
+    }
+
+    // Dictionary modal
+    const closeDictionaryBtn = document.getElementById('closeDictionaryBtn');
+    const dictionaryModal = document.getElementById('dictionaryModal');
+    if (closeDictionaryBtn) {
+        closeDictionaryBtn.addEventListener('click', closeDictionary);
+    }
+    if (dictionaryModal) {
+        dictionaryModal.addEventListener('click', (e) => {
+            if (e.target === dictionaryModal) closeDictionary();
+        });
     }
     
     // Sound toggle
@@ -1518,11 +1532,27 @@ function updateUI() {
 
 function updateTargetWords() {
     const container = document.getElementById('targetWords');
-    const html = gameState.targetWords.map(word => {
+    container.innerHTML = '';
+    gameState.targetWords.forEach(word => {
         const matched = gameState.matchedWords.has(word);
-        return `<span class="word-tag ${matched ? 'matched' : ''}" style="${matched ? 'opacity: 0.5; text-decoration: line-through;' : ''}">${DOMPurify.sanitize(word)}</span>`;
-    }).join('');
-    container.innerHTML = DOMPurify.sanitize(html);
+        const tag = document.createElement('span');
+        tag.className = `word-tag${matched ? ' matched' : ''}`;
+        if (matched) {
+            tag.style.opacity = '0.5';
+            tag.style.textDecoration = 'line-through';
+        }
+        tag.textContent = DOMPurify.sanitize(word);
+        container.appendChild(tag);
+
+        if (gameState.dictionaryHaikus?.[word]) {
+            const btn = document.createElement('span');
+            btn.className = 'word-dict-btn';
+            btn.textContent = '?';
+            btn.title = `See example haikus for "${word}"`;
+            btn.addEventListener('click', () => showDictionary(word));
+            container.appendChild(btn);
+        }
+    });
 }
 
 function updateBlacklistWords() {
@@ -2108,4 +2138,36 @@ function closeGettingStarted() {
     if (modal) {
         modal.classList.add('hidden');
     }
+}
+
+// ============================================
+// Dictionary Modal
+// ============================================
+
+function showDictionary(word) {
+    const modal = document.getElementById('dictionaryModal');
+    const content = document.getElementById('dictionaryContent');
+    if (!modal || !content) return;
+
+    const data = gameState.dictionaryHaikus?.[word];
+
+    if (!data || !data.haikus?.length) {
+        content.innerHTML = '<p>No dictionary entries available for this word yet.</p>';
+    } else {
+        const top3 = data.haikus.slice(0, 3);
+        const haikuHTML = top3.map(h =>
+            `<div class="dict-haiku">${DOMPurify.sanitize(h).replace(/\n/g, '<br>')}</div>`
+        ).join('');
+        const total = data.haikus.length;
+        const statsHTML = `<div class="dict-stats">Showing 3 of ${total} generated haikus · ${data.wordCount ?? total} contained the word</div>`;
+        content.innerHTML = `<h3 class="dict-word">${DOMPurify.sanitize(word)}</h3>${haikuHTML}${statsHTML}`;
+    }
+
+    modal.classList.remove('hidden');
+    trackEvent('dictionary_viewed', { word });
+}
+
+function closeDictionary() {
+    const modal = document.getElementById('dictionaryModal');
+    if (modal) modal.classList.add('hidden');
 }
