@@ -162,7 +162,8 @@ const gameState = {
     creepLevel: 0,              // NEW: Darkness/creep level (0-100)
     creepThreshold: 100,        // NEW: Game ends when creep reaches this
     creepPerViolation: 25,      // NEW: Creep added per blacklist word
-    dictionaryHaikus: null      // Dictionary haikus per target word (from Firestore)
+    dictionaryHaikus: null,     // Dictionary haikus per target word (from Firestore)
+    aiEvaluation: null          // AI benchmark evaluation (from Firestore, revealed post-game)
 };
 
 // Word pools for daily generation
@@ -289,6 +290,7 @@ async function loadDailyWords() {
             gameState.targetWords = data.targetWords;
             gameState.blacklistWords = data.blacklistWords;
             gameState.dictionaryHaikus = data.dictionaryHaikus || null;
+            gameState.aiEvaluation = data.aiEvaluation || null;
             
             console.log('✅ Loaded daily words from Firestore:', {
                 target: gameState.targetWords,
@@ -1224,10 +1226,66 @@ function showGameOverModal(isWin, violatedWords = []) {
         `;
     }
     
+    // Append AI benchmark section (collapsed by default)
+    const benchmarkHTML = buildAIBenchmarkHTML();
+    if (benchmarkHTML) {
+        const benchmarkDiv = document.createElement('div');
+        benchmarkDiv.innerHTML = DOMPurify.sanitize(benchmarkHTML);
+        modalBody.appendChild(benchmarkDiv);
+
+        const toggle = modalBody.querySelector('.ai-benchmark-toggle');
+        const benchContent = modalBody.querySelector('.ai-benchmark-content');
+        if (toggle && benchContent) {
+            toggle.addEventListener('click', () => {
+                const isHidden = benchContent.classList.toggle('hidden');
+                toggle.textContent = (isHidden ? '▶' : '▼') + ' Compare with AI';
+            });
+        }
+    }
+
     // Morph input section to share buttons
     morphInputToShare();
-    
+
     modal.classList.remove('hidden');
+}
+
+/**
+ * Build the HTML for the AI benchmark section shown in the game-over modal.
+ * Returns empty string if aiEvaluation data is unavailable.
+ */
+function buildAIBenchmarkHTML() {
+    const ev = gameState.aiEvaluation?.fullRun;
+    if (!ev || !ev.attempts?.length) return '';
+
+    const aiSummary = ev.won
+        ? `Solved in ${ev.totalAttempts} attempt${ev.totalAttempts === 1 ? '' : 's'} · ${ev.totalTokens} tokens`
+        : `Matched ${ev.attempts[ev.attempts.length - 1]?.cumulativeMatched?.length ?? 0}/${gameState.targetWords.length} words in ${ev.totalAttempts} attempts`;
+
+    const playerSummary = `${gameState.attempts} attempt${gameState.attempts === 1 ? '' : 's'} · ${gameState.totalTokens} tokens`;
+
+    const attemptsHTML = ev.attempts.map(a => {
+        const matchedLabel = a.wordsFoundThisRound.length > 0
+            ? `Matched: ${a.wordsFoundThisRound.join(' · ')}`
+            : 'No new matches';
+        const allDone = a.cumulativeMatched.length === gameState.targetWords.length;
+        return `
+            <div class="ai-attempt-block">
+                <div class="ai-attempt-label">ATTEMPT ${a.attemptNumber}${allDone ? ' ✓' : ''}</div>
+                <div class="ai-attempt-prompt">"${DOMPurify.sanitize(a.prompt)}"</div>
+                <div class="ai-attempt-response">${DOMPurify.sanitize(a.response).replace(/\n/g, '<br>')}</div>
+                <div class="ai-attempt-matched">${matchedLabel}</div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="ai-benchmark-toggle">▶ Compare with AI</div>
+        <div class="ai-benchmark-content hidden">
+            <div class="ai-benchmark-compare">
+                <span><strong>AI:</strong> ${aiSummary}</span>
+                <span><strong>You:</strong> ${playerSummary}</span>
+            </div>
+            ${attemptsHTML}
+        </div>`;
 }
 
 function closeModal() {
@@ -2160,7 +2218,17 @@ function showDictionary(word) {
         ).join('');
         const total = data.haikus.length;
         const statsHTML = `<div class="dict-stats">Showing 3 of ${total} generated haikus · ${data.wordCount ?? total} contained the word</div>`;
-        content.innerHTML = `<h3 class="dict-word">${DOMPurify.sanitize(word)}</h3>${haikuHTML}${statsHTML}`;
+
+        // Append AI-generated working prompt card if available (only shown post-game)
+        const evalEntry = gameState.gameOver ? gameState.aiEvaluation?.perWord?.[word] : null;
+        const promptCardHTML = evalEntry?.success ? `
+            <div class="dict-prompt-card">
+                <div class="dict-prompt-card-label">Prompt that worked (AI example)</div>
+                <div class="dict-prompt-text">${DOMPurify.sanitize(evalEntry.prompt)}</div>
+                <div class="dict-prompt-response">${DOMPurify.sanitize(evalEntry.response).replace(/\n/g, '<br>')}</div>
+            </div>` : '';
+
+        content.innerHTML = `<h3 class="dict-word">${DOMPurify.sanitize(word)}</h3>${haikuHTML}${statsHTML}${promptCardHTML}`;
     }
 
     modal.classList.remove('hidden');

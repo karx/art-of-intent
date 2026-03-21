@@ -1197,3 +1197,90 @@ body.nav-expanded .top-bar {
     margin-top: 1rem;
     text-align: right;
 }
+
+/* ============================================
+   AI Benchmark (game-over modal)
+   ============================================ */
+
+.ai-benchmark-toggle {
+    cursor: pointer;
+    font-size: 0.8rem;
+    opacity: 0.65;
+    margin-top: 1rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid currentColor;
+    user-select: none;
+    transition: opacity 0.15s;
+}
+
+.ai-benchmark-toggle:hover { opacity: 1; }
+
+.ai-benchmark-content { margin-top: 0.75rem; font-size: 0.8rem; }
+
+.ai-benchmark-compare {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+    font-size: 0.75rem;
+    opacity: 0.85;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px dashed currentColor;
+}
+
+.ai-attempt-block {
+    border-left: 2px solid var(--color-primary, #0f0);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.ai-attempt-label {
+    font-size: 0.7rem;
+    opacity: 0.55;
+    margin-bottom: 0.25rem;
+    letter-spacing: 0.05em;
+}
+
+.ai-attempt-prompt {
+    font-style: italic;
+    margin-bottom: 0.4rem;
+    line-height: 1.4;
+}
+
+.ai-attempt-response {
+    opacity: 0.9;
+    margin-bottom: 0.3rem;
+    line-height: 1.6;
+}
+
+.ai-attempt-matched {
+    font-size: 0.7rem;
+    opacity: 0.55;
+}
+
+/* ============================================
+   Dictionary modal — working prompt card
+   ============================================ */
+
+.dict-prompt-card {
+    border: 1px solid var(--color-primary, #0f0);
+    padding: 0.6rem 0.8rem;
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+}
+
+.dict-prompt-card-label {
+    font-size: 0.7rem;
+    opacity: 0.55;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dict-prompt-text {
+    font-style: italic;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.dict-prompt-response { line-height: 1.6; }

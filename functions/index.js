@@ -446,6 +446,172 @@ async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// AI Evaluation helpers
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Shared Gemini fetch wrapper.
+ * @returns {{ text: string, tokensUsed: number }}
+ */
+async function callGemini(systemInstruction, userPrompt, apiKey, apiUrl) {
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ parts: [{ text: userPrompt }] }]
+        })
+    });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini ${response.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await response.json();
+    return {
+        text: data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '',
+        tokensUsed: data.usageMetadata?.totalTokenCount || 0
+    };
+}
+
+/**
+ * For each target word, generate one candidate prompt then evaluate it against
+ * the real game system instruction. Runs all three words in parallel.
+ *
+ * @returns {Object} map of word → { prompt, response, wordsFound, tokensUsed, success }
+ */
+async function runPerWordEvaluation(targetWords, blacklistWords, apiKey, apiUrl) {
+    const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
+    const blacklistStr = blacklistWords.join(', ');
+
+    const results = await Promise.all(targetWords.map(async (word) => {
+        try {
+            // Step 1: generate a candidate prompt for this word
+            const stratSystem = `You are a prompt engineer for a word puzzle game. The game has a haiku bot that speaks ONLY in haikus. Your task: write a single creative prompt (2-4 sentences) that will guide the bot to naturally include the word "${word}" WITHOUT directly mentioning it and WITHOUT using any of these forbidden words: ${blacklistStr}. Output ONLY the prompt text, nothing else.`;
+            const { text: candidatePrompt, tokensUsed: t1 } = await callGemini(
+                stratSystem,
+                `Generate a prompt for the word "${word}".`,
+                apiKey, apiUrl
+            );
+
+            // Step 2: evaluate the prompt against the real game system instruction
+            const { text: response, tokensUsed: t2 } = await callGemini(
+                gameSystem,
+                candidatePrompt,
+                apiKey, apiUrl
+            );
+
+            const responseLower = response.toLowerCase();
+            const wordsFound = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+
+            return [word, {
+                prompt: candidatePrompt,
+                response,
+                wordsFound,
+                tokensUsed: t1 + t2,
+                success: responseLower.includes(word.toLowerCase())
+            }];
+        } catch (err) {
+            logger.error('Per-word eval failed', { word, error: err.message });
+            return [word, null];
+        }
+    }));
+
+    return Object.fromEntries(results.filter(([, v]) => v !== null));
+}
+
+/**
+ * Simulate a full AI game run: iteratively generate prompts and evaluate them
+ * against the real game system instruction until all target words are matched
+ * or the attempt limit is reached.
+ *
+ * @returns {{ attempts: Array, totalAttempts: number, totalTokens: number, won: boolean }}
+ */
+async function runFullGameSimulation(targetWords, blacklistWords, apiKey, apiUrl) {
+    const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
+    const blacklistStr = blacklistWords.join(', ');
+    const MAX_ROUNDS = 5;
+
+    const matched = new Set();
+    const attempts = [];
+    let totalTokens = 0;
+
+    for (let round = 1; round <= MAX_ROUNDS; round++) {
+        const remaining = targetWords.filter(w => !matched.has(w));
+        if (remaining.length === 0) break;
+
+        // Build a summary of prior attempts for context
+        const priorSummary = attempts.length === 0
+            ? 'No attempts yet.'
+            : attempts.map(a =>
+                `Attempt ${a.attemptNumber}: prompt="${a.prompt}" → matched: ${a.wordsFoundThisRound.join(', ') || 'none'}`
+              ).join('\n');
+
+        const stratSystem = `You are playing a haiku word puzzle. You must guide a haiku bot (which speaks ONLY in haikus) to include specific words without naming them directly, and without using these forbidden words: ${blacklistStr}.\n\nPrevious attempts:\n${priorSummary}\n\nRemaining target words to get: ${remaining.join(', ')}\n\nWrite a single creative prompt (2-4 sentences) that will get the bot to include as many of the remaining target words as possible. Output ONLY the prompt text.`;
+
+        let prompt, response, tokensThisRound;
+        try {
+            const s = await callGemini(stratSystem, 'Generate your next prompt.', apiKey, apiUrl);
+            prompt = s.text;
+
+            const e = await callGemini(gameSystem, prompt, apiKey, apiUrl);
+            response = e.text;
+            tokensThisRound = s.tokensUsed + e.tokensUsed;
+        } catch (err) {
+            logger.error('Full run round failed', { round, error: err.message });
+            break;
+        }
+
+        totalTokens += tokensThisRound;
+        const responseLower = response.toLowerCase();
+        const wordsFoundThisRound = remaining.filter(w => responseLower.includes(w.toLowerCase()));
+        wordsFoundThisRound.forEach(w => matched.add(w));
+
+        attempts.push({
+            attemptNumber: round,
+            prompt,
+            response,
+            wordsFoundThisRound,
+            cumulativeMatched: [...matched],
+            tokensUsed: tokensThisRound
+        });
+
+        if (matched.size === targetWords.length) break;
+    }
+
+    return {
+        attempts,
+        totalAttempts: attempts.length,
+        totalTokens,
+        won: matched.size === targetWords.length
+    };
+}
+
+/**
+ * Orchestrate per-word evaluation and full game simulation in parallel,
+ * then write aiEvaluation to Firestore. Non-fatal — errors are caught by caller.
+ */
+async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl) {
+    const [perWord, fullRun] = await Promise.all([
+        runPerWordEvaluation(targetWords, blacklistWords, apiKey, apiUrl),
+        runFullGameSimulation(targetWords, blacklistWords, apiKey, apiUrl)
+    ]);
+
+    await docRef.update({
+        aiEvaluation: {
+            perWord,
+            fullRun: { ...fullRun, generatedAt: FieldValue.serverTimestamp() }
+        }
+    });
+
+    logger.info('AI evaluation stored', {
+        dateKey,
+        fullRunAttempts: fullRun.totalAttempts,
+        fullRunWon: fullRun.won,
+        totalTokens: fullRun.totalTokens
+    });
+}
+
 /**
  * Generate daily words and store in Firestore
  *
@@ -531,15 +697,19 @@ exports.generateDailyWords = onSchedule({
             seed
         });
 
-        // Generate dictionary haikus (non-fatal — failure does not break the game)
-        try {
-            await generateDictionaryHaikus(targetWords, dateKey, docRef);
-            logger.info('Dictionary haikus stored', { dateKey });
-        } catch (dictError) {
-            logger.error('Dictionary haiku generation failed (non-fatal)', {
-                error: dictError.message
-            });
-        }
+        // Run dictionary haiku generation and AI evaluation concurrently.
+        // Both are non-fatal — failure does not break the game.
+        const apiKey = process.env.GEMINI_API_KEY;
+        const apiUrl = process.env.GEMINI_API_URL ||
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+
+        await Promise.all([
+            generateDictionaryHaikus(targetWords, dateKey, docRef)
+                .then(() => logger.info('Dictionary haikus stored', { dateKey }))
+                .catch(e => logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message })),
+            runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl)
+                .catch(e => logger.error('AI evaluation failed (non-fatal)', { error: e.message }))
+        ]);
 
     } catch (error) {
         logger.error('Error generating daily words', {
