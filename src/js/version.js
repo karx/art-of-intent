@@ -6,7 +6,7 @@
 const APP_VERSION = {
     major: 2,
     minor: 0,
-    patch: 0,
+    patch: 1,
     prerelease: 'alpha',
     
     // Formatted version string

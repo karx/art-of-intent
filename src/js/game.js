@@ -1619,7 +1619,6 @@ function updateTargetWords() {
         tag.className = `word-tag${matched ? ' matched' : ''}${hasDict ? ' has-dict' : ''}`;
         if (matched) {
             tag.style.opacity = '0.5';
-            tag.style.textDecoration = 'line-through';
         }
         tag.textContent = DOMPurify.sanitize(word);
         if (hasDict) {

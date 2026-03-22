@@ -2883,24 +2883,40 @@ body.nav-expanded .top-bar {
    FEATURE ADDITIONS (word tags, dictionary, training log)
    ============================================ */
 
+/* ── Word tag — base ── */
+.word-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.target-group .word-tag { color: var(--success-color); }
+.target-group .word-tag.matched { color: var(--text-dim); }
+.blacklist-group .word-tag { color: var(--error-color); }
+
 /* ── Word tag — has dictionary ── */
 .word-tag.has-dict {
     cursor: pointer;
-    border-style: dashed;
-    position: relative;
-    transition: border-color 0.15s, color 0.15s;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    transition: color 0.15s;
+}
+.word-tag.matched.has-dict {
+    text-decoration: line-through;
+    cursor: default;
 }
 .word-tag.has-dict::after {
     content: '?';
     font-size: 0.6em;
     opacity: 0.5;
-    margin-left: 5px;
+    margin-left: 3px;
     vertical-align: super;
 }
 .word-tag.has-dict:hover {
-    border-color: var(--border-active);
-    border-style: solid;
     color: var(--sol-cyan);
+    text-decoration-color: var(--sol-cyan);
 }
 .word-tag.has-dict:hover::after { opacity: 1; }
 
@@ -2958,6 +2974,7 @@ body.nav-expanded .top-bar {
 }
 .trail-title { margin: 0; }
 .trail-tabs { display: flex; gap: 2px; }
+.trail-tabs[hidden] { display: none; }
 
 /* ── Training Log ── */
 .tlog {
