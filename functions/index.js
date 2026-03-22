@@ -613,6 +613,75 @@ async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, api
 }
 
 /**
+ * Core word generation logic shared by the scheduled and force-update functions.
+ * Generates target/blacklist words, writes to Firestore, then runs dictionary
+ * haiku generation and AI evaluation concurrently.
+ *
+ * @param {string} dateKey - YYYY-MM-DD
+ */
+async function generateWordsForDate(dateKey) {
+    const seed = parseInt(dateKey.replace(/-/g, ''));
+
+    const seededRandom = (s) => {
+        let state = s;
+        return () => {
+            state = (state * 1664525 + 1013904223) % 4294967296;
+            return state / 4294967296;
+        };
+    };
+
+    const random = seededRandom(seed);
+
+    const shuffleArray = (array, rng) => {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    const categories = Object.keys(wordPools);
+    const selectedCategories = shuffleArray(categories, random).slice(0, 3);
+    const targetWords = selectedCategories.map(category => {
+        const words = wordPools[category];
+        return words[Math.floor(random() * words.length)];
+    });
+
+    const allWords = Object.values(wordPools).flat();
+    const availableWords = allWords.filter(w => !targetWords.includes(w));
+    const blacklistCount = 5 + Math.floor(random() * 3);
+    const blacklistWords = shuffleArray(availableWords, random).slice(0, blacklistCount);
+
+    const docRef = db.collection('dailyWords').doc(dateKey);
+    await docRef.set({
+        date: dateKey,
+        seed,
+        targetWords,
+        blacklistWords,
+        createdAt: FieldValue.serverTimestamp(),
+        version: '1.0',
+        wordPoolVersion: '1.0'
+    });
+
+    logger.info('Daily words generated successfully', { dateKey, targetWords, blacklistWords, seed });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const apiUrl = process.env.GEMINI_API_URL ||
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+
+    await Promise.all([
+        generateDictionaryHaikus(targetWords, dateKey, docRef)
+            .then(() => logger.info('Dictionary haikus stored', { dateKey }))
+            .catch(e => logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message })),
+        runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl)
+            .catch(e => logger.error('AI evaluation failed (non-fatal)', { error: e.message }))
+    ]);
+
+    return { dateKey, targetWords, blacklistWords };
+}
+
+/**
  * Generate daily words and store in Firestore
  *
  * Scheduled function that runs daily at 00:00 UTC
@@ -624,98 +693,62 @@ exports.generateDailyWords = onSchedule({
     memory: '256MiB',
     timeoutSeconds: 120
 }, async (event) => {
+    const dateKey = new Date().toISOString().split('T')[0];
+    logger.info('Generating daily words', { dateKey });
+
+    const doc = await db.collection('dailyWords').doc(dateKey).get();
+    if (doc.exists) {
+        logger.info('Daily words already exist', { dateKey });
+        return;
+    }
+
     try {
-        // Get current date in UTC
-        const now = new Date();
-        const dateKey = now.toISOString().split('T')[0]; // YYYY-MM-DD
-        
-        logger.info('Generating daily words', {dateKey});
-        
-        // Check if words already exist for today
-        const docRef = db.collection('dailyWords').doc(dateKey);
-        const doc = await docRef.get();
-        
-        if (doc.exists) {
-            logger.info('Daily words already exist', {dateKey});
-            return;
-        }
-        
-        // Generate seed from date
-        const seed = parseInt(dateKey.replace(/-/g, ''));
-        
-        // Seeded random function
-        const seededRandom = (s) => {
-            let state = s;
-            return () => {
-                state = (state * 1664525 + 1013904223) % 4294967296;
-                return state / 4294967296;
-            };
-        };
-        
-        const random = seededRandom(seed);
-        
-        // Shuffle array helper
-        const shuffleArray = (array, rng) => {
-            const arr = [...array];
-            for (let i = arr.length - 1; i > 0; i--) {
-                const j = Math.floor(rng() * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-            return arr;
-        };
-        
-        // Select 3 target words from different categories
-        const categories = Object.keys(wordPools);
-        const selectedCategories = shuffleArray(categories, random).slice(0, 3);
-        
-        const targetWords = selectedCategories.map(category => {
-            const words = wordPools[category];
-            return words[Math.floor(random() * words.length)];
-        });
-        
-        // Select 5-7 blacklist words from remaining pool
-        const allWords = Object.values(wordPools).flat();
-        const availableWords = allWords.filter(w => !targetWords.includes(w));
-        const blacklistCount = 5 + Math.floor(random() * 3);
-        const blacklistWords = shuffleArray(availableWords, random).slice(0, blacklistCount);
-        
-        // Store in Firestore
-        await docRef.set({
-            date: dateKey,
-            seed,
-            targetWords,
-            blacklistWords,
-            createdAt: FieldValue.serverTimestamp(),
-            version: '1.0',
-            wordPoolVersion: '1.0'
-        });
-        
-        logger.info('Daily words generated successfully', {
-            dateKey,
-            targetWords,
-            blacklistWords,
-            seed
-        });
-
-        // Run dictionary haiku generation and AI evaluation concurrently.
-        // Both are non-fatal — failure does not break the game.
-        const apiKey = process.env.GEMINI_API_KEY;
-        const apiUrl = process.env.GEMINI_API_URL ||
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
-
-        await Promise.all([
-            generateDictionaryHaikus(targetWords, dateKey, docRef)
-                .then(() => logger.info('Dictionary haikus stored', { dateKey }))
-                .catch(e => logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message })),
-            runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl)
-                .catch(e => logger.error('AI evaluation failed (non-fatal)', { error: e.message }))
-        ]);
-
+        await generateWordsForDate(dateKey);
     } catch (error) {
-        logger.error('Error generating daily words', {
-            error: error.message,
-            stack: error.stack
-        });
+        logger.error('Error generating daily words', { error: error.message, stack: error.stack });
         throw error;
+    }
+});
+
+/**
+ * Force-regenerate daily words for a given date (defaults to today).
+ * Overwrites any existing Firestore doc, re-runs dictionary haiku generation
+ * and AI evaluation. Restricted to admin users.
+ *
+ * Request data:
+ *   { date?: 'YYYY-MM-DD' }  — omit to use today's UTC date
+ *
+ * Returns:
+ *   { dateKey, targetWords, blacklistWords }
+ */
+exports.forceUpdateDailyWords = onCall({
+    maxInstances: 1,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    cors: true
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+
+    // Restrict to admin users only
+    const adminDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (!adminDoc.exists || adminDoc.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Admin access required');
+    }
+
+    const dateKey = request.data?.date || new Date().toISOString().split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        throw new HttpsError('invalid-argument', 'date must be YYYY-MM-DD');
+    }
+
+    logger.info('forceUpdateDailyWords called', { uid: request.auth.uid, dateKey });
+
+    try {
+        const result = await generateWordsForDate(dateKey);
+        return { success: true, ...result };
+    } catch (error) {
+        logger.error('forceUpdateDailyWords failed', { error: error.message, stack: error.stack });
+        throw new HttpsError('internal', `Failed to generate words: ${error.message}`);
     }
 });
