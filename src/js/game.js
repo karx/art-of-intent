@@ -263,6 +263,7 @@ async function initializeGame() {
     // Check if game is already over and morph input to share buttons
     if (gameState.gameOver) {
         morphInputToShare();
+        revealTrainingLog();
     }
 }
 
@@ -734,7 +735,7 @@ async function callArtyAPI(userPrompt) {
             throw new Error(result.data.error || 'Failed to generate haiku');
         }
 
-        return result.data.data.fullResponse;
+        return result.data.data;
 
     } catch (error) {
         console.error('Firebase function error:', error);
@@ -796,17 +797,17 @@ function showArtyError(message) {
 function processResponse(prompt, apiResponse, securityAnalysis = null) {
     gameState.attempts++;
     
-    // Extract response text and token usage
-    const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-    const usageMetadata = apiResponse.usageMetadata || {};
-    
+    // apiResponse is result.data.data = { fullResponse, userPromptTokens, systemPromptTokens, ... }
+    const geminiResponse = apiResponse.fullResponse || apiResponse;
+    const responseText = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+    const usageMetadata = geminiResponse.usageMetadata || {};
+
     // Get raw token counts from API
-    const rawPromptTokens = usageMetadata.promptTokenCount || 0;
     const outputTokens = usageMetadata.candidatesTokenCount || 0;
-    const rawTotalTokens = usageMetadata.totalTokenCount || 0;
-    
-    // Subtract system prompt tokens to show only user's contribution
-    const userPromptTokens = Math.max(0, rawPromptTokens - SYSTEM_PROMPT_TOKENS);
+
+    // Use server-computed user token count; fall back to heuristic if older function version
+    const userPromptTokens = apiResponse.userPromptTokens
+        ?? Math.max(0, (usageMetadata.promptTokenCount || 0) - SYSTEM_PROMPT_TOKENS);
     const adjustedTotalTokens = userPromptTokens + outputTokens;
     
     // Track adjusted total for game stats
@@ -2219,144 +2220,234 @@ function closeGettingStarted() {
 // Training Log
 // ============================================
 
-function revealTrainingLog() {
+async function revealTrainingLog() {
     const tabs = document.getElementById('trailTabs');
-    if (tabs) {
-        tabs.removeAttribute('aria-hidden');
-        tabs.classList.add('trail-tabs--visible');
-    }
+    if (tabs) tabs.removeAttribute('hidden');
 
-    // Wire tab switching
-    tabs?.querySelectorAll('.trail-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
-            tabs.querySelectorAll('.trail-tab').forEach(b => {
-                b.classList.toggle('trail-tab--active', b === btn);
-                b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
-            });
+    // Wire tab switching — clone to avoid duplicate listeners on repeated calls
+    tabs?.querySelectorAll('.filter-btn').forEach(btn => {
+        const fresh = btn.cloneNode(true);
+        btn.parentNode.replaceChild(fresh, btn);
+        fresh.addEventListener('click', () => {
+            const tab = fresh.dataset.tab;
+            tabs.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === fresh));
             document.getElementById('trailContainer').classList.toggle('hidden', tab !== 'trail');
             document.getElementById('trainingLogContainer').classList.toggle('hidden', tab !== 'training');
         });
     });
 
-    // Populate the training log
+    // Show loading state immediately, then fetch field stats and render
     const container = document.getElementById('trainingLogContainer');
-    if (container) container.innerHTML = buildTrainingLogHTML();
+    if (!container) return;
+    container.innerHTML = `<div class="tlog-empty">loading session analysis...</div>`;
+
+    let fieldStats = null;
+    try {
+        if (typeof fetchLeaderboardData === 'function') {
+            fieldStats = await fetchLeaderboardData();
+        }
+    } catch (e) {
+        console.warn('Could not fetch field stats for training log:', e.message);
+    }
+    container.innerHTML = buildTrainingLogHTML(fieldStats);
 }
 
-function buildTrainingLogHTML() {
+function buildTrainingLogHTML(fieldStats) {
     const ev = gameState.aiEvaluation;
+    const date = new Date().toISOString().split('T')[0];
+
     if (!ev?.zeroShot || !ev?.oneShot) {
-        return `<div class="tlog-empty">Training data not available for today yet.<br>Check back after midnight UTC.</div>`;
+        return `<div class="tlog-empty">No training data for today yet.<br>Check back after midnight UTC.</div>`;
     }
 
     const { zeroShot, oneShot, summary, wordDifficulty, model } = ev;
-    const date = new Date().toISOString().split('T')[0];
-    const modelShort = model || 'gemini';
+    const modelShort = (model || 'gemini').split('-').slice(0, 3).join('-');
 
-    // Human vs AI comparison
-    const humanAttempts = gameState.attempts;
-    const humanTokens   = gameState.totalTokens;
-    const aiProbes      = 2;
-    const aiTokens      = summary.totalTokens;
+    // ── User stats ──
+    const userAttempts = gameState.attempts;
+    const userTokens   = gameState.totalTokens;
+    const userScore    = calculateEfficiencyScore();
+    const isWin        = gameState.matchedWords.size === gameState.targetWords.length;
+    const userResult   = isWin ? 'WIN' : `${gameState.matchedWords.size}/${gameState.targetWords.length}`;
 
-    const convergedLabel = summary.converged
-        ? `<span class="tlog-badge tlog-badge--ok">CONVERGED</span>`
-        : `<span class="tlog-badge tlog-badge--warn">PARTIAL</span>`;
+    // ── AI stats ──
+    // Use same char-based estimation as user trail (Math.ceil(text.length / 4)) so the
+    // comparison is apples-to-apples. summary.totalTokens includes system-prompt and
+    // strategy-generation overhead from both API calls, which the user's score never sees.
+    const aiTokens =
+        Math.ceil((zeroShot.prompt?.length    || 0) / 4) + Math.ceil((zeroShot.response?.length || 0) / 4) +
+        Math.ceil((oneShot.prompt?.length     || 0) / 4) + Math.ceil((oneShot.response?.length  || 0) / 4);
+    // oneShotScore is already cumulative (includes zero-shot matches) — don't add zeroShotScore
+    const aiResult = summary.converged ? 'WIN'
+        : `${summary.oneShotScore || 0}/${gameState.targetWords.length}`;
 
-    // Render a probe block (zero-shot or one-shot) as a trail-style entry
-    function probeBlock(label, sublabel, probe) {
+    // ── Field stats ──
+    const fstats     = fieldStats?.stats   || {};
+    const topPlayers = fieldStats?.topPlayers || [];
+    const avgAttempts = fstats.avgAttempts ? (+fstats.avgAttempts).toFixed(1) : '—';
+    const avgTokens   = fstats.avgTokens   ? fstats.avgTokens.toLocaleString() : '—';
+    const gamesToday  = fstats.gamesToday  || null;
+
+    // Approximate rank by counting top players with a better score (lower = better)
+    let rankStr = '';
+    if (topPlayers.length && gamesToday) {
+        const beatenBy = topPlayers.filter(p => {
+            const pScore = (p.attempts * 10) + Math.floor((p.tokens || 0) / 10);
+            return pScore < userScore;
+        }).length;
+        rankStr = `#${beatenBy + 1} of ${gamesToday}`;
+    }
+
+    // ── Section 1: SESSION ANALYSIS ──
+    const scorecardHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">&gt; SESSION ANALYSIS <span class="tlog-sect-meta">${date} · ${DOMPurify.sanitize(modelShort)}</span></div>
+        <table class="tlog-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>YOU</th>
+                    <th>AI</th>
+                    <th>TODAY</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="tlog-row-label">ATTEMPTS</td>
+                    <td class="tlog-you">${userAttempts}</td>
+                    <td>2 probes</td>
+                    <td>avg ${avgAttempts}</td>
+                </tr>
+                <tr>
+                    <td class="tlog-row-label">TOKENS</td>
+                    <td class="tlog-you">${userTokens.toLocaleString()}</td>
+                    <td>${aiTokens}</td>
+                    <td>avg ${avgTokens}</td>
+                </tr>
+                <tr>
+                    <td class="tlog-row-label">RESULT</td>
+                    <td class="tlog-you ${isWin ? 'tlog-win' : 'tlog-miss'}">${userResult}</td>
+                    <td class="${summary.converged ? 'tlog-win' : 'tlog-miss'}">${aiResult}</td>
+                    <td>${gamesToday ? gamesToday + ' played' : '—'}</td>
+                </tr>
+                ${rankStr ? `<tr>
+                    <td class="tlog-row-label">RANK</td>
+                    <td class="tlog-you tlog-rank" colspan="3">${rankStr}</td>
+                </tr>` : ''}
+            </tbody>
+        </table>
+    </div>`;
+
+    // ── Section 2: TRAINING RUN ──
+    function probeBlock(stepNum, label, sublabel, probe) {
         const matchedHTML = probe.wordsMatched.length > 0
-            ? probe.wordsMatched.map(w => `<span class="tlog-reward tlog-reward--hit">+${w}</span>`).join('')
-            : `<span class="tlog-reward tlog-reward--miss">no match</span>`;
-        const blacklistWarning = probe.blacklistHit
-            ? `<span class="tlog-reward tlog-reward--warn">blacklist hit</span>` : '';
+            ? `<div class="match-indicator">
+                <strong>matched:</strong>
+                ${probe.wordsMatched.map(w => `<span class="match-word found">${DOMPurify.sanitize(w)}</span>`).join('')}
+               </div>`
+            : `<div class="match-indicator"><span class="match-word not-found">no match</span></div>`;
+
+        const blacklistFlag = probe.blacklistHit
+            ? `<div class="feedback-inline feedback-inline--darkness"><span class="feedback-icon">▓</span><span class="feedback-label">blacklist hit in response</span></div>` : '';
+
+        // Mirror the user-trail token logic:
+        // promptTokens = Math.ceil(prompt.length / 4) — same formula the server uses for userPromptTokens
+        // outputTokens = Math.ceil(response.length / 4) — char-based estimate (no candidatesTokenCount available)
+        // total = sum of both, excluding system-prompt and strategy-generation overhead (t1+t2 totals)
+        const promptEst = Math.ceil((probe.prompt?.length   || 0) / 4);
+        const outputEst = Math.ceil((probe.response?.length || 0) / 4);
+        const totalEst  = promptEst + outputEst;
+        const tokenBar  = generateTrailStats(
+            { promptTokens: promptEst, outputTokens: outputEst, totalTokens: totalEst },
+            probe.wordsMatched
+        );
 
         return `
-        <div class="tlog-step">
-            <div class="tlog-step-label">${label}</div>
-            <div class="tlog-step-sublabel">${sublabel}</div>
-            <div class="trail-item tlog-trail-item">
-                <div class="tlog-input-label">&gt; INPUT</div>
-                <div class="tlog-prompt-text">${DOMPurify.sanitize(probe.prompt)}</div>
+        <div class="trail-item tlog-probe-item ${probe.wordsMatched.length > 0 ? 'trail-item--success' : ''}">
+            <div class="trail-header">
+                <span class="trail-number">PROBE ${stepNum} — ${label}</span>
+                <span class="trail-timestamp">${sublabel}</span>
             </div>
-            <div class="trail-item tlog-trail-item">
-                <div class="trail-response">${DOMPurify.sanitize(probe.response)}</div>
-            </div>
-            <div class="tlog-reward-row">◈ REWARD &nbsp; ${matchedHTML}${blacklistWarning}
-                <span class="tlog-tokens">${probe.tokensUsed} tok</span>
-            </div>
+            <div class="tlog-probe-prompt">${DOMPurify.sanitize(probe.prompt)}</div>
+            <div class="trail-response">${DOMPurify.sanitize(probe.response)}</div>
+            ${blacklistFlag}
+            ${matchedHTML}
+            <div class="trail-stats">${tokenBar}</div>
         </div>`;
     }
 
-    // Word difficulty badges
-    const difficultyHTML = wordDifficulty ? gameState.targetWords.map(w => {
+    const delta = summary.improvementDelta || 0;
+    const deltaHTML = delta > 0
+        ? `<div class="tlog-delta tlog-delta--up">▲ +${delta} word${delta > 1 ? 's' : ''} surfaced after feedback</div>`
+        : delta === 0 && (summary.zeroShotScore || 0) > 0
+            ? `<div class="tlog-delta tlog-delta--flat">◆ no change — strong zero-shot baseline</div>`
+            : `<div class="tlog-delta tlog-delta--down">▼ no improvement — word difficulty held</div>`;
+
+    const trainingRunHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">TRAINING RUN</div>
+        ${probeBlock(1, 'ZERO SHOT', 'no hints. first instinct.', zeroShot)}
+        ${deltaHTML}
+        ${probeBlock(2, 'ONE SHOT', 'given feedback. one chance to adapt.', oneShot)}
+    </div>`;
+
+    // ── Section 3: THE SIGNAL ──
+    const diffChips = wordDifficulty ? gameState.targetWords.map(w => {
         const d = wordDifficulty[w];
         if (!d) return '';
         const cls = { low: 'ok', medium: 'warn', high: 'err' }[d.difficulty] || 'warn';
         return `<span class="tlog-word-diff"><span class="tlog-word-name">${DOMPurify.sanitize(w)}</span><span class="tlog-badge tlog-badge--${cls}">${d.difficulty.toUpperCase()}</span></span>`;
     }).join('') : '';
 
-    // Learning signal line
-    const deltaMsg = summary.improvementDelta > 0
-        ? `+${summary.improvementDelta} word${summary.improvementDelta > 1 ? 's' : ''} after feedback`
-        : summary.improvementDelta === 0 && summary.zeroShotScore > 0
-            ? 'no further improvement (already strong zero-shot)'
-            : 'no improvement — word difficulty was high';
+    let verdictLine;
+    if (isWin && !summary.converged) {
+        verdictLine = `<span class="tlog-signal-val tlog-win">you solved it. AI didn't.</span>`;
+    } else if (isWin && summary.converged) {
+        verdictLine = userTokens < aiTokens
+            ? `<span class="tlog-signal-val tlog-win">both solved it — you used fewer tokens</span>`
+            : `<span class="tlog-signal-val">both solved it — AI used fewer tokens (${aiTokens})</span>`;
+    } else {
+        verdictLine = summary.converged
+            ? `<span class="tlog-signal-val tlog-miss">AI solved it. You didn't.</span>`
+            : `<span class="tlog-signal-val">neither converged — hard words today</span>`;
+    }
 
-    return `
-    <div class="tlog">
-        <div class="tlog-header">
-            <span class="tlog-title">ARTY LEARNS // ${date}</span>
-            <span class="tlog-model">${DOMPurify.sanitize(modelShort)}</span>
-        </div>
+    const mechanismNote = summary.converged
+        ? 'one-shot feedback was enough — the model adapted in context'
+        : summary.hardestWord
+            ? `"${DOMPurify.sanitize(summary.hardestWord)}" resisted both probes`
+            : 'two probes were not enough to converge';
 
-        <div class="tlog-compare">
-            <div class="tlog-compare-col">
-                <div class="tlog-compare-label">HUMAN</div>
-                <div class="tlog-compare-stat">${humanAttempts} attempt${humanAttempts !== 1 ? 's' : ''}</div>
-                <div class="tlog-compare-stat">${humanTokens} tokens</div>
-            </div>
-            <div class="tlog-compare-divider">│</div>
-            <div class="tlog-compare-col">
-                <div class="tlog-compare-label">AI</div>
-                <div class="tlog-compare-stat">${aiProbes} probes</div>
-                <div class="tlog-compare-stat">${aiTokens} tokens &nbsp;${convergedLabel}</div>
-            </div>
-        </div>
-
-        <div class="tlog-divider">── TRAINING RUN ──────────────────────</div>
-
-        ${probeBlock('STEP 1 — ZERO SHOT', 'No hints. First instinct.', zeroShot)}
-        ${probeBlock('STEP 2 — ONE SHOT', 'Given feedback from step 1. One chance to adapt.', oneShot)}
-
-        <div class="tlog-divider">── RESULTS ───────────────────────────</div>
-
-        <div class="tlog-results">
-            <div class="tlog-result-row">
-                <span class="tlog-result-label">LEARNING SIGNAL</span>
-                <span class="tlog-result-value">${deltaMsg}</span>
-            </div>
-            ${summary.hardestWord ? `<div class="tlog-result-row">
-                <span class="tlog-result-label">HARDEST WORD</span>
-                <span class="tlog-result-value">${DOMPurify.sanitize(summary.hardestWord)} — not matched in either probe</span>
-            </div>` : ''}
-            ${difficultyHTML ? `<div class="tlog-result-row tlog-result-row--diff">
-                <span class="tlog-result-label">WORD DIFFICULTY</span>
-                <span class="tlog-difficulty-chips">${difficultyHTML}</span>
-            </div>` : ''}
-        </div>
-
-        <div class="tlog-divider">── WHAT HAPPENED? ────────────────────</div>
-
-        <div class="tlog-explainer">
-            Each step, the AI saw which words appeared in Arty's haiku and used that signal
-            to rewrite its prompt. No weights changed. No retraining happened.
-            The model simply adapted using the feedback in its context window —
-            the same mechanism that underlies <strong>in-context learning</strong>
-            and is a core component of <strong>RLHF</strong>.
-        </div>
+    const signalHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">THE SIGNAL</div>
+        <table class="tlog-table tlog-table--signal">
+            <tbody>
+                <tr>
+                    <td class="tlog-row-label">VERDICT</td>
+                    <td>${verdictLine}</td>
+                </tr>
+                ${diffChips ? `<tr>
+                    <td class="tlog-row-label">DIFFICULTY</td>
+                    <td><span class="tlog-difficulty-chips">${diffChips}</span></td>
+                </tr>` : ''}
+                ${summary.hardestWord ? `<tr>
+                    <td class="tlog-row-label">HARDEST</td>
+                    <td class="tlog-signal-val">"${DOMPurify.sanitize(summary.hardestWord)}" — not surfaced in either probe</td>
+                </tr>` : ''}
+                <tr>
+                    <td class="tlog-row-label">MECHANISM</td>
+                    <td class="tlog-signal-val">${mechanismNote}</td>
+                </tr>
+                <tr class="tlog-row-dim">
+                    <td class="tlog-row-label">MODEL</td>
+                    <td class="tlog-signal-val">${DOMPurify.sanitize(modelShort)} · in-context learning, no weight updates</td>
+                </tr>
+            </tbody>
+        </table>
     </div>`;
+
+    return `<div class="tlog">${scorecardHTML}${trainingRunHTML}${signalHTML}</div>`;
 }
 
 // ============================================
@@ -2384,8 +2475,7 @@ function showDictionary(word) {
             </div>`
         ).join('');
 
-        const total = data.haikus.length;
-        const statsHTML = `<div class="dict-stats">${total} haikus generated &middot; ${data.wordCount ?? total} contained the word</div>`;
+        const statsHTML = '';
 
         // AI working prompt card — only shown post-game
         const evalEntry = gameState.gameOver ? gameState.aiEvaluation?.perWord?.[word] : null;

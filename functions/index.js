@@ -335,11 +335,24 @@ exports.artyGenerateHaiku = onCall({
             finishReason,
         });
 
+        // Compute user-attributable token cost server-side.
+        // promptTokenCount = system instruction + user prompt combined.
+        // We estimate user prompt tokens from character length (std ~4 chars/token),
+        // then derive system token cost as the remainder.
+        // The client uses userPromptTokens + candidatesTokenCount as the player's score —
+        // never exposing the fixed system overhead.
+        const totalPromptTokens   = usageMetadata.promptTokenCount    || 0;
+        const candidateTokens     = usageMetadata.candidatesTokenCount || 0;
+        const userPromptTokens    = Math.ceil(userPrompt.length / 4);
+        const systemPromptTokens  = Math.max(0, totalPromptTokens - userPromptTokens);
+
         return {
             success: true,
             data: {
                 responseText,
                 usageMetadata,
+                userPromptTokens,
+                systemPromptTokens,
                 fullResponse: apiResponse
             }
         };
