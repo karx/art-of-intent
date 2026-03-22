@@ -336,10 +336,17 @@
         </div>
 
         <div class="response-trail">
-            <h2>Response Trail</h2>
+            <div class="trail-header">
+                <h2 class="trail-title">Response Trail</h2>
+                <div class="trail-tabs" id="trailTabs" aria-hidden="true">
+                    <button class="trail-tab trail-tab--active" data-tab="trail" aria-pressed="true">TRAIL</button>
+                    <button class="trail-tab" data-tab="training" aria-pressed="false">TRAINING LOG</button>
+                </div>
+            </div>
             <div id="trailContainer" class="trail-container">
                 <div class="empty-state">No attempts yet. Start by entering your prompt below!</div>
             </div>
+            <div id="trainingLogContainer" class="trail-container hidden"></div>
         </div>
 
         <!-- Live Stats -->

@@ -400,10 +400,11 @@ async function generateDictionaryHaikusForWord(word, apiKey, apiUrl) {
         .filter(h => h.length > 0)
         .slice(0, 10);
 
-    // Count how many haikus visibly contain the target word (case-insensitive)
-    const wordCount = haikus.filter(h => h.toLowerCase().includes(word.toLowerCase())).length;
+    // Embeddability: how many haikus successfully integrated the word when explicitly required.
+    // This measures haiku-form fit, NOT player difficulty. See docs/areas/AI_EVALUATION.md.
+    const embeddabilityCount = haikus.filter(h => h.toLowerCase().includes(word.toLowerCase())).length;
 
-    return { haikus, tokensUsed, wordCount };
+    return { haikus, tokensUsed, embeddabilityCount };
 }
 
 /**
@@ -427,7 +428,7 @@ async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
             dictionaryHaikus[word] = {
                 haikus: result.haikus,
                 tokensUsed: result.tokensUsed,
-                wordCount: result.wordCount,
+                embeddabilityCount: result.embeddabilityCount,
                 generatedAt: FieldValue.serverTimestamp()
             };
             logger.info('Dictionary haikus generated for word', {
@@ -444,10 +445,16 @@ async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
     if (Object.keys(dictionaryHaikus).length > 0) {
         await docRef.update({ dictionaryHaikus });
     }
+
+    return dictionaryHaikus;
 }
 
 // ─────────────────────────────────────────────────────────────
-// AI Evaluation helpers
+// AI Evaluation — v2
+// Hypothesis: an LLM improves target word coverage after one
+// round of structured feedback (in-context learning signal).
+// 4 API calls total: zero-shot generate + evaluate,
+//                    one-shot generate + evaluate.
 // ─────────────────────────────────────────────────────────────
 
 /**
@@ -475,140 +482,161 @@ async function callGemini(systemInstruction, userPrompt, apiKey, apiUrl) {
 }
 
 /**
- * For each target word, generate one candidate prompt then evaluate it against
- * the real game system instruction. Runs all three words in parallel.
- *
- * @returns {Object} map of word → { prompt, response, wordsFound, tokensUsed, success }
+ * Build the system instruction used for both probe strategy calls.
+ * The model is told the rules of the game and asked to craft an indirect prompt.
  */
-async function runPerWordEvaluation(targetWords, blacklistWords, apiKey, apiUrl) {
-    const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
-    const blacklistStr = blacklistWords.join(', ');
+function buildProbeStrategyInstruction(targetWords, blacklistWords) {
+    return `You are playing a word puzzle game. A haiku bot will respond to your prompt, but it speaks ONLY in haikus (strict 5-7-5 syllable structure).
 
-    const results = await Promise.all(targetWords.map(async (word) => {
-        try {
-            // Step 1: generate a candidate prompt for this word
-            const stratSystem = `You are a prompt engineer for a word puzzle game. The game has a haiku bot that speaks ONLY in haikus. Your task: write a single creative prompt (2-4 sentences) that will guide the bot to naturally include the word "${word}" WITHOUT directly mentioning it and WITHOUT using any of these forbidden words: ${blacklistStr}. Output ONLY the prompt text, nothing else.`;
-            const { text: candidatePrompt, tokensUsed: t1 } = await callGemini(
-                stratSystem,
-                `Generate a prompt for the word "${word}".`,
-                apiKey, apiUrl
-            );
+Your goal: craft a single prompt (2-5 sentences) using imagery, themes, or scenarios that will cause the haiku bot to naturally include ALL of these target words in its response: ${targetWords.join(', ')}.
 
-            // Step 2: evaluate the prompt against the real game system instruction
-            const { text: response, tokensUsed: t2 } = await callGemini(
-                gameSystem,
-                candidatePrompt,
-                apiKey, apiUrl
-            );
+Rules:
+- Do NOT name the target words directly in your prompt
+- Do NOT use any of these forbidden words: ${blacklistWords.join(', ')}
+- Be indirect — evoke concepts through related imagery rather than naming them
+- Output ONLY the prompt text, no explanation or commentary`;
+}
 
-            const responseLower = response.toLowerCase();
-            const wordsFound = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+/**
+ * Check whether a prompt string contains any blacklist words.
+ */
+function promptHitsBlacklist(prompt, blacklistWords) {
+    const lower = prompt.toLowerCase();
+    return blacklistWords.some(w => lower.includes(w.toLowerCase()));
+}
 
-            return [word, {
-                prompt: candidatePrompt,
-                response,
-                wordsFound,
-                tokensUsed: t1 + t2,
-                success: responseLower.includes(word.toLowerCase())
-            }];
-        } catch (err) {
-            logger.error('Per-word eval failed', { word, error: err.message });
-            return [word, null];
-        }
+/**
+ * Zero-shot probe: model generates a prompt for all 3 target words with no prior context.
+ * 2 API calls: strategy generate + game evaluate.
+ *
+ * @returns {{ prompt, response, wordsMatched, blacklistHit, tokensUsed }}
+ */
+async function runZeroShotProbe(targetWords, blacklistWords, gameSystem, apiKey, apiUrl) {
+    const stratSystem = buildProbeStrategyInstruction(targetWords, blacklistWords);
+
+    const { text: prompt, tokensUsed: t1 } = await callGemini(
+        stratSystem,
+        'Write your prompt now.',
+        apiKey, apiUrl
+    );
+
+    const { text: response, tokensUsed: t2 } = await callGemini(
+        gameSystem,
+        prompt,
+        apiKey, apiUrl
+    );
+
+    const responseLower = response.toLowerCase();
+    const wordsMatched = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+    const blacklistHit = promptHitsBlacklist(prompt, blacklistWords);
+
+    return { prompt, response, wordsMatched, blacklistHit, tokensUsed: t1 + t2 };
+}
+
+/**
+ * One-shot probe: model sees the zero-shot result as structured feedback and
+ * generates an improved prompt. This delta is the in-context learning signal.
+ * 2 API calls: strategy generate + game evaluate.
+ *
+ * @returns {{ prompt, response, wordsMatched, blacklistHit, tokensUsed, deltaWordsMatched }}
+ */
+async function runOneShotProbe(targetWords, blacklistWords, gameSystem, zeroShot, apiKey, apiUrl) {
+    const stillNeeded = targetWords.filter(w => !zeroShot.wordsMatched.includes(w));
+
+    // If zero-shot already got all words, one-shot is a confirmation run
+    const feedbackPrompt = stillNeeded.length === 0
+        ? 'You matched all words on the first attempt. Write a more token-efficient prompt that achieves the same result.'
+        : `Round 1 result:
+Your prompt: "${zeroShot.prompt}"
+Arty's haiku: "${zeroShot.response}"
+Words matched: ${zeroShot.wordsMatched.length > 0 ? zeroShot.wordsMatched.join(', ') : 'none'}
+Words still needed: ${stillNeeded.join(', ')}
+
+Write a new prompt targeting the missing words. The same rules apply — be indirect, avoid forbidden words. Output ONLY the new prompt text.`;
+
+    const stratSystem = buildProbeStrategyInstruction(targetWords, blacklistWords);
+
+    const { text: prompt, tokensUsed: t1 } = await callGemini(stratSystem, feedbackPrompt, apiKey, apiUrl);
+    const { text: response, tokensUsed: t2 } = await callGemini(gameSystem, prompt, apiKey, apiUrl);
+
+    const responseLower = response.toLowerCase();
+    const wordsMatched = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+    const blacklistHit = promptHitsBlacklist(prompt, blacklistWords);
+
+    // Cumulative matched across both probes
+    const allMatched = [...new Set([...zeroShot.wordsMatched, ...wordsMatched])];
+    const deltaWordsMatched = wordsMatched.filter(w => !zeroShot.wordsMatched.includes(w)).length;
+
+    return { prompt, response, wordsMatched, blacklistHit, tokensUsed: t1 + t2, deltaWordsMatched, allMatched };
+}
+
+/**
+ * Derive per-word difficulty from probe results and dictionary haiku embeddability.
+ * - LOW    matched zero-shot
+ * - MEDIUM matched only after feedback
+ * - HIGH   not matched in either probe
+ */
+function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus) {
+    return Object.fromEntries(targetWords.map(word => {
+        const matchedZeroShot = zeroShot.wordsMatched.includes(word);
+        const matchedOneShot  = oneShot.allMatched.includes(word);
+        const difficulty = matchedZeroShot ? 'low' : matchedOneShot ? 'medium' : 'high';
+
+        // Embeddability from dictionary haikus — how naturally the word fits 5-7-5 form
+        // Note: this is NOT a measure of player difficulty (see docs/areas/AI_EVALUATION.md)
+        const dictEntry = dictionaryHaikus?.[word];
+        const embeddabilityScore = dictEntry
+            ? (dictEntry.embeddabilityCount ?? dictEntry.wordCount ?? null) / 10
+            : null;
+
+        return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore }];
     }));
-
-    return Object.fromEntries(results.filter(([, v]) => v !== null));
 }
 
 /**
- * Simulate a full AI game run: iteratively generate prompts and evaluate them
- * against the real game system instruction until all target words are matched
- * or the attempt limit is reached.
+ * Orchestrate zero-shot → one-shot evaluation, derive word difficulty,
+ * and write aiEvaluation to Firestore. Non-fatal — errors caught by caller.
  *
- * @returns {{ attempts: Array, totalAttempts: number, totalTokens: number, won: boolean }}
+ * @param {Object} dictionaryHaikus - already-generated dict data for embeddability scores
  */
-async function runFullGameSimulation(targetWords, blacklistWords, apiKey, apiUrl) {
+async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus) {
     const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
-    const blacklistStr = blacklistWords.join(', ');
-    const MAX_ROUNDS = 5;
+    const model = (apiUrl.match(/models\/([^:]+)/) || [])[1] || 'unknown';
 
-    const matched = new Set();
-    const attempts = [];
-    let totalTokens = 0;
+    // Sequential: zero-shot then one-shot (one-shot depends on zero-shot result)
+    const zeroShot = await runZeroShotProbe(targetWords, blacklistWords, gameSystem, apiKey, apiUrl);
+    const oneShot  = await runOneShotProbe(targetWords, blacklistWords, gameSystem, zeroShot, apiKey, apiUrl);
 
-    for (let round = 1; round <= MAX_ROUNDS; round++) {
-        const remaining = targetWords.filter(w => !matched.has(w));
-        if (remaining.length === 0) break;
+    const wordDifficulty = deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus);
+    const converged = oneShot.allMatched.length === targetWords.length;
+    const hardestWord = targetWords.find(w => wordDifficulty[w]?.difficulty === 'high') || null;
 
-        // Build a summary of prior attempts for context
-        const priorSummary = attempts.length === 0
-            ? 'No attempts yet.'
-            : attempts.map(a =>
-                `Attempt ${a.attemptNumber}: prompt="${a.prompt}" → matched: ${a.wordsFoundThisRound.join(', ') || 'none'}`
-              ).join('\n');
-
-        const stratSystem = `You are playing a haiku word puzzle. You must guide a haiku bot (which speaks ONLY in haikus) to include specific words without naming them directly, and without using these forbidden words: ${blacklistStr}.\n\nPrevious attempts:\n${priorSummary}\n\nRemaining target words to get: ${remaining.join(', ')}\n\nWrite a single creative prompt (2-4 sentences) that will get the bot to include as many of the remaining target words as possible. Output ONLY the prompt text.`;
-
-        let prompt, response, tokensThisRound;
-        try {
-            const s = await callGemini(stratSystem, 'Generate your next prompt.', apiKey, apiUrl);
-            prompt = s.text;
-
-            const e = await callGemini(gameSystem, prompt, apiKey, apiUrl);
-            response = e.text;
-            tokensThisRound = s.tokensUsed + e.tokensUsed;
-        } catch (err) {
-            logger.error('Full run round failed', { round, error: err.message });
-            break;
+    const aiEvaluation = {
+        model,
+        generatedAt: FieldValue.serverTimestamp(),
+        wordDifficulty,
+        zeroShot,
+        oneShot,
+        summary: {
+            zeroShotScore:      zeroShot.wordsMatched.length,
+            oneShotScore:       oneShot.allMatched.length,
+            improvementDelta:   oneShot.deltaWordsMatched,
+            totalTokens:        zeroShot.tokensUsed + oneShot.tokensUsed,
+            converged,
+            hardestWord,
         }
-
-        totalTokens += tokensThisRound;
-        const responseLower = response.toLowerCase();
-        const wordsFoundThisRound = remaining.filter(w => responseLower.includes(w.toLowerCase()));
-        wordsFoundThisRound.forEach(w => matched.add(w));
-
-        attempts.push({
-            attemptNumber: round,
-            prompt,
-            response,
-            wordsFoundThisRound,
-            cumulativeMatched: [...matched],
-            tokensUsed: tokensThisRound
-        });
-
-        if (matched.size === targetWords.length) break;
-    }
-
-    return {
-        attempts,
-        totalAttempts: attempts.length,
-        totalTokens,
-        won: matched.size === targetWords.length
     };
-}
 
-/**
- * Orchestrate per-word evaluation and full game simulation in parallel,
- * then write aiEvaluation to Firestore. Non-fatal — errors are caught by caller.
- */
-async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl) {
-    const [perWord, fullRun] = await Promise.all([
-        runPerWordEvaluation(targetWords, blacklistWords, apiKey, apiUrl),
-        runFullGameSimulation(targetWords, blacklistWords, apiKey, apiUrl)
-    ]);
-
-    await docRef.update({
-        aiEvaluation: {
-            perWord,
-            fullRun: { ...fullRun, generatedAt: FieldValue.serverTimestamp() }
-        }
-    });
+    await docRef.update({ aiEvaluation });
 
     logger.info('AI evaluation stored', {
         dateKey,
-        fullRunAttempts: fullRun.totalAttempts,
-        fullRunWon: fullRun.won,
-        totalTokens: fullRun.totalTokens
+        model,
+        zeroShotScore: aiEvaluation.summary.zeroShotScore,
+        oneShotScore:  aiEvaluation.summary.oneShotScore,
+        delta:         aiEvaluation.summary.improvementDelta,
+        converged,
+        totalTokens:   aiEvaluation.summary.totalTokens,
     });
 }
 
@@ -670,13 +698,21 @@ async function generateWordsForDate(dateKey) {
     const apiUrl = process.env.GEMINI_API_URL ||
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
 
-    await Promise.all([
-        generateDictionaryHaikus(targetWords, dateKey, docRef)
-            .then(() => logger.info('Dictionary haikus stored', { dateKey }))
-            .catch(e => logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message })),
-        runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl)
-            .catch(e => logger.error('AI evaluation failed (non-fatal)', { error: e.message }))
-    ]);
+    // Step 1: dictionary haikus first — embeddability scores feed into evaluation.
+    let dictionaryHaikus = {};
+    try {
+        dictionaryHaikus = await generateDictionaryHaikus(targetWords, dateKey, docRef);
+        logger.info('Dictionary haikus stored', { dateKey });
+    } catch (e) {
+        logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message });
+    }
+
+    // Step 2: zero-shot + one-shot probes (4 API calls).
+    try {
+        await runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus);
+    } catch (e) {
+        logger.error('AI evaluation failed (non-fatal)', { error: e.message });
+    }
 
     return { dateKey, targetWords, blacklistWords };
 }

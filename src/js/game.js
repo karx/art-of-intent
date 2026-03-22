@@ -235,7 +235,20 @@ async function initializeGame() {
         GameAnalytics.gameStart(today);
     } else {
         loadSavedGame();
-        trackEvent('session_resume', { 
+        // dictionaryHaikus and aiEvaluation are server-side data, not game progress —
+        // always fetch fresh from Firestore so they're available on resumed sessions.
+        try {
+            const docRef = doc(db, 'dailyWords', today);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                gameState.dictionaryHaikus = data.dictionaryHaikus || null;
+                gameState.aiEvaluation = data.aiEvaluation || null;
+            }
+        } catch (e) {
+            console.warn('⚠️ Could not fetch dictionary/eval data:', e.message);
+        }
+        trackEvent('session_resume', {
             attempts: gameState.attempts,
             matchedWords: gameState.matchedWords.size,
             date: today
@@ -1226,25 +1239,31 @@ function showGameOverModal(isWin, violatedWords = []) {
         `;
     }
     
-    // Append AI benchmark section (collapsed by default)
-    const benchmarkHTML = buildAIBenchmarkHTML();
-    if (benchmarkHTML) {
-        const benchmarkDiv = document.createElement('div');
-        benchmarkDiv.innerHTML = DOMPurify.sanitize(benchmarkHTML);
-        modalBody.appendChild(benchmarkDiv);
+    // AI benchmark section — hidden pending redesign
+    // TODO: rethink aiEvaluation UX (see docs/future-work.md)
+    if (false) { // eslint-disable-line no-constant-condition
+        const benchmarkHTML = buildAIBenchmarkHTML();
+        if (benchmarkHTML) {
+            const benchmarkDiv = document.createElement('div');
+            benchmarkDiv.innerHTML = DOMPurify.sanitize(benchmarkHTML);
+            modalBody.appendChild(benchmarkDiv);
 
-        const toggle = modalBody.querySelector('.ai-benchmark-toggle');
-        const benchContent = modalBody.querySelector('.ai-benchmark-content');
-        if (toggle && benchContent) {
-            toggle.addEventListener('click', () => {
-                const isHidden = benchContent.classList.toggle('hidden');
-                toggle.textContent = (isHidden ? '▶' : '▼') + ' Compare with AI';
-            });
+            const toggle = modalBody.querySelector('.ai-benchmark-toggle');
+            const benchContent = modalBody.querySelector('.ai-benchmark-content');
+            if (toggle && benchContent) {
+                toggle.addEventListener('click', () => {
+                    const isHidden = benchContent.classList.toggle('hidden');
+                    toggle.textContent = (isHidden ? '▶' : '▼') + ' Compare with AI';
+                });
+            }
         }
-    }
+    } // end if (false) — benchmark hidden
 
     // Morph input section to share buttons
     morphInputToShare();
+
+    // Reveal training log tab and populate it
+    revealTrainingLog();
 
     modal.classList.remove('hidden');
 }
@@ -1593,23 +1612,20 @@ function updateTargetWords() {
     container.innerHTML = '';
     gameState.targetWords.forEach(word => {
         const matched = gameState.matchedWords.has(word);
+        const hasDict = !!gameState.dictionaryHaikus?.[word];
+
         const tag = document.createElement('span');
-        tag.className = `word-tag${matched ? ' matched' : ''}`;
+        tag.className = `word-tag${matched ? ' matched' : ''}${hasDict ? ' has-dict' : ''}`;
         if (matched) {
             tag.style.opacity = '0.5';
             tag.style.textDecoration = 'line-through';
         }
         tag.textContent = DOMPurify.sanitize(word);
-        container.appendChild(tag);
-
-        if (gameState.dictionaryHaikus?.[word]) {
-            const btn = document.createElement('span');
-            btn.className = 'word-dict-btn';
-            btn.textContent = '?';
-            btn.title = `See example haikus for "${word}"`;
-            btn.addEventListener('click', () => showDictionary(word));
-            container.appendChild(btn);
+        if (hasDict) {
+            tag.title = `View example haikus for "${word}"`;
+            tag.addEventListener('click', () => showDictionary(word));
         }
+        container.appendChild(tag);
     });
 }
 
@@ -2199,36 +2215,191 @@ function closeGettingStarted() {
 }
 
 // ============================================
+// ============================================
+// Training Log
+// ============================================
+
+function revealTrainingLog() {
+    const tabs = document.getElementById('trailTabs');
+    if (tabs) {
+        tabs.removeAttribute('aria-hidden');
+        tabs.classList.add('trail-tabs--visible');
+    }
+
+    // Wire tab switching
+    tabs?.querySelectorAll('.trail-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            tabs.querySelectorAll('.trail-tab').forEach(b => {
+                b.classList.toggle('trail-tab--active', b === btn);
+                b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+            });
+            document.getElementById('trailContainer').classList.toggle('hidden', tab !== 'trail');
+            document.getElementById('trainingLogContainer').classList.toggle('hidden', tab !== 'training');
+        });
+    });
+
+    // Populate the training log
+    const container = document.getElementById('trainingLogContainer');
+    if (container) container.innerHTML = buildTrainingLogHTML();
+}
+
+function buildTrainingLogHTML() {
+    const ev = gameState.aiEvaluation;
+    if (!ev?.zeroShot || !ev?.oneShot) {
+        return `<div class="tlog-empty">Training data not available for today yet.<br>Check back after midnight UTC.</div>`;
+    }
+
+    const { zeroShot, oneShot, summary, wordDifficulty, model } = ev;
+    const date = new Date().toISOString().split('T')[0];
+    const modelShort = model || 'gemini';
+
+    // Human vs AI comparison
+    const humanAttempts = gameState.attempts;
+    const humanTokens   = gameState.totalTokens;
+    const aiProbes      = 2;
+    const aiTokens      = summary.totalTokens;
+
+    const convergedLabel = summary.converged
+        ? `<span class="tlog-badge tlog-badge--ok">CONVERGED</span>`
+        : `<span class="tlog-badge tlog-badge--warn">PARTIAL</span>`;
+
+    // Render a probe block (zero-shot or one-shot) as a trail-style entry
+    function probeBlock(label, sublabel, probe) {
+        const matchedHTML = probe.wordsMatched.length > 0
+            ? probe.wordsMatched.map(w => `<span class="tlog-reward tlog-reward--hit">+${w}</span>`).join('')
+            : `<span class="tlog-reward tlog-reward--miss">no match</span>`;
+        const blacklistWarning = probe.blacklistHit
+            ? `<span class="tlog-reward tlog-reward--warn">blacklist hit</span>` : '';
+
+        return `
+        <div class="tlog-step">
+            <div class="tlog-step-label">${label}</div>
+            <div class="tlog-step-sublabel">${sublabel}</div>
+            <div class="trail-item tlog-trail-item">
+                <div class="tlog-input-label">&gt; INPUT</div>
+                <div class="tlog-prompt-text">${DOMPurify.sanitize(probe.prompt)}</div>
+            </div>
+            <div class="trail-item tlog-trail-item">
+                <div class="trail-response">${DOMPurify.sanitize(probe.response)}</div>
+            </div>
+            <div class="tlog-reward-row">◈ REWARD &nbsp; ${matchedHTML}${blacklistWarning}
+                <span class="tlog-tokens">${probe.tokensUsed} tok</span>
+            </div>
+        </div>`;
+    }
+
+    // Word difficulty badges
+    const difficultyHTML = wordDifficulty ? gameState.targetWords.map(w => {
+        const d = wordDifficulty[w];
+        if (!d) return '';
+        const cls = { low: 'ok', medium: 'warn', high: 'err' }[d.difficulty] || 'warn';
+        return `<span class="tlog-word-diff"><span class="tlog-word-name">${DOMPurify.sanitize(w)}</span><span class="tlog-badge tlog-badge--${cls}">${d.difficulty.toUpperCase()}</span></span>`;
+    }).join('') : '';
+
+    // Learning signal line
+    const deltaMsg = summary.improvementDelta > 0
+        ? `+${summary.improvementDelta} word${summary.improvementDelta > 1 ? 's' : ''} after feedback`
+        : summary.improvementDelta === 0 && summary.zeroShotScore > 0
+            ? 'no further improvement (already strong zero-shot)'
+            : 'no improvement — word difficulty was high';
+
+    return `
+    <div class="tlog">
+        <div class="tlog-header">
+            <span class="tlog-title">ARTY LEARNS // ${date}</span>
+            <span class="tlog-model">${DOMPurify.sanitize(modelShort)}</span>
+        </div>
+
+        <div class="tlog-compare">
+            <div class="tlog-compare-col">
+                <div class="tlog-compare-label">HUMAN</div>
+                <div class="tlog-compare-stat">${humanAttempts} attempt${humanAttempts !== 1 ? 's' : ''}</div>
+                <div class="tlog-compare-stat">${humanTokens} tokens</div>
+            </div>
+            <div class="tlog-compare-divider">│</div>
+            <div class="tlog-compare-col">
+                <div class="tlog-compare-label">AI</div>
+                <div class="tlog-compare-stat">${aiProbes} probes</div>
+                <div class="tlog-compare-stat">${aiTokens} tokens &nbsp;${convergedLabel}</div>
+            </div>
+        </div>
+
+        <div class="tlog-divider">── TRAINING RUN ──────────────────────</div>
+
+        ${probeBlock('STEP 1 — ZERO SHOT', 'No hints. First instinct.', zeroShot)}
+        ${probeBlock('STEP 2 — ONE SHOT', 'Given feedback from step 1. One chance to adapt.', oneShot)}
+
+        <div class="tlog-divider">── RESULTS ───────────────────────────</div>
+
+        <div class="tlog-results">
+            <div class="tlog-result-row">
+                <span class="tlog-result-label">LEARNING SIGNAL</span>
+                <span class="tlog-result-value">${deltaMsg}</span>
+            </div>
+            ${summary.hardestWord ? `<div class="tlog-result-row">
+                <span class="tlog-result-label">HARDEST WORD</span>
+                <span class="tlog-result-value">${DOMPurify.sanitize(summary.hardestWord)} — not matched in either probe</span>
+            </div>` : ''}
+            ${difficultyHTML ? `<div class="tlog-result-row tlog-result-row--diff">
+                <span class="tlog-result-label">WORD DIFFICULTY</span>
+                <span class="tlog-difficulty-chips">${difficultyHTML}</span>
+            </div>` : ''}
+        </div>
+
+        <div class="tlog-divider">── WHAT HAPPENED? ────────────────────</div>
+
+        <div class="tlog-explainer">
+            Each step, the AI saw which words appeared in Arty's haiku and used that signal
+            to rewrite its prompt. No weights changed. No retraining happened.
+            The model simply adapted using the feedback in its context window —
+            the same mechanism that underlies <strong>in-context learning</strong>
+            and is a core component of <strong>RLHF</strong>.
+        </div>
+    </div>`;
+}
+
+// ============================================
 // Dictionary Modal
 // ============================================
 
 function showDictionary(word) {
     const modal = document.getElementById('dictionaryModal');
     const content = document.getElementById('dictionaryContent');
+    const title = modal?.querySelector('h2');
     if (!modal || !content) return;
+
+    if (title) title.textContent = word.toUpperCase();
 
     const data = gameState.dictionaryHaikus?.[word];
 
     if (!data || !data.haikus?.length) {
-        content.innerHTML = '<p>No dictionary entries available for this word yet.</p>';
+        content.innerHTML = '<p class="dict-empty">No dictionary entries available for this word yet.</p>';
     } else {
         const top3 = data.haikus.slice(0, 3);
-        const haikuHTML = top3.map(h =>
-            `<div class="dict-haiku">${DOMPurify.sanitize(h).replace(/\n/g, '<br>')}</div>`
+        const haikuHTML = top3.map((h, i) =>
+            `<div class="trail-item dict-haiku-item">
+                <div class="dict-haiku-label">example ${i + 1}</div>
+                <div class="trail-response">${DOMPurify.sanitize(h)}</div>
+            </div>`
         ).join('');
-        const total = data.haikus.length;
-        const statsHTML = `<div class="dict-stats">Showing 3 of ${total} generated haikus · ${data.wordCount ?? total} contained the word</div>`;
 
-        // Append AI-generated working prompt card if available (only shown post-game)
+        const total = data.haikus.length;
+        const statsHTML = `<div class="dict-stats">${total} haikus generated &middot; ${data.wordCount ?? total} contained the word</div>`;
+
+        // AI working prompt card — only shown post-game
         const evalEntry = gameState.gameOver ? gameState.aiEvaluation?.perWord?.[word] : null;
         const promptCardHTML = evalEntry?.success ? `
             <div class="dict-prompt-card">
-                <div class="dict-prompt-card-label">Prompt that worked (AI example)</div>
+                <div class="dict-prompt-card-label">&gt; AI example prompt</div>
                 <div class="dict-prompt-text">${DOMPurify.sanitize(evalEntry.prompt)}</div>
-                <div class="dict-prompt-response">${DOMPurify.sanitize(evalEntry.response).replace(/\n/g, '<br>')}</div>
+                <div class="trail-item dict-haiku-item" style="margin-top:0.5rem">
+                    <div class="dict-haiku-label">arty responded</div>
+                    <div class="trail-response">${DOMPurify.sanitize(evalEntry.response)}</div>
+                </div>
             </div>` : '';
 
-        content.innerHTML = `<h3 class="dict-word">${DOMPurify.sanitize(word)}</h3>${haikuHTML}${statsHTML}${promptCardHTML}`;
+        content.innerHTML = `${haikuHTML}${statsHTML}${promptCardHTML}`;
     }
 
     modal.classList.remove('hidden');

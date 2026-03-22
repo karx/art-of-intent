@@ -1149,53 +1149,76 @@ body.nav-expanded .top-bar {
    Dictionary Modal
    ============================================ */
 
-.word-dict-btn {
+/* Word tag — dictionary variant */
+.word-tag.has-dict {
     cursor: pointer;
-    font-size: 0.65rem;
-    font-weight: bold;
-    opacity: 0.5;
-    margin-left: 3px;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    width: 14px;
-    height: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    vertical-align: middle;
-    line-height: 1;
-    transition: opacity 0.15s;
+    border-style: dashed;
+    position: relative;
+    transition: border-color 0.15s, color 0.15s;
 }
 
-.word-dict-btn:hover {
+.word-tag.has-dict::after {
+    content: '?';
+    font-size: 0.6em;
+    opacity: 0.5;
+    margin-left: 5px;
+    vertical-align: super;
+}
+
+.word-tag.has-dict:hover {
+    border-color: var(--border-active);
+    border-style: solid;
+    color: var(--sol-cyan);
+}
+
+.word-tag.has-dict:hover::after {
     opacity: 1;
 }
 
+/* Dictionary modal */
 .dictionary-modal {
-    max-width: 480px;
+    max-width: 460px;
 }
 
-.dict-word {
+.dictionary-modal h2 {
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    color: var(--sol-cyan);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dictionary-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.dict-haiku-item {
+    margin-bottom: var(--spacing-sm) !important;
+}
+
+.dict-haiku-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin: 0 0 1.2rem 0;
-    font-size: 1rem;
-}
-
-.dict-haiku {
-    font-style: italic;
-    padding: 0.6rem 1rem;
-    border-left: 2px solid var(--color-primary, #0f0);
-    margin-bottom: 0.75rem;
-    line-height: 1.7;
-    font-size: 0.95rem;
+    margin-bottom: 0.3rem;
 }
 
 .dict-stats {
-    font-size: 0.75rem;
-    opacity: 0.55;
-    margin-top: 1rem;
-    text-align: right;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin: 0.25rem 0 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.dict-empty {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-style: italic;
 }
 
 /* ============================================
@@ -1263,24 +1286,269 @@ body.nav-expanded .top-bar {
    ============================================ */
 
 .dict-prompt-card {
-    border: 1px solid var(--color-primary, #0f0);
-    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
     margin-top: 1.25rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
 }
 
 .dict-prompt-card-label {
     font-size: 0.7rem;
-    opacity: 0.55;
-    margin-bottom: 0.4rem;
-    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.6rem;
     letter-spacing: 0.05em;
 }
 
 .dict-prompt-text {
     font-style: italic;
-    margin-bottom: 0.5rem;
-    line-height: 1.4;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    padding-left: 0.5rem;
+    border-left: 1px solid var(--border-color);
 }
 
-.dict-prompt-response { line-height: 1.6; }
+.dict-prompt-response {
+    margin-top: 0.25rem;
+    border-left-color: var(--border-active);
+}
+
+/* ============================================
+   Training Log
+   ============================================ */
+
+/* Tab bar */
+.trail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+}
+
+.trail-title { margin: 0; }
+
+.trail-tabs {
+    display: none;
+    gap: 2px;
+}
+
+.trail-tabs--visible {
+    display: flex;
+}
+
+.trail-tab {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-dim);
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.trail-tab:hover {
+    color: var(--text-primary);
+    border-color: var(--text-dim);
+}
+
+.trail-tab--active {
+    border-color: var(--border-active);
+    color: var(--sol-cyan);
+}
+
+/* Log container */
+.tlog {
+    font-size: 0.82rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.tlog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tlog-title {
+    color: var(--sol-cyan);
+    letter-spacing: 0.1em;
+    font-size: 0.85rem;
+}
+
+.tlog-model {
+    color: var(--text-dim);
+    font-size: 0.7rem;
+}
+
+/* Human vs AI compare */
+.tlog-compare {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: flex-start;
+    padding: var(--spacing-sm) 0;
+}
+
+.tlog-compare-col { display: flex; flex-direction: column; gap: 2px; }
+
+.tlog-compare-label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 2px;
+}
+
+.tlog-compare-stat { color: var(--text-bright); }
+
+.tlog-compare-divider {
+    color: var(--border-color);
+    padding-top: 18px;
+}
+
+/* Dividers */
+.tlog-divider {
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    margin: var(--spacing-xs) 0;
+}
+
+/* Probe step */
+.tlog-step {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tlog-step-label {
+    font-size: 0.75rem;
+    color: var(--sol-yellow);
+    letter-spacing: 0.08em;
+}
+
+.tlog-step-sublabel {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-bottom: 4px;
+}
+
+.tlog-trail-item {
+    margin-bottom: 4px !important;
+}
+
+.tlog-input-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 3px;
+    letter-spacing: 0.05em;
+}
+
+.tlog-prompt-text {
+    color: var(--text-primary);
+    font-style: italic;
+    line-height: 1.5;
+}
+
+/* Reward row */
+.tlog-reward-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    padding-left: 4px;
+    flex-wrap: wrap;
+}
+
+.tlog-reward {
+    padding: 1px 6px;
+    border: 1px solid;
+    font-size: 0.7rem;
+}
+
+.tlog-reward--hit   { border-color: var(--sol-green);  color: var(--sol-green); }
+.tlog-reward--miss  { border-color: var(--sol-red);    color: var(--sol-red); }
+.tlog-reward--warn  { border-color: var(--sol-yellow); color: var(--sol-yellow); }
+
+.tlog-tokens {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-size: 0.68rem;
+}
+
+/* Results */
+.tlog-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tlog-result-row {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.tlog-result-label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.tlog-result-value { color: var(--text-primary); }
+
+.tlog-result-row--diff { align-items: center; }
+
+/* Word difficulty chips */
+.tlog-difficulty-chips {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.tlog-word-diff {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tlog-word-name { color: var(--text-bright); }
+
+.tlog-badge {
+    font-size: 0.62rem;
+    padding: 1px 5px;
+    border: 1px solid;
+    letter-spacing: 0.06em;
+}
+
+.tlog-badge--ok   { border-color: var(--sol-green);  color: var(--sol-green); }
+.tlog-badge--warn { border-color: var(--sol-yellow); color: var(--sol-yellow); }
+.tlog-badge--err  { border-color: var(--sol-red);    color: var(--sol-red); }
+
+/* Explainer */
+.tlog-explainer {
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    border-left: 2px solid var(--border-color);
+    padding-left: var(--spacing-sm);
+}
+
+.tlog-explainer strong { color: var(--text-primary); }
+
+/* Empty state */
+.tlog-empty {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-style: italic;
+    line-height: 1.7;
+    padding: var(--spacing-sm) 0;
+}
