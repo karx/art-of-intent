@@ -2878,3 +2878,228 @@ body.nav-expanded .top-bar {
         margin-left: 0;
     }
 }
+
+/* ============================================
+   FEATURE ADDITIONS (word tags, dictionary, training log)
+   ============================================ */
+
+/* ── Word tag — has dictionary ── */
+.word-tag.has-dict {
+    cursor: pointer;
+    border-style: dashed;
+    position: relative;
+    transition: border-color 0.15s, color 0.15s;
+}
+.word-tag.has-dict::after {
+    content: '?';
+    font-size: 0.6em;
+    opacity: 0.5;
+    margin-left: 5px;
+    vertical-align: super;
+}
+.word-tag.has-dict:hover {
+    border-color: var(--border-active);
+    border-style: solid;
+    color: var(--sol-cyan);
+}
+.word-tag.has-dict:hover::after { opacity: 1; }
+
+/* ── Dictionary modal ── */
+.dictionary-modal { max-width: 460px; }
+.dictionary-modal h2 {
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    color: var(--sol-cyan);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.dictionary-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.dict-haiku-item { margin-bottom: var(--spacing-sm) !important; }
+.dict-haiku-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+}
+.dict-empty { color: var(--text-dim); font-size: 0.85rem; font-style: italic; }
+.dict-prompt-card {
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    margin-top: 1.25rem;
+    font-size: 0.85rem;
+}
+.dict-prompt-card-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: 0.6rem;
+    letter-spacing: 0.05em;
+}
+.dict-prompt-text {
+    font-style: italic;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    padding-left: 0.5rem;
+    border-left: 1px solid var(--border-color);
+}
+
+/* ── Trail tab bar ── */
+.trail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+}
+.trail-title { margin: 0; }
+.trail-tabs { display: flex; gap: 2px; }
+
+/* ── Training Log ── */
+.tlog {
+    font-size: 0.82rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+}
+.tlog-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+/* Section header: title + ruled line */
+.tlog-sect-hd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--sol-cyan);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+}
+.tlog-sect-meta {
+    color: var(--text-dim);
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+}
+
+/* ── SESSION ANALYSIS table ── */
+.tlog-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border-color);
+}
+.tlog-table th {
+    padding: 5px 10px;
+    font-size: 0.63rem;
+    font-weight: normal;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    text-align: left;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+.tlog-table th:nth-child(2) {
+    color: var(--sol-cyan);
+    border-bottom-color: var(--sol-cyan);
+}
+.tlog-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+    font-size: 0.8rem;
+}
+.tlog-table tbody tr:last-child td { border-bottom: none; }
+
+.tlog-row-label {
+    color: var(--text-dim) !important;
+    font-size: 0.63rem !important;
+    letter-spacing: 0.1em;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color) !important;
+    white-space: nowrap;
+    width: 1%;
+}
+
+/* Signal table — 2 cols, no thead */
+.tlog-table--signal td { font-size: 0.82rem; }
+.tlog-table--signal .tlog-row-label { width: 80px; }
+
+/* Value color classes */
+.tlog-you  { color: var(--text-bright) !important; background: rgba(42,161,152,0.05); }
+.tlog-rank { color: var(--sol-cyan)    !important; }
+.tlog-win  { color: var(--sol-green)   !important; }
+.tlog-miss { color: var(--sol-red)     !important; }
+.tlog-signal-val { color: var(--text-primary); }
+
+/* Dim row (MODEL footnote) */
+.tlog-row-dim td {
+    color: var(--text-dim) !important;
+    font-size: 0.7rem !important;
+    border-top: 1px dashed var(--border-color);
+    border-bottom: none !important;
+}
+
+/* ── Probe items ── */
+.tlog-probe-item { margin-bottom: 0 !important; }
+.tlog-probe-prompt {
+    color: var(--sol-yellow);
+    margin-bottom: var(--spacing-xs);
+    font-size: 14px;
+    font-style: italic;
+}
+.tlog-probe-prompt::before {
+    content: '> AI: ';
+    color: var(--text-dim);
+    font-style: normal;
+}
+
+/* ── Delta connector between probes ── */
+.tlog-delta {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    letter-spacing: 0.04em;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    text-align: center;
+}
+.tlog-delta--up   { color: var(--sol-green);  border-color: var(--sol-green); }
+.tlog-delta--flat { color: var(--sol-yellow); border-color: var(--sol-yellow); }
+.tlog-delta--down { color: var(--sol-red);    border-color: var(--sol-red); }
+
+/* ── Difficulty chips ── */
+.tlog-difficulty-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.tlog-word-diff { display: flex; align-items: center; gap: 3px; }
+.tlog-word-name { color: var(--text-bright); }
+.tlog-badge {
+    font-size: 0.62rem;
+    padding: 1px 5px;
+    border: 1px solid;
+    letter-spacing: 0.06em;
+}
+.tlog-badge--ok   { border-color: var(--sol-green);  color: var(--sol-green); }
+.tlog-badge--warn { border-color: var(--sol-yellow); color: var(--sol-yellow); }
+.tlog-badge--err  { border-color: var(--sol-red);    color: var(--sol-red); }
+
+/* ── Empty / loading ── */
+.tlog-empty {
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    font-style: italic;
+    line-height: 1.7;
+    padding: var(--spacing-sm) 0;
+}

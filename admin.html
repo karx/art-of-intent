@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art of Intent — Admin</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="src/css/dos-theme.css">
+    <style>
+        body { padding: var(--spacing-lg); }
+
+        .admin-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        .admin-header h1 { color: var(--sol-cyan); font-size: 1.2rem; }
+        .admin-header .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; }
+
+        #auth-gate, #access-denied, #admin-panel { display: none; }
+
+        .status-bar {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: center;
+        }
+        .status-bar .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--sol-green); display: inline-block;
+        }
+        .status-bar .dot.warn { background: var(--sol-yellow); }
+        .status-bar .dot.error { background: var(--sol-red); }
+
+        .section {
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+        }
+        .section h2 {
+            font-size: 0.9rem;
+            color: var(--sol-yellow);
+            margin-bottom: var(--spacing-md);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .field-row {
+            display: flex;
+            gap: var(--spacing-sm);
+            align-items: center;
+            margin-bottom: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+        .field-row label { color: var(--text-dim); font-size: 0.85rem; min-width: 80px; }
+
+        input[type="date"], input[type="text"] {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 4px 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        input[type="date"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--border-active);
+        }
+
+        button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 14px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        button:hover { border-color: var(--border-active); color: var(--sol-cyan); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        button.primary { border-color: var(--sol-cyan); color: var(--sol-cyan); }
+        button.danger  { border-color: var(--sol-red);  color: var(--sol-red);  }
+        button.google-btn {
+            display: flex; align-items: center; gap: 8px;
+            border-color: var(--sol-blue); color: var(--sol-blue);
+        }
+
+        .log {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-sm);
+            margin-top: var(--spacing-sm);
+            font-size: 0.8rem;
+            min-height: 40px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log .ok    { color: var(--sol-green); }
+        .log .err   { color: var(--sol-red); }
+        .log .info  { color: var(--sol-cyan); }
+        .log .warn  { color: var(--sol-yellow); }
+
+        .doc-preview {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: var(--spacing-sm);
+            margin-top: var(--spacing-sm);
+            font-size: 0.78rem;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--text-dim);
+        }
+
+        .chip {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            border: 1px solid;
+        }
+        .chip.ok  { border-color: var(--sol-green); color: var(--sol-green); }
+        .chip.missing { border-color: var(--sol-red); color: var(--sol-red); }
+        .chip.partial { border-color: var(--sol-yellow); color: var(--sol-yellow); }
+
+        #access-denied {
+            color: var(--sol-red);
+            padding: var(--spacing-lg);
+            text-align: center;
+        }
+        #access-denied p { margin-top: var(--spacing-sm); color: var(--text-dim); font-size: 0.85rem; }
+
+        .sign-out-row {
+            margin-top: var(--spacing-lg);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+    </style>
+</head>
+<body>
+
+<div class="admin-header">
+    <h1>&gt; ART OF INTENT // ADMIN CONSOLE</h1>
+    <div class="subtitle">Housekeeping &amp; Operations — Restricted Access</div>
+</div>
+
+<!-- Auth gate -->
+<div id="auth-gate">
+    <p style="color:var(--text-dim);margin-bottom:var(--spacing-md);font-size:0.9rem;">
+        Sign in with a Google account to continue.
+    </p>
+    <button class="google-btn" id="signInBtn">
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z" fill="#34A853"/>
+            <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+        </svg>
+        Sign in with Google
+    </button>
+</div>
+
+<!-- Access denied -->
+<div id="access-denied">
+    <div>&gt; ACCESS DENIED</div>
+    <p>This page requires admin privileges. Contact the site owner.</p>
+</div>
+
+<!-- Admin panel -->
+<div id="admin-panel">
+
+    <div class="status-bar">
+        <span><span class="dot" id="authDot"></span> <span id="authStatus">—</span></span>
+        <span>│</span>
+        <span id="envStatus" style="color:var(--text-dim)">—</span>
+    </div>
+
+    <!-- Daily Words -->
+    <div class="section">
+        <h2>Daily Words</h2>
+
+        <div class="field-row">
+            <label>Date</label>
+            <input type="date" id="dateInput">
+            <button id="inspectBtn">Inspect</button>
+        </div>
+        <div id="inspectResult"></div>
+
+        <div class="field-row" style="margin-top:var(--spacing-md)">
+            <button class="primary" id="forceUpdateBtn">&gt; Force Update Daily Words</button>
+            <span style="color:var(--text-dim);font-size:0.8rem">Overwrites existing doc, regenerates words + dictionary haikus + AI eval</span>
+        </div>
+        <div class="log" id="forceUpdateLog">—</div>
+    </div>
+
+    <!-- Firestore Doc Inspector -->
+    <div class="section">
+        <h2>Firestore Doc</h2>
+        <div class="field-row">
+            <label>Date</label>
+            <input type="date" id="docDateInput">
+            <button id="fetchDocBtn">Fetch</button>
+        </div>
+        <div class="doc-preview" id="docPreview">Select a date and click Fetch.</div>
+    </div>
+
+    <!-- Recent Dates Status -->
+    <div class="section">
+        <h2>Recent Days Status</h2>
+        <button id="checkRecentBtn">Check Last 7 Days</button>
+        <div class="log" id="recentLog" style="margin-top:var(--spacing-sm)">—</div>
+    </div>
+
+    <div class="sign-out-row">
+        Signed in as <strong id="adminEmail">—</strong>
+        <button id="signOutBtn">Sign Out</button>
+        <a href="/" style="color:var(--text-dim)">← Back to Game</a>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp }        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInWithPopup, signOut, onAuthStateChanged, GoogleAuthProvider }
+                                from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, collection, query, orderBy, limit, getDocs }
+                                from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFunctions, httpsCallable }
+                                from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCbjBSXYA75T7RWByOk3d10ofoMps145-M",
+    authDomain: "art-of-intent.firebaseapp.com",
+    projectId: "art-of-intent",
+    storageBucket: "art-of-intent.firebasestorage.app",
+    messagingSenderId: "401277869938",
+    appId: "1:401277869938:web:9d2a35d06e24ff7e8ac7eb"
+};
+
+const app       = initializeApp(firebaseConfig);
+const auth      = getAuth(app);
+const db        = getFirestore(app, 'alpha');
+const functions = getFunctions(app);
+const provider  = new GoogleAuthProvider();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function todayUTC() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function log(elId, msg, type = 'info') {
+    const el = document.getElementById(elId);
+    const line = document.createElement('span');
+    line.className = type;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+    if (el.textContent === '—') el.textContent = '';
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+}
+
+function docStatusChips(data) {
+    const hasWords   = data.targetWords?.length > 0;
+    const hasDict    = !!data.dictionaryHaikus && Object.keys(data.dictionaryHaikus).length > 0;
+    const hasEval    = !!data.aiEvaluation;
+    return [
+        `<span class="chip ${hasWords ? 'ok' : 'missing'}">words</span>`,
+        `<span class="chip ${hasDict  ? 'ok' : 'missing'}">dict</span>`,
+        `<span class="chip ${hasEval  ? 'ok' : 'missing'}">eval</span>`
+    ].join(' ');
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+async function checkAdmin(uid) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() && snap.data()?.role === 'admin';
+}
+
+onAuthStateChanged(auth, async (user) => {
+    document.getElementById('auth-gate').style.display    = 'none';
+    document.getElementById('access-denied').style.display = 'none';
+    document.getElementById('admin-panel').style.display  = 'none';
+
+    if (!user) {
+        document.getElementById('auth-gate').style.display = 'block';
+        return;
+    }
+
+    const isAdmin = await checkAdmin(user.uid);
+    if (!isAdmin) {
+        document.getElementById('access-denied').style.display = 'block';
+        return;
+    }
+
+    document.getElementById('admin-panel').style.display = 'block';
+    document.getElementById('authDot').className = 'dot';
+    document.getElementById('authStatus').textContent = user.displayName || user.email;
+    document.getElementById('adminEmail').textContent = user.email;
+    document.getElementById('envStatus').textContent = 'project: art-of-intent  │  db: alpha  │  region: us-central1';
+
+    // Pre-fill today's date
+    const today = todayUTC();
+    document.getElementById('dateInput').value    = today;
+    document.getElementById('docDateInput').value = today;
+});
+
+document.getElementById('signInBtn').addEventListener('click', () => {
+    signInWithPopup(auth, provider).catch(e => alert(e.message));
+});
+document.getElementById('signOutBtn').addEventListener('click', () => signOut(auth));
+
+// ── Force Update Daily Words ──────────────────────────────────────────────────
+
+document.getElementById('forceUpdateBtn').addEventListener('click', async () => {
+    const date = document.getElementById('dateInput').value;
+    if (!date) { alert('Select a date first.'); return; }
+
+    const btn = document.getElementById('forceUpdateBtn');
+    btn.disabled = true;
+    btn.textContent = '> Running…';
+    log('forceUpdateLog', `Calling forceUpdateDailyWords for ${date}…`);
+
+    try {
+        const fn = httpsCallable(functions, 'forceUpdateDailyWords');
+        const result = await fn({ date });
+        const { targetWords, blacklistWords } = result.data;
+        log('forceUpdateLog', `Done. Target: [${targetWords.join(', ')}]  Blacklist: [${blacklistWords.join(', ')}]`, 'ok');
+        log('forceUpdateLog', 'Dictionary haikus + AI eval running in background — check Firestore in ~30s.', 'warn');
+    } catch (e) {
+        log('forceUpdateLog', `Error: ${e.message}`, 'err');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '> Force Update Daily Words';
+    }
+});
+
+// ── Inspect (quick chips) ─────────────────────────────────────────────────────
+
+document.getElementById('inspectBtn').addEventListener('click', async () => {
+    const date = document.getElementById('dateInput').value;
+    if (!date) { alert('Select a date.'); return; }
+
+    const el = document.getElementById('inspectResult');
+    el.innerHTML = '<span style="color:var(--text-dim);font-size:0.8rem">Loading…</span>';
+
+    const snap = await getDoc(doc(db, 'dailyWords', date));
+    if (!snap.exists()) {
+        el.innerHTML = `<span style="color:var(--sol-red);font-size:0.8rem">No doc for ${date}</span>`;
+        return;
+    }
+    el.innerHTML = `<span style="font-size:0.8rem">${date} — ${docStatusChips(snap.data())}</span>`;
+});
+
+// ── Fetch full doc ────────────────────────────────────────────────────────────
+
+document.getElementById('fetchDocBtn').addEventListener('click', async () => {
+    const date = document.getElementById('docDateInput').value;
+    if (!date) { alert('Select a date.'); return; }
+
+    const el = document.getElementById('docPreview');
+    el.textContent = 'Loading…';
+
+    const snap = await getDoc(doc(db, 'dailyWords', date));
+    if (!snap.exists()) {
+        el.textContent = `No document found for ${date}.`;
+        return;
+    }
+
+    // Pretty-print, truncate large haiku arrays for readability
+    const data = snap.data();
+    if (data.dictionaryHaikus) {
+        for (const word of Object.keys(data.dictionaryHaikus)) {
+            const entry = data.dictionaryHaikus[word];
+            if (entry.haikus?.length > 2) {
+                entry.haikus = [...entry.haikus.slice(0, 2), `…(${entry.haikus.length} total)`];
+            }
+        }
+    }
+    if (data.aiEvaluation?.fullRun?.attempts?.length > 1) {
+        const n = data.aiEvaluation.fullRun.attempts.length;
+        data.aiEvaluation.fullRun.attempts = [data.aiEvaluation.fullRun.attempts[0], `…(${n} total)`];
+    }
+    el.textContent = JSON.stringify(data, null, 2);
+});
+
+// ── Recent days status ────────────────────────────────────────────────────────
+
+document.getElementById('checkRecentBtn').addEventListener('click', async () => {
+    const logEl = document.getElementById('recentLog');
+    logEl.textContent = 'Checking…';
+
+    const today = new Date();
+    const dates = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(today);
+        d.setUTCDate(d.getUTCDate() - i);
+        return d.toISOString().split('T')[0];
+    });
+
+    logEl.textContent = '';
+    for (const date of dates) {
+        const snap = await getDoc(doc(db, 'dailyWords', date));
+        if (!snap.exists()) {
+            const line = document.createElement('span');
+            line.className = 'err';
+            line.textContent = `${date}  MISSING\n`;
+            logEl.appendChild(line);
+        } else {
+            const chips = docStatusChips(snap.data());
+            const line = document.createElement('span');
+            line.className = 'ok';
+            line.innerHTML = `${date}  `;
+            logEl.appendChild(line);
+            // chips are HTML — append as HTML after the text span
+            const chipSpan = document.createElement('span');
+            chipSpan.innerHTML = chips + '\n';
+            logEl.appendChild(chipSpan);
+        }
+    }
+});
+</script>
+</body>
+</html>

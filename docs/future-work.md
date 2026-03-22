@@ -98,4 +98,3 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 
 - `next.md` at repo root is a scratch file with mixed content — should be cleaned up or moved to `docs/`.
 - `aboutV2.html` is untracked and possibly stale — verify and either commit or delete.
-- The `version-badge` in `index.html` is hardcoded to `v1.0.0` but `package.json` says `1.1.0-alpha`.

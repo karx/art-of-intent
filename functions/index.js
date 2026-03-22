@@ -335,11 +335,24 @@ exports.artyGenerateHaiku = onCall({
             finishReason,
         });
 
+        // Compute user-attributable token cost server-side.
+        // promptTokenCount = system instruction + user prompt combined.
+        // We estimate user prompt tokens from character length (std ~4 chars/token),
+        // then derive system token cost as the remainder.
+        // The client uses userPromptTokens + candidatesTokenCount as the player's score —
+        // never exposing the fixed system overhead.
+        const totalPromptTokens   = usageMetadata.promptTokenCount    || 0;
+        const candidateTokens     = usageMetadata.candidatesTokenCount || 0;
+        const userPromptTokens    = Math.ceil(userPrompt.length / 4);
+        const systemPromptTokens  = Math.max(0, totalPromptTokens - userPromptTokens);
+
         return {
             success: true,
             data: {
                 responseText,
                 usageMetadata,
+                userPromptTokens,
+                systemPromptTokens,
                 fullResponse: apiResponse
             }
         };
@@ -362,8 +375,364 @@ exports.artyGenerateHaiku = onCall({
 });
 
 /**
+ * Generate dictionary haikus for a single target word.
+ * Calls Gemini to produce 10 haikus containing the word.
+ *
+ * @param {string} word - The target word to feature in haikus
+ * @param {string} apiKey - Gemini API key
+ * @param {string} apiUrl - Gemini API endpoint URL
+ * @returns {{ haikus: string[], tokensUsed: number, wordCount: number }}
+ */
+async function generateDictionaryHaikusForWord(word, apiKey, apiUrl) {
+    const systemInstruction = `You are a haiku poet. Your task is to write exactly 10 different haikus.\nEach haiku MUST contain the word "${word}".\nEach haiku must follow the strict 5-7-5 syllable pattern.\nEach haiku should explore a different theme or scene.\nOutput ONLY the haikus, separated by the delimiter "---" on its own line.\nNo numbering, no titles, no commentary.`;
+
+    const requestBody = {
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ parts: [{ text: `Write 10 haikus containing the word "${word}".` }] }]
+    };
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini API error ${response.status} for word "${word}": ${errText.slice(0, 200)}`);
+    }
+
+    const apiResponse = await response.json();
+    const rawText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const tokensUsed = apiResponse.usageMetadata?.totalTokenCount || 0;
+
+    // Parse haikus separated by ---
+    const haikus = rawText
+        .split(/^---$/m)
+        .map(h => h.trim())
+        .filter(h => h.length > 0)
+        .slice(0, 10);
+
+    // Embeddability: how many haikus successfully integrated the word when explicitly required.
+    // This measures haiku-form fit, NOT player difficulty. See docs/areas/AI_EVALUATION.md.
+    const embeddabilityCount = haikus.filter(h => h.toLowerCase().includes(word.toLowerCase())).length;
+
+    return { haikus, tokensUsed, embeddabilityCount };
+}
+
+/**
+ * Generate dictionary haikus for all 3 target words and store in Firestore.
+ * Called after generateDailyWords succeeds. Non-fatal — errors are logged only.
+ *
+ * @param {string[]} targetWords - The 3 target words for the day
+ * @param {string} dateKey - Firestore document ID (YYYY-MM-DD)
+ * @param {FirebaseFirestore.DocumentReference} docRef - Reference to dailyWords doc
+ */
+async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const apiUrl = process.env.GEMINI_API_URL ||
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+
+    const dictionaryHaikus = {};
+
+    for (const word of targetWords) {
+        try {
+            const result = await generateDictionaryHaikusForWord(word, apiKey, apiUrl);
+            dictionaryHaikus[word] = {
+                haikus: result.haikus,
+                tokensUsed: result.tokensUsed,
+                embeddabilityCount: result.embeddabilityCount,
+                generatedAt: FieldValue.serverTimestamp()
+            };
+            logger.info('Dictionary haikus generated for word', {
+                dateKey, word, count: result.haikus.length, wordCount: result.wordCount
+            });
+        } catch (err) {
+            logger.error('Failed to generate dictionary haikus for word', {
+                dateKey, word, error: err.message
+            });
+            // Continue with remaining words
+        }
+    }
+
+    if (Object.keys(dictionaryHaikus).length > 0) {
+        await docRef.update({ dictionaryHaikus });
+    }
+
+    return dictionaryHaikus;
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI Evaluation — v2
+// Hypothesis: an LLM improves target word coverage after one
+// round of structured feedback (in-context learning signal).
+// 4 API calls total: zero-shot generate + evaluate,
+//                    one-shot generate + evaluate.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Shared Gemini fetch wrapper.
+ * @returns {{ text: string, tokensUsed: number }}
+ */
+async function callGemini(systemInstruction, userPrompt, apiKey, apiUrl) {
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ parts: [{ text: userPrompt }] }]
+        })
+    });
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini ${response.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await response.json();
+    return {
+        text: data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '',
+        tokensUsed: data.usageMetadata?.totalTokenCount || 0
+    };
+}
+
+/**
+ * Build the system instruction used for both probe strategy calls.
+ * The model is told the rules of the game and asked to craft an indirect prompt.
+ */
+function buildProbeStrategyInstruction(targetWords, blacklistWords) {
+    return `You are playing a word puzzle game. A haiku bot will respond to your prompt, but it speaks ONLY in haikus (strict 5-7-5 syllable structure).
+
+Your goal: craft a single prompt (2-5 sentences) using imagery, themes, or scenarios that will cause the haiku bot to naturally include ALL of these target words in its response: ${targetWords.join(', ')}.
+
+Rules:
+- Do NOT name the target words directly in your prompt
+- Do NOT use any of these forbidden words: ${blacklistWords.join(', ')}
+- Be indirect — evoke concepts through related imagery rather than naming them
+- Output ONLY the prompt text, no explanation or commentary`;
+}
+
+/**
+ * Check whether a prompt string contains any blacklist words.
+ */
+function promptHitsBlacklist(prompt, blacklistWords) {
+    const lower = prompt.toLowerCase();
+    return blacklistWords.some(w => lower.includes(w.toLowerCase()));
+}
+
+/**
+ * Zero-shot probe: model generates a prompt for all 3 target words with no prior context.
+ * 2 API calls: strategy generate + game evaluate.
+ *
+ * @returns {{ prompt, response, wordsMatched, blacklistHit, tokensUsed }}
+ */
+async function runZeroShotProbe(targetWords, blacklistWords, gameSystem, apiKey, apiUrl) {
+    const stratSystem = buildProbeStrategyInstruction(targetWords, blacklistWords);
+
+    const { text: prompt, tokensUsed: t1 } = await callGemini(
+        stratSystem,
+        'Write your prompt now.',
+        apiKey, apiUrl
+    );
+
+    const { text: response, tokensUsed: t2 } = await callGemini(
+        gameSystem,
+        prompt,
+        apiKey, apiUrl
+    );
+
+    const responseLower = response.toLowerCase();
+    const wordsMatched = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+    const blacklistHit = promptHitsBlacklist(prompt, blacklistWords);
+
+    return { prompt, response, wordsMatched, blacklistHit, tokensUsed: t1 + t2 };
+}
+
+/**
+ * One-shot probe: model sees the zero-shot result as structured feedback and
+ * generates an improved prompt. This delta is the in-context learning signal.
+ * 2 API calls: strategy generate + game evaluate.
+ *
+ * @returns {{ prompt, response, wordsMatched, blacklistHit, tokensUsed, deltaWordsMatched }}
+ */
+async function runOneShotProbe(targetWords, blacklistWords, gameSystem, zeroShot, apiKey, apiUrl) {
+    const stillNeeded = targetWords.filter(w => !zeroShot.wordsMatched.includes(w));
+
+    // If zero-shot already got all words, one-shot is a confirmation run
+    const feedbackPrompt = stillNeeded.length === 0
+        ? 'You matched all words on the first attempt. Write a more token-efficient prompt that achieves the same result.'
+        : `Round 1 result:
+Your prompt: "${zeroShot.prompt}"
+Arty's haiku: "${zeroShot.response}"
+Words matched: ${zeroShot.wordsMatched.length > 0 ? zeroShot.wordsMatched.join(', ') : 'none'}
+Words still needed: ${stillNeeded.join(', ')}
+
+Write a new prompt targeting the missing words. The same rules apply — be indirect, avoid forbidden words. Output ONLY the new prompt text.`;
+
+    const stratSystem = buildProbeStrategyInstruction(targetWords, blacklistWords);
+
+    const { text: prompt, tokensUsed: t1 } = await callGemini(stratSystem, feedbackPrompt, apiKey, apiUrl);
+    const { text: response, tokensUsed: t2 } = await callGemini(gameSystem, prompt, apiKey, apiUrl);
+
+    const responseLower = response.toLowerCase();
+    const wordsMatched = targetWords.filter(w => responseLower.includes(w.toLowerCase()));
+    const blacklistHit = promptHitsBlacklist(prompt, blacklistWords);
+
+    // Cumulative matched across both probes
+    const allMatched = [...new Set([...zeroShot.wordsMatched, ...wordsMatched])];
+    const deltaWordsMatched = wordsMatched.filter(w => !zeroShot.wordsMatched.includes(w)).length;
+
+    return { prompt, response, wordsMatched, blacklistHit, tokensUsed: t1 + t2, deltaWordsMatched, allMatched };
+}
+
+/**
+ * Derive per-word difficulty from probe results and dictionary haiku embeddability.
+ * - LOW    matched zero-shot
+ * - MEDIUM matched only after feedback
+ * - HIGH   not matched in either probe
+ */
+function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus) {
+    return Object.fromEntries(targetWords.map(word => {
+        const matchedZeroShot = zeroShot.wordsMatched.includes(word);
+        const matchedOneShot  = oneShot.allMatched.includes(word);
+        const difficulty = matchedZeroShot ? 'low' : matchedOneShot ? 'medium' : 'high';
+
+        // Embeddability from dictionary haikus — how naturally the word fits 5-7-5 form
+        // Note: this is NOT a measure of player difficulty (see docs/areas/AI_EVALUATION.md)
+        const dictEntry = dictionaryHaikus?.[word];
+        const embeddabilityScore = dictEntry
+            ? (dictEntry.embeddabilityCount ?? dictEntry.wordCount ?? null) / 10
+            : null;
+
+        return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore }];
+    }));
+}
+
+/**
+ * Orchestrate zero-shot → one-shot evaluation, derive word difficulty,
+ * and write aiEvaluation to Firestore. Non-fatal — errors caught by caller.
+ *
+ * @param {Object} dictionaryHaikus - already-generated dict data for embeddability scores
+ */
+async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus) {
+    const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
+    const model = (apiUrl.match(/models\/([^:]+)/) || [])[1] || 'unknown';
+
+    // Sequential: zero-shot then one-shot (one-shot depends on zero-shot result)
+    const zeroShot = await runZeroShotProbe(targetWords, blacklistWords, gameSystem, apiKey, apiUrl);
+    const oneShot  = await runOneShotProbe(targetWords, blacklistWords, gameSystem, zeroShot, apiKey, apiUrl);
+
+    const wordDifficulty = deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus);
+    const converged = oneShot.allMatched.length === targetWords.length;
+    const hardestWord = targetWords.find(w => wordDifficulty[w]?.difficulty === 'high') || null;
+
+    const aiEvaluation = {
+        model,
+        generatedAt: FieldValue.serverTimestamp(),
+        wordDifficulty,
+        zeroShot,
+        oneShot,
+        summary: {
+            zeroShotScore:      zeroShot.wordsMatched.length,
+            oneShotScore:       oneShot.allMatched.length,
+            improvementDelta:   oneShot.deltaWordsMatched,
+            totalTokens:        zeroShot.tokensUsed + oneShot.tokensUsed,
+            converged,
+            hardestWord,
+        }
+    };
+
+    await docRef.update({ aiEvaluation });
+
+    logger.info('AI evaluation stored', {
+        dateKey,
+        model,
+        zeroShotScore: aiEvaluation.summary.zeroShotScore,
+        oneShotScore:  aiEvaluation.summary.oneShotScore,
+        delta:         aiEvaluation.summary.improvementDelta,
+        converged,
+        totalTokens:   aiEvaluation.summary.totalTokens,
+    });
+}
+
+/**
+ * Core word generation logic shared by the scheduled and force-update functions.
+ * Generates target/blacklist words, writes to Firestore, then runs dictionary
+ * haiku generation and AI evaluation concurrently.
+ *
+ * @param {string} dateKey - YYYY-MM-DD
+ */
+async function generateWordsForDate(dateKey) {
+    const seed = parseInt(dateKey.replace(/-/g, ''));
+
+    const seededRandom = (s) => {
+        let state = s;
+        return () => {
+            state = (state * 1664525 + 1013904223) % 4294967296;
+            return state / 4294967296;
+        };
+    };
+
+    const random = seededRandom(seed);
+
+    const shuffleArray = (array, rng) => {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    };
+
+    const categories = Object.keys(wordPools);
+    const selectedCategories = shuffleArray(categories, random).slice(0, 3);
+    const targetWords = selectedCategories.map(category => {
+        const words = wordPools[category];
+        return words[Math.floor(random() * words.length)];
+    });
+
+    const allWords = Object.values(wordPools).flat();
+    const availableWords = allWords.filter(w => !targetWords.includes(w));
+    const blacklistCount = 5 + Math.floor(random() * 3);
+    const blacklistWords = shuffleArray(availableWords, random).slice(0, blacklistCount);
+
+    const docRef = db.collection('dailyWords').doc(dateKey);
+    await docRef.set({
+        date: dateKey,
+        seed,
+        targetWords,
+        blacklistWords,
+        createdAt: FieldValue.serverTimestamp(),
+        version: '1.0',
+        wordPoolVersion: '1.0'
+    });
+
+    logger.info('Daily words generated successfully', { dateKey, targetWords, blacklistWords, seed });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const apiUrl = process.env.GEMINI_API_URL ||
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+
+    // Step 1: dictionary haikus first — embeddability scores feed into evaluation.
+    let dictionaryHaikus = {};
+    try {
+        dictionaryHaikus = await generateDictionaryHaikus(targetWords, dateKey, docRef);
+        logger.info('Dictionary haikus stored', { dateKey });
+    } catch (e) {
+        logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message });
+    }
+
+    // Step 2: zero-shot + one-shot probes (4 API calls).
+    try {
+        await runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus);
+    } catch (e) {
+        logger.error('AI evaluation failed (non-fatal)', { error: e.message });
+    }
+
+    return { dateKey, targetWords, blacklistWords };
+}
+
+/**
  * Generate daily words and store in Firestore
- * 
+ *
  * Scheduled function that runs daily at 00:00 UTC
  * to generate consistent target and blacklist words for all users.
  */
@@ -371,86 +740,64 @@ exports.generateDailyWords = onSchedule({
     schedule: '0 0 * * *',
     timeZone: 'UTC',
     memory: '256MiB',
-    timeoutSeconds: 60
+    timeoutSeconds: 120
 }, async (event) => {
+    const dateKey = new Date().toISOString().split('T')[0];
+    logger.info('Generating daily words', { dateKey });
+
+    const doc = await db.collection('dailyWords').doc(dateKey).get();
+    if (doc.exists) {
+        logger.info('Daily words already exist', { dateKey });
+        return;
+    }
+
     try {
-        // Get current date in UTC
-        const now = new Date();
-        const dateKey = now.toISOString().split('T')[0]; // YYYY-MM-DD
-        
-        logger.info('Generating daily words', {dateKey});
-        
-        // Check if words already exist for today
-        const docRef = db.collection('dailyWords').doc(dateKey);
-        const doc = await docRef.get();
-        
-        if (doc.exists) {
-            logger.info('Daily words already exist', {dateKey});
-            return;
-        }
-        
-        // Generate seed from date
-        const seed = parseInt(dateKey.replace(/-/g, ''));
-        
-        // Seeded random function
-        const seededRandom = (s) => {
-            let state = s;
-            return () => {
-                state = (state * 1664525 + 1013904223) % 4294967296;
-                return state / 4294967296;
-            };
-        };
-        
-        const random = seededRandom(seed);
-        
-        // Shuffle array helper
-        const shuffleArray = (array, rng) => {
-            const arr = [...array];
-            for (let i = arr.length - 1; i > 0; i--) {
-                const j = Math.floor(rng() * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-            return arr;
-        };
-        
-        // Select 3 target words from different categories
-        const categories = Object.keys(wordPools);
-        const selectedCategories = shuffleArray(categories, random).slice(0, 3);
-        
-        const targetWords = selectedCategories.map(category => {
-            const words = wordPools[category];
-            return words[Math.floor(random() * words.length)];
-        });
-        
-        // Select 5-7 blacklist words from remaining pool
-        const allWords = Object.values(wordPools).flat();
-        const availableWords = allWords.filter(w => !targetWords.includes(w));
-        const blacklistCount = 5 + Math.floor(random() * 3);
-        const blacklistWords = shuffleArray(availableWords, random).slice(0, blacklistCount);
-        
-        // Store in Firestore
-        await docRef.set({
-            date: dateKey,
-            seed,
-            targetWords,
-            blacklistWords,
-            createdAt: FieldValue.serverTimestamp(),
-            version: '1.0',
-            wordPoolVersion: '1.0'
-        });
-        
-        logger.info('Daily words generated successfully', {
-            dateKey,
-            targetWords,
-            blacklistWords,
-            seed
-        });
-        
+        await generateWordsForDate(dateKey);
     } catch (error) {
-        logger.error('Error generating daily words', {
-            error: error.message,
-            stack: error.stack
-        });
+        logger.error('Error generating daily words', { error: error.message, stack: error.stack });
         throw error;
+    }
+});
+
+/**
+ * Force-regenerate daily words for a given date (defaults to today).
+ * Overwrites any existing Firestore doc, re-runs dictionary haiku generation
+ * and AI evaluation. Restricted to admin users.
+ *
+ * Request data:
+ *   { date?: 'YYYY-MM-DD' }  — omit to use today's UTC date
+ *
+ * Returns:
+ *   { dateKey, targetWords, blacklistWords }
+ */
+exports.forceUpdateDailyWords = onCall({
+    maxInstances: 1,
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    cors: true
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+
+    // Restrict to admin users only
+    const adminDoc = await db.collection('users').doc(request.auth.uid).get();
+    if (!adminDoc.exists || adminDoc.data()?.role !== 'admin') {
+        throw new HttpsError('permission-denied', 'Admin access required');
+    }
+
+    const dateKey = request.data?.date || new Date().toISOString().split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        throw new HttpsError('invalid-argument', 'date must be YYYY-MM-DD');
+    }
+
+    logger.info('forceUpdateDailyWords called', { uid: request.auth.uid, dateKey });
+
+    try {
+        const result = await generateWordsForDate(dateKey);
+        return { success: true, ...result };
+    } catch (error) {
+        logger.error('forceUpdateDailyWords failed', { error: error.message, stack: error.stack });
+        throw new HttpsError('internal', `Failed to generate words: ${error.message}`);
     }
 });

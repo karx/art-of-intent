@@ -284,7 +284,7 @@
     <!-- Top Bar -->
     <header id="topBar" class="top-bar">
         <div class="top-bar-left">
-            <h1 class="app-title">Art of Intent <span class="version-badge">v1.0.0</span></h1>
+            <h1 class="app-title">Art of Intent <span id="appVersion" class="version-badge">v1.0.0</span></h1>
         </div>
         <div class="top-bar-right">
             <div id="userInfo" class="user-info hidden">
@@ -336,10 +336,17 @@
         </div>
 
         <div class="response-trail">
-            <h2>Response Trail</h2>
+            <div class="trail-header">
+                <h2 class="trail-title">Response Trail</h2>
+                <div class="trail-tabs" id="trailTabs" hidden>
+                    <button class="filter-btn active" data-tab="trail">TRAIL</button>
+                    <button class="filter-btn" data-tab="training">TRAINING LOG</button>
+                </div>
+            </div>
             <div id="trailContainer" class="trail-container">
                 <div class="empty-state">No attempts yet. Start by entering your prompt below!</div>
             </div>
+            <div id="trainingLogContainer" class="trail-container hidden"></div>
         </div>
 
         <!-- Live Stats -->
@@ -510,6 +517,19 @@
                 </div>
                 <div class="modal-actions">
                     <button id="closeHelpBtn" class="btn-primary">Got It!</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dictionary Modal -->
+        <div id="dictionaryModal" class="modal hidden">
+            <div class="modal-content dictionary-modal">
+                <h2>Word Dictionary</h2>
+                <div class="modal-body" id="dictionaryContent">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="modal-actions">
+                    <button id="closeDictionaryBtn" class="btn-primary">Close</button>
                 </div>
             </div>
         </div>

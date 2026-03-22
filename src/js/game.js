@@ -161,7 +161,9 @@ const gameState = {
     events: [],
     creepLevel: 0,              // NEW: Darkness/creep level (0-100)
     creepThreshold: 100,        // NEW: Game ends when creep reaches this
-    creepPerViolation: 25       // NEW: Creep added per blacklist word
+    creepPerViolation: 25,      // NEW: Creep added per blacklist word
+    dictionaryHaikus: null,     // Dictionary haikus per target word (from Firestore)
+    aiEvaluation: null          // AI benchmark evaluation (from Firestore, revealed post-game)
 };
 
 // Word pools for daily generation
@@ -233,7 +235,20 @@ async function initializeGame() {
         GameAnalytics.gameStart(today);
     } else {
         loadSavedGame();
-        trackEvent('session_resume', { 
+        // dictionaryHaikus and aiEvaluation are server-side data, not game progress —
+        // always fetch fresh from Firestore so they're available on resumed sessions.
+        try {
+            const docRef = doc(db, 'dailyWords', today);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                gameState.dictionaryHaikus = data.dictionaryHaikus || null;
+                gameState.aiEvaluation = data.aiEvaluation || null;
+            }
+        } catch (e) {
+            console.warn('⚠️ Could not fetch dictionary/eval data:', e.message);
+        }
+        trackEvent('session_resume', {
             attempts: gameState.attempts,
             matchedWords: gameState.matchedWords.size,
             date: today
@@ -248,6 +263,7 @@ async function initializeGame() {
     // Check if game is already over and morph input to share buttons
     if (gameState.gameOver) {
         morphInputToShare();
+        revealTrainingLog();
     }
 }
 
@@ -287,6 +303,8 @@ async function loadDailyWords() {
             const data = docSnap.data();
             gameState.targetWords = data.targetWords;
             gameState.blacklistWords = data.blacklistWords;
+            gameState.dictionaryHaikus = data.dictionaryHaikus || null;
+            gameState.aiEvaluation = data.aiEvaluation || null;
             
             console.log('✅ Loaded daily words from Firestore:', {
                 target: gameState.targetWords,
@@ -495,6 +513,18 @@ function setupEventListeners() {
     }
     if (closeHelpBtn) {
         closeHelpBtn.addEventListener('click', closeGettingStarted);
+    }
+
+    // Dictionary modal
+    const closeDictionaryBtn = document.getElementById('closeDictionaryBtn');
+    const dictionaryModal = document.getElementById('dictionaryModal');
+    if (closeDictionaryBtn) {
+        closeDictionaryBtn.addEventListener('click', closeDictionary);
+    }
+    if (dictionaryModal) {
+        dictionaryModal.addEventListener('click', (e) => {
+            if (e.target === dictionaryModal) closeDictionary();
+        });
     }
     
     // Sound toggle
@@ -705,7 +735,7 @@ async function callArtyAPI(userPrompt) {
             throw new Error(result.data.error || 'Failed to generate haiku');
         }
 
-        return result.data.data.fullResponse;
+        return result.data.data;
 
     } catch (error) {
         console.error('Firebase function error:', error);
@@ -767,17 +797,17 @@ function showArtyError(message) {
 function processResponse(prompt, apiResponse, securityAnalysis = null) {
     gameState.attempts++;
     
-    // Extract response text and token usage
-    const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-    const usageMetadata = apiResponse.usageMetadata || {};
-    
+    // apiResponse is result.data.data = { fullResponse, userPromptTokens, systemPromptTokens, ... }
+    const geminiResponse = apiResponse.fullResponse || apiResponse;
+    const responseText = geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+    const usageMetadata = geminiResponse.usageMetadata || {};
+
     // Get raw token counts from API
-    const rawPromptTokens = usageMetadata.promptTokenCount || 0;
     const outputTokens = usageMetadata.candidatesTokenCount || 0;
-    const rawTotalTokens = usageMetadata.totalTokenCount || 0;
-    
-    // Subtract system prompt tokens to show only user's contribution
-    const userPromptTokens = Math.max(0, rawPromptTokens - SYSTEM_PROMPT_TOKENS);
+
+    // Use server-computed user token count; fall back to heuristic if older function version
+    const userPromptTokens = apiResponse.userPromptTokens
+        ?? Math.max(0, (usageMetadata.promptTokenCount || 0) - SYSTEM_PROMPT_TOKENS);
     const adjustedTotalTokens = userPromptTokens + outputTokens;
     
     // Track adjusted total for game stats
@@ -1210,10 +1240,72 @@ function showGameOverModal(isWin, violatedWords = []) {
         `;
     }
     
+    // AI benchmark section — hidden pending redesign
+    // TODO: rethink aiEvaluation UX (see docs/future-work.md)
+    if (false) { // eslint-disable-line no-constant-condition
+        const benchmarkHTML = buildAIBenchmarkHTML();
+        if (benchmarkHTML) {
+            const benchmarkDiv = document.createElement('div');
+            benchmarkDiv.innerHTML = DOMPurify.sanitize(benchmarkHTML);
+            modalBody.appendChild(benchmarkDiv);
+
+            const toggle = modalBody.querySelector('.ai-benchmark-toggle');
+            const benchContent = modalBody.querySelector('.ai-benchmark-content');
+            if (toggle && benchContent) {
+                toggle.addEventListener('click', () => {
+                    const isHidden = benchContent.classList.toggle('hidden');
+                    toggle.textContent = (isHidden ? '▶' : '▼') + ' Compare with AI';
+                });
+            }
+        }
+    } // end if (false) — benchmark hidden
+
     // Morph input section to share buttons
     morphInputToShare();
-    
+
+    // Reveal training log tab and populate it
+    revealTrainingLog();
+
     modal.classList.remove('hidden');
+}
+
+/**
+ * Build the HTML for the AI benchmark section shown in the game-over modal.
+ * Returns empty string if aiEvaluation data is unavailable.
+ */
+function buildAIBenchmarkHTML() {
+    const ev = gameState.aiEvaluation?.fullRun;
+    if (!ev || !ev.attempts?.length) return '';
+
+    const aiSummary = ev.won
+        ? `Solved in ${ev.totalAttempts} attempt${ev.totalAttempts === 1 ? '' : 's'} · ${ev.totalTokens} tokens`
+        : `Matched ${ev.attempts[ev.attempts.length - 1]?.cumulativeMatched?.length ?? 0}/${gameState.targetWords.length} words in ${ev.totalAttempts} attempts`;
+
+    const playerSummary = `${gameState.attempts} attempt${gameState.attempts === 1 ? '' : 's'} · ${gameState.totalTokens} tokens`;
+
+    const attemptsHTML = ev.attempts.map(a => {
+        const matchedLabel = a.wordsFoundThisRound.length > 0
+            ? `Matched: ${a.wordsFoundThisRound.join(' · ')}`
+            : 'No new matches';
+        const allDone = a.cumulativeMatched.length === gameState.targetWords.length;
+        return `
+            <div class="ai-attempt-block">
+                <div class="ai-attempt-label">ATTEMPT ${a.attemptNumber}${allDone ? ' ✓' : ''}</div>
+                <div class="ai-attempt-prompt">"${DOMPurify.sanitize(a.prompt)}"</div>
+                <div class="ai-attempt-response">${DOMPurify.sanitize(a.response).replace(/\n/g, '<br>')}</div>
+                <div class="ai-attempt-matched">${matchedLabel}</div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="ai-benchmark-toggle">▶ Compare with AI</div>
+        <div class="ai-benchmark-content hidden">
+            <div class="ai-benchmark-compare">
+                <span><strong>AI:</strong> ${aiSummary}</span>
+                <span><strong>You:</strong> ${playerSummary}</span>
+            </div>
+            ${attemptsHTML}
+        </div>`;
 }
 
 function closeModal() {
@@ -1518,11 +1610,24 @@ function updateUI() {
 
 function updateTargetWords() {
     const container = document.getElementById('targetWords');
-    const html = gameState.targetWords.map(word => {
+    container.innerHTML = '';
+    gameState.targetWords.forEach(word => {
         const matched = gameState.matchedWords.has(word);
-        return `<span class="word-tag ${matched ? 'matched' : ''}" style="${matched ? 'opacity: 0.5; text-decoration: line-through;' : ''}">${DOMPurify.sanitize(word)}</span>`;
-    }).join('');
-    container.innerHTML = DOMPurify.sanitize(html);
+        const hasDict = !!gameState.dictionaryHaikus?.[word];
+
+        const tag = document.createElement('span');
+        tag.className = `word-tag${matched ? ' matched' : ''}${hasDict ? ' has-dict' : ''}`;
+        if (matched) {
+            tag.style.opacity = '0.5';
+            tag.style.textDecoration = 'line-through';
+        }
+        tag.textContent = DOMPurify.sanitize(word);
+        if (hasDict) {
+            tag.title = `View example haikus for "${word}"`;
+            tag.addEventListener('click', () => showDictionary(word));
+        }
+        container.appendChild(tag);
+    });
 }
 
 function updateBlacklistWords() {
@@ -2108,4 +2213,290 @@ function closeGettingStarted() {
     if (modal) {
         modal.classList.add('hidden');
     }
+}
+
+// ============================================
+// ============================================
+// Training Log
+// ============================================
+
+async function revealTrainingLog() {
+    const tabs = document.getElementById('trailTabs');
+    if (tabs) tabs.removeAttribute('hidden');
+
+    // Wire tab switching — clone to avoid duplicate listeners on repeated calls
+    tabs?.querySelectorAll('.filter-btn').forEach(btn => {
+        const fresh = btn.cloneNode(true);
+        btn.parentNode.replaceChild(fresh, btn);
+        fresh.addEventListener('click', () => {
+            const tab = fresh.dataset.tab;
+            tabs.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === fresh));
+            document.getElementById('trailContainer').classList.toggle('hidden', tab !== 'trail');
+            document.getElementById('trainingLogContainer').classList.toggle('hidden', tab !== 'training');
+        });
+    });
+
+    // Show loading state immediately, then fetch field stats and render
+    const container = document.getElementById('trainingLogContainer');
+    if (!container) return;
+    container.innerHTML = `<div class="tlog-empty">loading session analysis...</div>`;
+
+    let fieldStats = null;
+    try {
+        if (typeof fetchLeaderboardData === 'function') {
+            fieldStats = await fetchLeaderboardData();
+        }
+    } catch (e) {
+        console.warn('Could not fetch field stats for training log:', e.message);
+    }
+    container.innerHTML = buildTrainingLogHTML(fieldStats);
+}
+
+function buildTrainingLogHTML(fieldStats) {
+    const ev = gameState.aiEvaluation;
+    const date = new Date().toISOString().split('T')[0];
+
+    if (!ev?.zeroShot || !ev?.oneShot) {
+        return `<div class="tlog-empty">No training data for today yet.<br>Check back after midnight UTC.</div>`;
+    }
+
+    const { zeroShot, oneShot, summary, wordDifficulty, model } = ev;
+    const modelShort = (model || 'gemini').split('-').slice(0, 3).join('-');
+
+    // ── User stats ──
+    const userAttempts = gameState.attempts;
+    const userTokens   = gameState.totalTokens;
+    const userScore    = calculateEfficiencyScore();
+    const isWin        = gameState.matchedWords.size === gameState.targetWords.length;
+    const userResult   = isWin ? 'WIN' : `${gameState.matchedWords.size}/${gameState.targetWords.length}`;
+
+    // ── AI stats ──
+    // Use same char-based estimation as user trail (Math.ceil(text.length / 4)) so the
+    // comparison is apples-to-apples. summary.totalTokens includes system-prompt and
+    // strategy-generation overhead from both API calls, which the user's score never sees.
+    const aiTokens =
+        Math.ceil((zeroShot.prompt?.length    || 0) / 4) + Math.ceil((zeroShot.response?.length || 0) / 4) +
+        Math.ceil((oneShot.prompt?.length     || 0) / 4) + Math.ceil((oneShot.response?.length  || 0) / 4);
+    // oneShotScore is already cumulative (includes zero-shot matches) — don't add zeroShotScore
+    const aiResult = summary.converged ? 'WIN'
+        : `${summary.oneShotScore || 0}/${gameState.targetWords.length}`;
+
+    // ── Field stats ──
+    const fstats     = fieldStats?.stats   || {};
+    const topPlayers = fieldStats?.topPlayers || [];
+    const avgAttempts = fstats.avgAttempts ? (+fstats.avgAttempts).toFixed(1) : '—';
+    const avgTokens   = fstats.avgTokens   ? fstats.avgTokens.toLocaleString() : '—';
+    const gamesToday  = fstats.gamesToday  || null;
+
+    // Approximate rank by counting top players with a better score (lower = better)
+    let rankStr = '';
+    if (topPlayers.length && gamesToday) {
+        const beatenBy = topPlayers.filter(p => {
+            const pScore = (p.attempts * 10) + Math.floor((p.tokens || 0) / 10);
+            return pScore < userScore;
+        }).length;
+        rankStr = `#${beatenBy + 1} of ${gamesToday}`;
+    }
+
+    // ── Section 1: SESSION ANALYSIS ──
+    const scorecardHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">&gt; SESSION ANALYSIS <span class="tlog-sect-meta">${date} · ${DOMPurify.sanitize(modelShort)}</span></div>
+        <table class="tlog-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>YOU</th>
+                    <th>AI</th>
+                    <th>TODAY</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="tlog-row-label">ATTEMPTS</td>
+                    <td class="tlog-you">${userAttempts}</td>
+                    <td>2 probes</td>
+                    <td>avg ${avgAttempts}</td>
+                </tr>
+                <tr>
+                    <td class="tlog-row-label">TOKENS</td>
+                    <td class="tlog-you">${userTokens.toLocaleString()}</td>
+                    <td>${aiTokens}</td>
+                    <td>avg ${avgTokens}</td>
+                </tr>
+                <tr>
+                    <td class="tlog-row-label">RESULT</td>
+                    <td class="tlog-you ${isWin ? 'tlog-win' : 'tlog-miss'}">${userResult}</td>
+                    <td class="${summary.converged ? 'tlog-win' : 'tlog-miss'}">${aiResult}</td>
+                    <td>${gamesToday ? gamesToday + ' played' : '—'}</td>
+                </tr>
+                ${rankStr ? `<tr>
+                    <td class="tlog-row-label">RANK</td>
+                    <td class="tlog-you tlog-rank" colspan="3">${rankStr}</td>
+                </tr>` : ''}
+            </tbody>
+        </table>
+    </div>`;
+
+    // ── Section 2: TRAINING RUN ──
+    function probeBlock(stepNum, label, sublabel, probe) {
+        const matchedHTML = probe.wordsMatched.length > 0
+            ? `<div class="match-indicator">
+                <strong>matched:</strong>
+                ${probe.wordsMatched.map(w => `<span class="match-word found">${DOMPurify.sanitize(w)}</span>`).join('')}
+               </div>`
+            : `<div class="match-indicator"><span class="match-word not-found">no match</span></div>`;
+
+        const blacklistFlag = probe.blacklistHit
+            ? `<div class="feedback-inline feedback-inline--darkness"><span class="feedback-icon">▓</span><span class="feedback-label">blacklist hit in response</span></div>` : '';
+
+        // Mirror the user-trail token logic:
+        // promptTokens = Math.ceil(prompt.length / 4) — same formula the server uses for userPromptTokens
+        // outputTokens = Math.ceil(response.length / 4) — char-based estimate (no candidatesTokenCount available)
+        // total = sum of both, excluding system-prompt and strategy-generation overhead (t1+t2 totals)
+        const promptEst = Math.ceil((probe.prompt?.length   || 0) / 4);
+        const outputEst = Math.ceil((probe.response?.length || 0) / 4);
+        const totalEst  = promptEst + outputEst;
+        const tokenBar  = generateTrailStats(
+            { promptTokens: promptEst, outputTokens: outputEst, totalTokens: totalEst },
+            probe.wordsMatched
+        );
+
+        return `
+        <div class="trail-item tlog-probe-item ${probe.wordsMatched.length > 0 ? 'trail-item--success' : ''}">
+            <div class="trail-header">
+                <span class="trail-number">PROBE ${stepNum} — ${label}</span>
+                <span class="trail-timestamp">${sublabel}</span>
+            </div>
+            <div class="tlog-probe-prompt">${DOMPurify.sanitize(probe.prompt)}</div>
+            <div class="trail-response">${DOMPurify.sanitize(probe.response)}</div>
+            ${blacklistFlag}
+            ${matchedHTML}
+            <div class="trail-stats">${tokenBar}</div>
+        </div>`;
+    }
+
+    const delta = summary.improvementDelta || 0;
+    const deltaHTML = delta > 0
+        ? `<div class="tlog-delta tlog-delta--up">▲ +${delta} word${delta > 1 ? 's' : ''} surfaced after feedback</div>`
+        : delta === 0 && (summary.zeroShotScore || 0) > 0
+            ? `<div class="tlog-delta tlog-delta--flat">◆ no change — strong zero-shot baseline</div>`
+            : `<div class="tlog-delta tlog-delta--down">▼ no improvement — word difficulty held</div>`;
+
+    const trainingRunHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">TRAINING RUN</div>
+        ${probeBlock(1, 'ZERO SHOT', 'no hints. first instinct.', zeroShot)}
+        ${deltaHTML}
+        ${probeBlock(2, 'ONE SHOT', 'given feedback. one chance to adapt.', oneShot)}
+    </div>`;
+
+    // ── Section 3: THE SIGNAL ──
+    const diffChips = wordDifficulty ? gameState.targetWords.map(w => {
+        const d = wordDifficulty[w];
+        if (!d) return '';
+        const cls = { low: 'ok', medium: 'warn', high: 'err' }[d.difficulty] || 'warn';
+        return `<span class="tlog-word-diff"><span class="tlog-word-name">${DOMPurify.sanitize(w)}</span><span class="tlog-badge tlog-badge--${cls}">${d.difficulty.toUpperCase()}</span></span>`;
+    }).join('') : '';
+
+    let verdictLine;
+    if (isWin && !summary.converged) {
+        verdictLine = `<span class="tlog-signal-val tlog-win">you solved it. AI didn't.</span>`;
+    } else if (isWin && summary.converged) {
+        verdictLine = userTokens < aiTokens
+            ? `<span class="tlog-signal-val tlog-win">both solved it — you used fewer tokens</span>`
+            : `<span class="tlog-signal-val">both solved it — AI used fewer tokens (${aiTokens})</span>`;
+    } else {
+        verdictLine = summary.converged
+            ? `<span class="tlog-signal-val tlog-miss">AI solved it. You didn't.</span>`
+            : `<span class="tlog-signal-val">neither converged — hard words today</span>`;
+    }
+
+    const mechanismNote = summary.converged
+        ? 'one-shot feedback was enough — the model adapted in context'
+        : summary.hardestWord
+            ? `"${DOMPurify.sanitize(summary.hardestWord)}" resisted both probes`
+            : 'two probes were not enough to converge';
+
+    const signalHTML = `
+    <div class="tlog-section">
+        <div class="tlog-sect-hd">THE SIGNAL</div>
+        <table class="tlog-table tlog-table--signal">
+            <tbody>
+                <tr>
+                    <td class="tlog-row-label">VERDICT</td>
+                    <td>${verdictLine}</td>
+                </tr>
+                ${diffChips ? `<tr>
+                    <td class="tlog-row-label">DIFFICULTY</td>
+                    <td><span class="tlog-difficulty-chips">${diffChips}</span></td>
+                </tr>` : ''}
+                ${summary.hardestWord ? `<tr>
+                    <td class="tlog-row-label">HARDEST</td>
+                    <td class="tlog-signal-val">"${DOMPurify.sanitize(summary.hardestWord)}" — not surfaced in either probe</td>
+                </tr>` : ''}
+                <tr>
+                    <td class="tlog-row-label">MECHANISM</td>
+                    <td class="tlog-signal-val">${mechanismNote}</td>
+                </tr>
+                <tr class="tlog-row-dim">
+                    <td class="tlog-row-label">MODEL</td>
+                    <td class="tlog-signal-val">${DOMPurify.sanitize(modelShort)} · in-context learning, no weight updates</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>`;
+
+    return `<div class="tlog">${scorecardHTML}${trainingRunHTML}${signalHTML}</div>`;
+}
+
+// ============================================
+// Dictionary Modal
+// ============================================
+
+function showDictionary(word) {
+    const modal = document.getElementById('dictionaryModal');
+    const content = document.getElementById('dictionaryContent');
+    const title = modal?.querySelector('h2');
+    if (!modal || !content) return;
+
+    if (title) title.textContent = word.toUpperCase();
+
+    const data = gameState.dictionaryHaikus?.[word];
+
+    if (!data || !data.haikus?.length) {
+        content.innerHTML = '<p class="dict-empty">No dictionary entries available for this word yet.</p>';
+    } else {
+        const top3 = data.haikus.slice(0, 3);
+        const haikuHTML = top3.map((h, i) =>
+            `<div class="trail-item dict-haiku-item">
+                <div class="dict-haiku-label">example ${i + 1}</div>
+                <div class="trail-response">${DOMPurify.sanitize(h)}</div>
+            </div>`
+        ).join('');
+
+        const statsHTML = '';
+
+        // AI working prompt card — only shown post-game
+        const evalEntry = gameState.gameOver ? gameState.aiEvaluation?.perWord?.[word] : null;
+        const promptCardHTML = evalEntry?.success ? `
+            <div class="dict-prompt-card">
+                <div class="dict-prompt-card-label">&gt; AI example prompt</div>
+                <div class="dict-prompt-text">${DOMPurify.sanitize(evalEntry.prompt)}</div>
+                <div class="trail-item dict-haiku-item" style="margin-top:0.5rem">
+                    <div class="dict-haiku-label">arty responded</div>
+                    <div class="trail-response">${DOMPurify.sanitize(evalEntry.response)}</div>
+                </div>
+            </div>` : '';
+
+        content.innerHTML = `${haikuHTML}${statsHTML}${promptCardHTML}`;
+    }
+
+    modal.classList.remove('hidden');
+    trackEvent('dictionary_viewed', { word });
+}
+
+function closeDictionary() {
+    const modal = document.getElementById('dictionaryModal');
+    if (modal) modal.classList.add('hidden');
 }
