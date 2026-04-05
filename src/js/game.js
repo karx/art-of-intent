@@ -163,7 +163,8 @@ const gameState = {
     creepThreshold: 100,        // NEW: Game ends when creep reaches this
     creepPerViolation: 25,      // NEW: Creep added per blacklist word
     dictionaryHaikus: null,     // Dictionary haikus per target word (from Firestore)
-    aiEvaluation: null          // AI benchmark evaluation (from Firestore, revealed post-game)
+    aiEvaluation: null,         // AI benchmark evaluation (from Firestore, revealed post-game)
+    cheated: false,             // True if any cheat code was used this session
 };
 
 // Word pools for daily generation
@@ -670,6 +671,17 @@ async function handleSubmit() {
     // Track prompt submission
     GameAnalytics.promptSubmit(sanitizedPrompt.length, 0); // Token count updated after API response
     
+    // ── Cheat code detection ─────────────────────────────────────────────────
+    if (window.CheatCodes) {
+        const cheatMatch = window.CheatCodes.detectCheatCode(sanitizedPrompt);
+        if (cheatMatch) {
+            promptInput.value = '';
+            processCheatResponse(cheatMatch.code);
+            return;
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Check for target or blacklist words in user prompt (instruction1)
     const promptLower = sanitizedPrompt.toLowerCase();
     
@@ -931,19 +943,87 @@ function processResponse(prompt, apiResponse, securityAnalysis = null) {
         });
         
         saveGameState();
-        
-        // Save to Firestore
-        if (window.saveGameToFirestore) {
+
+        // Save to Firestore — skip if the player used a cheat code
+        if (window.saveGameToFirestore && !gameState.cheated) {
             window.saveGameToFirestore(gameState).catch(err => {
                 console.error('Failed to save to Firestore:', err);
             });
         }
-        
+
         showGameOverModal(false, blacklistWordsInResponse);
         return;
     }
 
     // Check win condition
+    if (gameState.matchedWords.size === gameState.targetWords.length) {
+        handleGameWin();
+    }
+}
+
+/**
+ * Handle a cheat-code prompt.
+ *
+ * Picks the first remaining unmatched target word, generates a tongue-in-cheek
+ * haiku that contains it, and records the attempt in the trail — but marks
+ * the session as cheated so no leaderboard entry is created.
+ */
+function processCheatResponse(cheatCode) {
+    if (gameState.gameOver) return;
+
+    gameState.cheated = true;
+    gameState.attempts++;
+
+    // Pick the first unmatched target word to gift the player.
+    const unmatchedWords = gameState.targetWords.filter(
+        (w) => !gameState.matchedWords.has(w)
+    );
+    const giftedWord = unmatchedWords.length > 0
+        ? unmatchedWords[0]
+        : gameState.targetWords[0];
+
+    const responseText = cheatCode.funResponse(giftedWord);
+
+    // Mark the gifted word as found.
+    const previousMatchCount = gameState.matchedWords.size;
+    gameState.matchedWords.add(giftedWord);
+
+    // No tokens consumed — this was free!
+    const trailItem = {
+        number: gameState.attempts,
+        timestamp: new Date().toLocaleTimeString(),
+        isoTimestamp: new Date().toISOString(),
+        prompt: `✦ ${cheatCode.lines.join(' / ')}`,
+        response: responseText,
+        promptTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        foundWords: [giftedWord],
+        matchedSoFar: [...gameState.matchedWords],
+        isCheat: true,
+        cheatCode: {
+            id: cheatCode.id,
+            title: cheatCode.title,
+            author: cheatCode.author,
+            year: cheatCode.year,
+            wink: cheatCode.wink,
+        },
+    };
+
+    gameState.responseTrail.push(trailItem);
+
+    if (typeof soundManager !== 'undefined') soundManager.playMatch();
+
+    saveGameState();
+    updateUI();
+
+    trackEvent('cheat_code_used', {
+        cheatCodeId: cheatCode.id,
+        giftedWord,
+        attemptNumber: gameState.attempts,
+    });
+
+    // Win condition check (same as normal).
     if (gameState.matchedWords.size === gameState.targetWords.length) {
         handleGameWin();
     }
@@ -1020,14 +1100,14 @@ function handleDirectWordUsage(prompt, forbiddenWords) {
     gameState.responseTrail.push(trailItem);
     saveGameState();
     updateUI();
-    
-    // Save to Firestore
-    if (window.saveGameToFirestore) {
+
+    // Save to Firestore — skip if the player used a cheat code
+    if (window.saveGameToFirestore && !gameState.cheated) {
         window.saveGameToFirestore(gameState).catch(err => {
             console.error('Failed to save to Firestore:', err);
         });
     }
-    
+
     // Show game over modal if creep maxed
     if (creepMaxed) {
         showGameOverModal(false, forbiddenWords);
@@ -1104,14 +1184,14 @@ function handleBlacklistViolation(prompt, violatedWords) {
     gameState.responseTrail.push(trailItem);
     saveGameState();
     updateUI();
-    
-    // Save to Firestore
-    if (window.saveGameToFirestore) {
+
+    // Save to Firestore — skip if the player used a cheat code
+    if (window.saveGameToFirestore && !gameState.cheated) {
         window.saveGameToFirestore(gameState).catch(err => {
             console.error('Failed to save to Firestore:', err);
         });
     }
-    
+
     // Only show game over modal if creep maxed
     if (creepMaxed) {
         showGameOverModal(false, violatedWords);
@@ -1144,13 +1224,13 @@ function handleGameWin() {
     
     saveGameState();
     
-    // Save to Firestore
-    if (window.saveGameToFirestore) {
+    // Save to Firestore — skip if the player used a cheat code
+    if (window.saveGameToFirestore && !gameState.cheated) {
         window.saveGameToFirestore(gameState).catch(err => {
             console.error('Failed to save to Firestore:', err);
         });
     }
-    
+
     showGameOverModal(true);
 }
 
@@ -1206,9 +1286,17 @@ function showGameOverModal(isWin, violatedWords = []) {
     const efficiency = gameState.attempts > 0 ? (gameState.totalTokens / gameState.attempts).toFixed(1) : 0;
     const efficiencyBar = generateProgressBar(efficiency, 100, 10);
     
+    const cheatBanner = gameState.cheated ? `
+        <div style="background: var(--bg-secondary); border: 1px solid var(--dos-yellow, #f0c040); padding: var(--spacing-sm) var(--spacing-md); margin-bottom: var(--spacing-md); font-size: 11px; text-align: center; color: var(--dos-yellow, #f0c040);">
+            ✦ CHEAT CODE SESSION — score not counted on the leaderboard ✦<br>
+            <a href="cheat-the-code.html" target="_blank" style="color: inherit; text-decoration: underline; opacity: 0.8;">view all cheat codes</a>
+        </div>
+    ` : '';
+
     if (isWin) {
-        modalTitle.textContent = 'VICTORY!';
+        modalTitle.textContent = gameState.cheated ? 'VICTORY! (✦ cheated)' : 'VICTORY!';
         modalBody.innerHTML = `
+            ${cheatBanner}
             <p style="text-align: center; color: var(--success-color); margin-bottom: var(--spacing-md);">
                 You successfully guided Arty to speak all target words!
             </p>
@@ -1216,7 +1304,7 @@ function showGameOverModal(isWin, violatedWords = []) {
                 <div style="margin-bottom: var(--spacing-xs);">ATTEMPTS: ${gameState.attempts}/10</div>
                 <div style="margin-bottom: var(--spacing-xs);">TOKENS: ${gameState.totalTokens}</div>
                 <div style="margin-bottom: var(--spacing-xs);">EFFICIENCY: ${efficiency} tok/att [${efficiencyBar}]</div>
-                <div>SCORE: ${calculateEfficiencyScore()}</div>
+                ${gameState.cheated ? '<div style="color: var(--dos-yellow, #f0c040);">SCORE: not ranked (cheat session)</div>' : `<div>SCORE: ${calculateEfficiencyScore()}</div>`}
             </div>
             <p style="text-align: center; color: var(--text-dim); margin-top: var(--spacing-md); font-size: 11px;">
                 Come back tomorrow for a new challenge!
@@ -1225,6 +1313,7 @@ function showGameOverModal(isWin, violatedWords = []) {
     } else {
         modalTitle.textContent = 'GAME OVER';
         modalBody.innerHTML = `
+            ${cheatBanner}
             <p style="text-align: center; color: var(--error-color); margin-bottom: var(--spacing-md);">
                 Blacklist violation: ${violatedWords.join(', ').toUpperCase()}
             </p>
@@ -1728,12 +1817,14 @@ function updateResponseTrail() {
         const isDefeat = isGameEnding && (item.violation || item.creepMaxed);
         
         let itemClass = '';
-        if (isVictory) itemClass = 'trail-item--victory';
+        if (item.isCheat) itemClass = 'trail-item--cheat';
+        else if (isVictory) itemClass = 'trail-item--victory';
         else if (isDefeat) itemClass = 'trail-item--violation';
         else if (item.foundWords && item.foundWords.length > 0) itemClass = 'trail-item--success';
-        
+
         let headerIcon = '';
-        if (isVictory) headerIcon = 'VICTORY';
+        if (item.isCheat) headerIcon = `✦ CHEAT CODE — ${DOMPurify.sanitize(item.cheatCode.title)}`;
+        else if (isVictory) headerIcon = 'VICTORY';
         else if (isDefeat) headerIcon = 'VIOLATION';
         else headerIcon = `Attempt #${item.number}`;
         
@@ -1779,6 +1870,16 @@ function updateResponseTrail() {
                         <span class="feedback-words">${DOMPurify.sanitize(item.violatedWords.join(', '))}</span>
                         <span class="feedback-creep">+${item.creepIncrease}</span>
                         <span class="feedback-level">${item.creepLevel}/${gameState.creepThreshold}</span>
+                    </div>
+                ` : ''}
+                ${item.isCheat ? `
+                    <div class="cheat-badge">
+                        <span class="cheat-badge-icon">✦</span>
+                        <span class="cheat-badge-text">${DOMPurify.sanitize(item.cheatCode.author)}, ${DOMPurify.sanitize(item.cheatCode.year)}</span>
+                        <span class="cheat-badge-sep">·</span>
+                        <span class="cheat-badge-wink">${DOMPurify.sanitize(item.cheatCode.wink)}</span>
+                        <span class="cheat-badge-sep">·</span>
+                        <a href="cheat-the-code.html" class="cheat-badge-link" target="_blank">all cheat codes →</a>
                     </div>
                 ` : ''}
                 ${item.foundWords && item.foundWords.length > 0 ? `
