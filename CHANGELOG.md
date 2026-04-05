@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2-alpha] - 2026-04-05
+
+### Changed — Cheat-code matching algorithm rewrite + unit tests
+
+#### Problem with the original algorithm
+The previous implementation used a single Levenshtein edit distance on the
+fully concatenated, stripped haiku string with a 15% character threshold.
+This had two failure modes:
+- **False negatives**: a single dropped word (e.g. typing only 2 of 3 lines)
+  consumed the entire error budget because the missing chars were contiguous.
+- **No word-level tolerance**: a 1-char typo in one word spread its penalty
+  across the whole-string comparison, unfairly shrinking the threshold for
+  the rest of the input.
+
+#### New algorithm (`src/js/cheat-matcher.js`)
+Hybrid scoring on two independent metrics:
+
+| Metric | Description | Threshold |
+|--------|-------------|-----------|
+| **Word coverage** (primary) | Fraction of the haiku's word-tokens found in the input, with per-word fuzzy matching (edit distance ≤ 1 for words ≥ 4 chars). | ≥ 0.75 |
+| **Character similarity** (guard) | `1 − levenshtein / max(len)` on fully stripped strings. Guards against a lucky word-overlap on garbage input. | ≥ 0.55 |
+| **Combined score** | `0.6 × coverage + 0.4 × charSim` | higher wins |
+
+Both metrics must clear their thresholds; the highest combined score wins.
+Inputs shorter than 15 normalized characters are rejected immediately.
+
+#### New files
+- **`src/js/cheat-matcher.js`** — pure ESM module, no browser globals.
+  Exports: `normalize`, `tokenize`, `levenshtein`, `wordFuzzyMatch`,
+  `computeWordCoverage`, `computeCharSimilarity`, `matchScore`,
+  `detectCheatCode`, `prepareCode`, and the threshold constants.
+- **`tests/cheat-codes.test.js`** — 79 Jest unit tests covering:
+  - All primitive functions (normalize, tokenize, levenshtein, wordFuzzyMatch)
+  - computeWordCoverage and computeCharSimilarity edge cases
+  - detectCheatCode true negatives (null, short input, random text, partial line, mixed haiku)
+  - detectCheatCode true positives for every cheat code (exact, lowercase, slash-separated, 1-char typos, missing one word, two-of-three lines, no punctuation)
+  - Disambiguation between similar codes (world-of-dew vs this-world-of-dew)
+  - Score field validation
+
+#### Refactored files
+- **`src/js/cheat-codes.js`** — converted from IIFE to ES module. Imports the
+  pure algorithm from `cheat-matcher.js`. Sets `window.CheatCodes` as before.
+- **`index.html`** — `cheat-codes.js` script tag changed to `type="module"`.
+
 ## [1.2.1-alpha] - 2026-04-05
 
 ### Added — Share Card V6 (cheat-session awareness)
