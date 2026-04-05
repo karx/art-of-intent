@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1-alpha] - 2026-04-05
+
+### Added — Share Card V6 (cheat-session awareness)
+
+New `share-card-v6.js` replaces V5 as the default card generator.
+V6 is identical to V5 except when `data.cheated === true`:
+
+- **Gold diagonal ribbon** stamped across the top-right corner labelled "✦ CHEAT SESSION"
+- **Gold header accent bar** replaces the normal border line
+- **Result badge turns gold** (`#c8a020`) instead of green/red
+- **Result text gains a ✦ suffix** ("WIN ✦" / "LOSS ✦")
+- **SCORE row** added to the stats block:
+  - Normal session: shows the numeric efficiency score
+  - Cheat session: shows "NOT RANKED  ✦" in gold
+- **Haiku box border** turns gold when the featured haiku was itself a cheat-code response
+- **Section label** shows "✦ CHEAT CODE — {title}" instead of "HAIKU" for cheat items
+- **Prompt attribution** prefixed with ✦ and tinted gold for cheat items
+- **Footer CTA** replaced with "✦ CHEAT SESSION · NOT ON LEADERBOARD" and "The masters winked back. Play fair tomorrow?"
+
+`buildCardData()` in `game.js` now passes `cheated` and `efficiencyScore` to the card data.
+All three share call sites updated to use `'v6'`.
+
 ## [1.2.0-alpha] - 2026-04-05
 
 ### Added — Cheat Codes (world-famous haikus as secret shortcuts)

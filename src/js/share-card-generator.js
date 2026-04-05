@@ -27,7 +27,10 @@ class ShareCardGenerator {
      * @param {string} version - Card version ('v1', 'v2', 'v3', or 'v4')
      * @returns {string} SVG string
      */
-    generateSVG(data, version = 'v5') {
+    generateSVG(data, version = 'v6') {
+        if (version === 'v6') {
+            return generateShareCardV6(data);
+        }
         if (version === 'v5') {
             return generateShareCardV5(data);
         }

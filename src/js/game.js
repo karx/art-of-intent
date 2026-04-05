@@ -1516,7 +1516,9 @@ function buildCardData(userName, userPhoto) {
         targetWords: gameState.targetWords || [],
         matchedWords: [...(gameState.matchedWords || [])],
         creepLevel: gameState.creepLevel || 0,
-        creepThreshold: gameState.creepThreshold || 100
+        creepThreshold: gameState.creepThreshold || 100,
+        cheated: gameState.cheated || false,
+        efficiencyScore: gameState.cheated ? null : calculateEfficiencyScore(),
     };
 }
 
@@ -1538,7 +1540,7 @@ async function shareScore() {
     try {
         const { userName, userPhoto } = getUserDisplayInfo();
         const cardData = buildCardData(userName, userPhoto);
-        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v6');
         const shareText = buildShareText();
 
         const outcome = await shareCardGenerator.shareImage(svg, 'Art of Intent', shareText);
@@ -1562,7 +1564,7 @@ function previewShareCard() {
     try {
         const { userName, userPhoto } = getUserDisplayInfo();
         const cardData = buildCardData(userName, userPhoto);
-        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v6');
         shareCardGenerator.previewImage(svg);
     } catch (error) {
         console.error('Error previewing card:', error);
@@ -1589,7 +1591,7 @@ async function shareWithText() {
     try {
         const { userName, userPhoto } = getUserDisplayInfo();
         const cardData = buildCardData(userName, userPhoto);
-        const svg = shareCardGenerator.generateSVG(cardData, 'v5');
+        const svg = shareCardGenerator.generateSVG(cardData, 'v6');
 
         if (navigator.share) {
             // Mobile: native share sheet handles image + text together
