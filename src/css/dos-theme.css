@@ -713,6 +713,45 @@ header::after {
     50% { box-shadow: 0 0 20px rgba(133, 153, 0, 0.4); }
 }
 
+/* Cheat Code Trail Item */
+.trail-item--cheat {
+    border-left: 3px solid #c8a020;
+    background: rgba(200, 160, 32, 0.06);
+    box-shadow: 0 0 10px rgba(200, 160, 32, 0.18);
+    animation: cheatSparkle 3s ease-in-out;
+}
+
+@keyframes cheatSparkle {
+    0%   { box-shadow: 0 0 4px rgba(200, 160, 32, 0.1); }
+    40%  { box-shadow: 0 0 18px rgba(200, 160, 32, 0.5); }
+    100% { box-shadow: 0 0 10px rgba(200, 160, 32, 0.18); }
+}
+
+.cheat-badge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #c8a020;
+    margin: 4px 0 6px;
+    padding: 4px 6px;
+    background: rgba(200, 160, 32, 0.08);
+    border: 1px dashed rgba(200, 160, 32, 0.4);
+}
+
+.cheat-badge-icon { font-size: 13px; }
+.cheat-badge-text { font-weight: bold; }
+.cheat-badge-sep  { opacity: 0.4; }
+.cheat-badge-wink { font-style: italic; opacity: 0.9; }
+.cheat-badge-link {
+    color: #c8a020;
+    text-decoration: underline;
+    opacity: 0.75;
+    white-space: nowrap;
+}
+.cheat-badge-link:hover { opacity: 1; }
+
 /* Arty Thinking Placeholder */
 .trail-item--thinking {
     border-left-color: var(--accent-primary);

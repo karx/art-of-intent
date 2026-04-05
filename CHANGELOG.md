@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0-alpha] - 2025-01-28
+## [1.2.0-alpha] - 2026-04-05
+
+### Added — Cheat Codes (world-famous haikus as secret shortcuts)
+
+A gentle accessibility feature for players who find the daily puzzle too hard.
+Ten world-famous haikus double as cheat codes. Entering one (fuzzy-matched —
+punctuation, case, and minor typos are forgiven via Levenshtein edit distance)
+gifts the player one unmatched target word without spending any tokens or making
+an API call. Sessions that use a cheat code are marked and excluded from the
+daily leaderboard.
+
+#### New files
+- **`src/js/cheat-codes.js`** — cheat code data (10 haikus), Levenshtein matcher,
+  normalisation, exposed as `window.CheatCodes`. Classic script loaded before `game.js`.
+- **`cheat-the-code.html`** — static glossary page with all cheat codes, their
+  literary commentary (*kavi ka saar* — deeper meaning, *vyakhya*, *bhav aarth*),
+  click-to-copy, and author attribution.
+
+#### The 10 cheat codes
+| # | Title | Author | Year |
+|---|-------|--------|------|
+| 1 | The Old Pond | Matsuo Bashō | 1686 |
+| 2 | The Cicada's Cry | Matsuo Bashō | 1689 |
+| 3 | A World of Dew | Kobayashi Issa | 1819 |
+| 4 | Temple Bells | Matsuo Bashō | 1690 |
+| 5 | Lightning Flash | Yosa Buson | 1784 |
+| 6 | The Moon-Beholders | Matsuo Bashō | 1685 |
+| 7 | Morning Glory | Fukuda Chiyo-ni | 1754 |
+| 8 | Don't Weep, Insects | Kobayashi Issa | 1827 |
+| 9 | This World of Dew | Kobayashi Issa | 1819 |
+| 10 | Ill on a Journey (Death Poem) | Matsuo Bashō | 1694 |
+
+#### Changes to existing files
+- **`src/js/game.js`**
+  - `gameState` gains a `cheated: false` flag
+  - `handleSubmit()` runs cheat detection before the normal forbidden-word check
+  - New `processCheatResponse(cheatCode)` — generates a playful tribute haiku,
+    marks one target word as matched, adds a golden `✦` trail item, skips all
+    Firestore/leaderboard saves
+  - All four `saveGameToFirestore` call sites guard against `gameState.cheated`
+  - `showGameOverModal()` shows a cheat-session banner and omits the ranked score
+  - `updateResponseTrail()` renders `trail-item--cheat` with `.cheat-badge`
+    (author, year, wink, link to glossary)
+- **`src/css/dos-theme.css`**
+  - `.trail-item--cheat` — golden left border, subtle shimmer animation
+  - `.cheat-badge` and children — poet attribution strip inside the trail item
+- **`index.html`** — `<script src="src/js/cheat-codes.js">` added before game scripts
+
+
 
 ### Changed - Share Card V4.1 (Step-Based Creep & Event Indicators)
 - **Step-Based Creep Visualization**: Replaced full rectangle overlay with per-attempt progression
