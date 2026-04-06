@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Firebase Cloud Functions for Art of Intent",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase emulators:start --only functions",

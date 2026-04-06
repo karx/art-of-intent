@@ -1,16 +1,20 @@
 /**
  * Firebase Cloud Functions for Art of Intent
- * 
+ *
  * Functions:
- * - artyGenerateHaiku: Generate haiku via Gemini API (callable)
- * - generateDailyWords: Generate daily target/blacklist words (scheduled)
+ * - artyGenerateHaiku:   Generate haiku via AI Gateway (callable). Supports BYOM.
+ * - saveUserSettings:    Encrypt + store user's AI provider settings (callable).
+ * - generateDailyWords:  Generate daily target/blacklist words (scheduled).
+ * - forceUpdateDailyWords: Admin-only regeneration (callable).
  */
 
-const {onCall, HttpsError} = require('firebase-functions/v2/https');
-const {onSchedule} = require('firebase-functions/v2/scheduler');
-const {initializeApp} = require('firebase-admin/app');
-const {getFirestore, FieldValue} = require('firebase-admin/firestore');
-const logger = require('firebase-functions/logger');
+import {onCall, HttpsError} from 'firebase-functions/v2/https';
+import {onSchedule} from 'firebase-functions/v2/scheduler';
+import {initializeApp} from 'firebase-admin/app';
+import {getFirestore, FieldValue} from 'firebase-admin/firestore';
+import logger from 'firebase-functions/logger';
+import {routeToProvider} from './gateway/index.js';
+import {encryptApiKey, decryptApiKey} from './crypto.js';
 
 // Initialize Firebase Admin
 initializeApp({
@@ -157,15 +161,113 @@ function buildSystemInstruction(targetWords, blacklistWords) {
     return instruction;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Gateway helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Default endpoint URLs for each supported provider. */
+function defaultEndpointFor(provider) {
+    switch (provider) {
+        case 'gemini':
+            return process.env.GEMINI_API_URL ||
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+        case 'openai':
+            return 'https://api.openai.com/v1';
+        case 'anthropic':
+            return 'https://api.anthropic.com/v1/messages';
+        case 'custom':
+            return ''; // custom endpoint is always user-supplied
+        default:
+            return '';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// saveUserSettings — encrypt and persist the user's AI provider config
+// ─────────────────────────────────────────────────────────────────────────────
+
+const VALID_PROVIDERS = ['gemini', 'openai', 'anthropic', 'custom'];
+
 /**
- * Generate haiku via Gemini API
+ * Store a user's AI provider settings in Firestore.
+ * The API key is AES-256-GCM encrypted before writing — the browser never
+ * handles the plaintext key after this call.
  *
- * Callable function that proxies requests to Gemini API
- * to keep API keys secure on the backend.
+ * Request data:
+ *   {
+ *     provider: 'openai' | 'anthropic' | 'gemini' | 'custom',
+ *     apiKey:   string,          // plaintext — encrypted server-side
+ *     endpoint: string?,         // optional override; defaults to provider default
+ *     model:    string?,         // optional model override
+ *   }
+ *
+ * To clear custom settings (revert to built-in Gemini):
+ *   { provider: null }
+ */
+export const saveUserSettings = onCall({
+    maxInstances: 5,
+    timeoutSeconds: 15,
+    memory: '128MiB',
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated to save settings');
+    }
+
+    const { provider, apiKey, endpoint, model } = request.data ?? {};
+
+    // Clearing settings
+    if (provider === null || provider === undefined) {
+        await db.collection('userSettings').doc(request.auth.uid).delete();
+        return { success: true, cleared: true };
+    }
+
+    if (!VALID_PROVIDERS.includes(provider)) {
+        throw new HttpsError('invalid-argument',
+            `Invalid provider "${provider}". Must be one of: ${VALID_PROVIDERS.join(', ')}`);
+    }
+
+    if (typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+        throw new HttpsError('invalid-argument', 'apiKey is required');
+    }
+
+    if (apiKey.length > 512) {
+        throw new HttpsError('invalid-argument', 'apiKey must be 512 characters or less');
+    }
+
+    const encKey = process.env.GATEWAY_ENCRYPTION_KEY;
+    if (!encKey) {
+        logger.error('GATEWAY_ENCRYPTION_KEY not configured');
+        throw new HttpsError('failed-precondition', 'Server configuration error — cannot store settings');
+    }
+
+    const encryptedApiKey = await encryptApiKey(apiKey.trim(), encKey);
+
+    const doc = {
+        aiProvider: provider,
+        aiEndpoint: endpoint || defaultEndpointFor(provider),
+        encryptedApiKey,
+        keyUpdatedAt: FieldValue.serverTimestamp(),
+    };
+    if (model) doc.aiModel = model;
+
+    await db.collection('userSettings').doc(request.auth.uid).set(doc, { merge: true });
+
+    logger.info('saveUserSettings_ok', { uid: request.auth.uid, provider });
+    return { success: true };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// artyGenerateHaiku — AI Gateway entry point
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generate a haiku via the AI Gateway.
+ * Routes to the user's configured provider (BYOM) or falls back to built-in Gemini.
  * System prompt is built server-side from Firestore daily words —
  * the client cannot influence or inject the system instruction.
  */
-exports.artyGenerateHaiku = onCall({
+export const artyGenerateHaiku = onCall({
     maxInstances: 10,
     timeoutSeconds: 30,
     memory: '256MiB',
@@ -188,17 +290,7 @@ exports.artyGenerateHaiku = onCall({
     }
 
     try {
-        // Get Gemini API configuration from environment
-        const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = process.env.GEMINI_API_URL ||
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
-
-        if (!geminiApiKey) {
-            logger.error('GEMINI_API_KEY not configured');
-            throw new HttpsError('failed-precondition', 'API configuration error');
-        }
-
-        // Load today's daily words from Firestore (server-side — not trusted from client)
+        // ── Load today's daily words from Firestore (server-side, tamper-proof) ──
         const dateKey = new Date().toISOString().split('T')[0];
         const dailyDoc = await db.collection('dailyWords').doc(dateKey).get();
         if (!dailyDoc.exists) {
@@ -210,75 +302,83 @@ exports.artyGenerateHaiku = onCall({
         // Build system instruction entirely server-side
         const systemInstruction = buildSystemInstruction(targetWords, blacklistWords);
 
-        // Prepare request body
-        const requestBody = {
-            system_instruction: {
-                parts: [{text: systemInstruction}]
-            },
-            contents: [
-                {
-                    parts: [{text: userPrompt}]
+        // ── Resolve AI provider — BYOM first, built-in Gemini as fallback ────────
+        let provider = 'gemini';
+        let providerConfig;
+
+        const userSettingsDoc = await db.collection('userSettings').doc(request.auth.uid).get();
+        if (userSettingsDoc.exists) {
+            const settings = userSettingsDoc.data();
+            const encKey = process.env.GATEWAY_ENCRYPTION_KEY;
+            if (settings.aiProvider && settings.encryptedApiKey && encKey) {
+                try {
+                    const apiKey = await decryptApiKey(settings.encryptedApiKey, encKey);
+                    provider = settings.aiProvider;
+                    providerConfig = {
+                        endpoint: settings.aiEndpoint || defaultEndpointFor(provider),
+                        apiKey,
+                        model: settings.aiModel,
+                    };
+                } catch (decryptErr) {
+                    // Decryption failure (e.g. key rotation) — log and fall back gracefully
+                    logger.warn('artyGenerateHaiku_byom_decrypt_failed', {
+                        uid: request.auth.uid,
+                        error: decryptErr.message,
+                    });
                 }
-            ]
-        };
-        
+            }
+        }
+
+        // Fall back to built-in Gemini key
+        if (!providerConfig) {
+            const geminiApiKey = process.env.GEMINI_API_KEY;
+            if (!geminiApiKey) {
+                logger.error('GEMINI_API_KEY not configured and no user key present');
+                throw new HttpsError('failed-precondition', 'API configuration error');
+            }
+            provider = 'gemini';
+            providerConfig = {
+                endpoint: process.env.GEMINI_API_URL ||
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent',
+                apiKey: geminiApiKey,
+            };
+        }
+
         const callStart = Date.now();
-        logger.info('gemini_request', {
+        logger.info('gateway_request', {
             sessionId,
             userId: request.auth.uid,
+            provider,
             promptLength: userPrompt.length,
-            model: geminiApiUrl.match(/models\/([^:]+)/)?.[1] || 'unknown',
         });
 
-        // Call Gemini API
-        const response = await fetch(geminiApiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': geminiApiKey
-            },
-            body: JSON.stringify(requestBody)
-        });
+        // ── Call the AI Gateway ───────────────────────────────────────────────────
+        let gatewayResult;
+        try {
+            gatewayResult = await routeToProvider(provider, systemInstruction, userPrompt, providerConfig);
+        } catch (providerErr) {
+            const latencyMs = Date.now() - callStart;
+            const httpStatus = providerErr.httpStatus || 0;
+            const providerStatus = providerErr.providerStatus || 'UNKNOWN';
+            const providerMessage = providerErr.providerMessage || providerErr.message || '';
 
-        const latencyMs = Date.now() - callStart;
-
-        if (!response.ok) {
-            // Parse structured Gemini error — preserve all detail for logs and client
-            let geminiError = {};
-            try {
-                const body = await response.json();
-                geminiError = body.error || {};
-            } catch {
-                geminiError.message = await response.text().catch(() => '');
-            }
-
-            const geminiStatus  = geminiError.status  || 'UNKNOWN';
-            const geminiMessage = geminiError.message || '';
-
-            // Extract retry-after seconds from the error message (e.g. "retry in 1.97s")
-            const retryMatch = geminiMessage.match(/retry in ([\d.]+)s/i);
+            // Extract retry-after seconds (Gemini-style message: "retry in 1.97s")
+            const retryMatch = providerMessage.match(/retry in ([\d.]+)s/i);
             const retryAfterSeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
 
-            // Extract quota metric name for ops visibility
-            const quotaMetric = geminiError.details
-                ?.find(d => d['@type']?.includes('QuotaFailure'))
-                ?.violations?.[0]?.quotaMetric || null;
-
-            logger.error('gemini_error', {
+            logger.error('gateway_error', {
                 sessionId,
                 userId: request.auth.uid,
-                httpStatus: response.status,
-                geminiStatus,
-                geminiMessage,
+                provider,
+                httpStatus,
+                providerStatus,
+                providerMessage,
                 retryAfterSeconds,
-                quotaMetric,
                 latencyMs,
-                promptLength: userPrompt.length,
             });
 
-            // Map Gemini HTTP status → Firebase HttpsError with structured details
-            const details = { geminiStatus, retryAfterSeconds, quotaMetric };
-            switch (response.status) {
+            const details = { provider, providerStatus, retryAfterSeconds };
+            switch (httpStatus) {
                 case 429:
                     throw new HttpsError('resource-exhausted',
                         retryAfterSeconds
@@ -292,7 +392,9 @@ exports.artyGenerateHaiku = onCall({
                 case 401:
                 case 403:
                     throw new HttpsError('permission-denied',
-                        'API authentication error. Please contact support.',
+                        provider === 'gemini'
+                            ? 'API authentication error. Please contact support.'
+                            : 'Your API key was rejected. Check your model settings.',
                         details);
                 case 500:
                 case 502:
@@ -302,49 +404,49 @@ exports.artyGenerateHaiku = onCall({
                         details);
                 default:
                     throw new HttpsError('internal',
-                        `Unexpected error from AI service (${response.status}). Please try again.`,
+                        `Unexpected error from AI service (${httpStatus || 'network'}). Please try again.`,
                         details);
             }
         }
 
-        const apiResponse = await response.json();
+        const latencyMs = Date.now() - callStart;
+        const responseText = gatewayResult.text || 'No response';
+        const finishReason = gatewayResult.finishReason || 'UNKNOWN';
 
-        // Extract response data
-        const responseText = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-        const usageMetadata = apiResponse.usageMetadata || {};
-
-        // Check for safety/finish reason issues
-        const finishReason = apiResponse.candidates?.[0]?.finishReason;
-        if (finishReason && finishReason !== 'STOP') {
-            logger.warn('gemini_unusual_finish', {
+        if (finishReason && finishReason !== 'STOP' && finishReason !== 'stop' && finishReason !== 'end_turn') {
+            logger.warn('gateway_unusual_finish', {
                 sessionId,
                 userId: request.auth.uid,
+                provider,
                 finishReason,
-                promptLength: userPrompt.length,
             });
         }
 
-        logger.info('gemini_success', {
+        logger.info('gateway_success', {
             sessionId,
             userId: request.auth.uid,
+            provider,
             latencyMs,
             responseLength: responseText.length,
-            totalTokens: usageMetadata.totalTokenCount,
-            promptTokens: usageMetadata.promptTokenCount,
-            candidateTokens: usageMetadata.candidatesTokenCount,
+            inputTokens: gatewayResult.inputTokens,
+            outputTokens: gatewayResult.outputTokens,
             finishReason,
         });
 
         // Compute user-attributable token cost server-side.
-        // promptTokenCount = system instruction + user prompt combined.
-        // We estimate user prompt tokens from character length (std ~4 chars/token),
-        // then derive system token cost as the remainder.
-        // The client uses userPromptTokens + candidatesTokenCount as the player's score —
-        // never exposing the fixed system overhead.
-        const totalPromptTokens   = usageMetadata.promptTokenCount    || 0;
-        const candidateTokens     = usageMetadata.candidatesTokenCount || 0;
-        const userPromptTokens    = Math.ceil(userPrompt.length / 4);
-        const systemPromptTokens  = Math.max(0, totalPromptTokens - userPromptTokens);
+        // inputTokens = system instruction + user prompt combined.
+        // We estimate user prompt tokens from character length (~4 chars/token),
+        // then derive system overhead as the remainder.
+        // The client uses userPromptTokens + outputTokens as the player's score.
+        const userPromptTokens   = Math.ceil(userPrompt.length / 4);
+        const systemPromptTokens = Math.max(0, gatewayResult.inputTokens - userPromptTokens);
+
+        // Normalised usageMetadata — same shape as before so the client needs no changes.
+        const usageMetadata = {
+            promptTokenCount:     gatewayResult.inputTokens,
+            candidatesTokenCount: gatewayResult.outputTokens,
+            totalTokenCount:      gatewayResult.inputTokens + gatewayResult.outputTokens,
+        };
 
         return {
             success: true,
@@ -353,7 +455,8 @@ exports.artyGenerateHaiku = onCall({
                 usageMetadata,
                 userPromptTokens,
                 systemPromptTokens,
-                fullResponse: apiResponse
+                provider,
+                fullResponse: { text: responseText, finishReason, usageMetadata },
             }
         };
 
@@ -471,26 +574,18 @@ async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Shared Gemini fetch wrapper.
+ * Shared Gemini wrapper used by AI evaluation (dictionary haikus, probes).
+ * Delegates to the gateway so the adapter logic is not duplicated.
  * @returns {{ text: string, tokensUsed: number }}
  */
 async function callGemini(systemInstruction, userPrompt, apiKey, apiUrl) {
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: [{ parts: [{ text: userPrompt }] }]
-        })
+    const result = await routeToProvider('gemini', systemInstruction, userPrompt, {
+        endpoint: apiUrl,
+        apiKey,
     });
-    if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Gemini ${response.status}: ${errText.slice(0, 200)}`);
-    }
-    const data = await response.json();
     return {
-        text: data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '',
-        tokensUsed: data.usageMetadata?.totalTokenCount || 0
+        text: result.text.trim(),
+        tokensUsed: result.inputTokens + result.outputTokens,
     };
 }
 
@@ -736,7 +831,7 @@ async function generateWordsForDate(dateKey) {
  * Scheduled function that runs daily at 00:00 UTC
  * to generate consistent target and blacklist words for all users.
  */
-exports.generateDailyWords = onSchedule({
+export const generateDailyWords = onSchedule({
     schedule: '0 0 * * *',
     timeZone: 'UTC',
     memory: '256MiB',
@@ -770,7 +865,7 @@ exports.generateDailyWords = onSchedule({
  * Returns:
  *   { dateKey, targetWords, blacklistWords }
  */
-exports.forceUpdateDailyWords = onCall({
+export const forceUpdateDailyWords = onCall({
     maxInstances: 1,
     timeoutSeconds: 300,
     memory: '512MiB',
