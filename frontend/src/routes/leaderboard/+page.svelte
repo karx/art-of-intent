@@ -67,8 +67,7 @@
 <svelte:head><title>Leaderboard · Art of Intent</title></svelte:head>
 
 <div class="container main-content">
-	<h1 class="app-title">Daily Leaderboard</h1>
-	<p class="muted">{today}</p>
+	<p class="page-date">{today}</p>
 
 	{#if loading}
 		<p>Loading…</p>
@@ -119,6 +118,7 @@
 	}
 	.leaderboard-table th { opacity: 0.7; font-weight: normal; }
 
+	.page-date  { font-size: 11px; color: var(--text-dim, #586e75); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
 	.muted      { opacity: 0.6; }
 	.text-success { color: var(--color-success, #0f0); }
 	.text-info    { color: var(--color-info,    #0af); }

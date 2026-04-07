@@ -80,8 +80,6 @@
 <svelte:head><title>Settings · Art of Intent</title></svelte:head>
 
 <div class="container main-content">
-	<h1 class="app-title">Settings</h1>
-
 	<!-- ── Theme ─────────────────────────────────────────────────────── -->
 	<section class="settings-section">
 		<h2>Theme</h2>

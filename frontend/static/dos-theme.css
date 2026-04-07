@@ -2572,7 +2572,7 @@ header::after {
    SIDE NAVIGATION - Cognitive Design
    ============================================ */
 
-/* Side Navigation - Desktop (default) */
+/* ── Side navigation ────────────────────────────────────────────────────── */
 .side-nav {
     position: fixed;
     left: 0;
@@ -2583,88 +2583,64 @@ header::after {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    padding: 8px 0;
+    padding: var(--topbar-h) 0 0; /* clear the top-bar height */
     z-index: 1000;
-    transition: width 0.2s ease;
     overflow: hidden;
+    /* Expand on hover — no JS needed */
+    transition: width 0.15s ease;
 }
 
-.side-nav.expanded {
-    width: 200px;
+.side-nav:hover {
+    width: 160px;
 }
 
+/* Nav items — pre-pad to absorb the active border without layout shift */
 .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    margin: 2px 4px;
-    border: none;
-    background: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    gap: 10px;
+    padding: 13px 0 13px 14px; /* 14px left = 12px + 2px active-border reservation */
+    border-left: 2px solid transparent;
     text-decoration: none;
-    font-size: 0.9rem;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
     white-space: nowrap;
-    min-height: var(--topbar-h);
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 .nav-item:hover {
+    color: var(--text-primary);
     background: var(--bg-primary);
-    color: var(--highlight-color);
+    border-left-color: var(--border-color);
 }
 
-.nav-item:active,
 .nav-item.active {
-    background: var(--bg-primary);
     color: var(--info-color);
-    border-left: 2px solid var(--info-color);
+    background: var(--bg-primary);
+    border-left-color: var(--info-color);
 }
 
 .nav-icon {
-    font-size: 1.25rem;
-    width: 20px;
+    font-size: 1.1rem;
+    width: 22px;           /* fixed width keeps icons aligned regardless of glyph */
     text-align: center;
     flex-shrink: 0;
+    line-height: 1;
 }
 
 .nav-label {
     opacity: 0;
-    transition: opacity 0.2s ease;
-    font-weight: 500;
+    transition: opacity 0.1s ease;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
 }
 
-.side-nav.expanded .nav-label {
+.side-nav:hover .nav-label {
     opacity: 1;
-}
-
-.nav-toggle {
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 12px;
-}
-
-.nav-section {
-    display: flex;
-    flex-direction: column;
-}
-
-.nav-primary {
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.nav-monitoring {
-    flex: 1;
-}
-
-.nav-settings {
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-color);
 }
 
 /* Top Bar - Auto-hide on scroll */
@@ -2699,30 +2675,20 @@ body.scrolled-top .top-bar {
     gap: 12px;
 }
 
-.app-title {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--text-primary);
+.top-bar-right {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.version-badge {
-    font-size: 0.7rem;
-    font-weight: 400;
-    color: var(--text-dim);
-    background: var(--bg-primary);
-    padding: 2px 6px;
-    border-radius: 3px;
-    border: 1px solid var(--border-color);
-}
-
-.top-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+/* .app-title used on settings/leaderboard page headings */
+.app-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--sol-cyan);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 0 0 var(--spacing-md);
 }
 
 /* Main Content Adjustments */
@@ -2832,103 +2798,72 @@ body.nav-expanded .top-bar {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-/* Mobile Responsive - Only for small screens */
+/* ── Mobile: side-nav becomes a bottom tab bar ──────────────────────────── */
 @media only screen and (max-width: 767px) {
-    /* Mobile: Top navigation bar (auto-hide on scroll) */
+    /* Reflow nav to bottom of screen */
     .side-nav {
         position: fixed !important;
-        top: 0 !important;
-        bottom: auto !important;
-        left: 0 !important;
-        right: 0 !important;
+        top: auto  !important;
+        bottom: 0  !important;
+        left: 0    !important;
+        right: 0   !important;
         width: 100% !important;
-        height: 48px !important;
+        height: var(--topbar-h) !important;
         flex-direction: row !important;
         justify-content: space-around;
         align-items: center;
-        padding: 0;
+        padding: 0 !important;
         border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        transition: transform 0.3s ease;
-        transform: translateY(0);
+        border-top: 1px solid var(--border-color);
+        border-bottom: none;
+        /* no hover-expand on mobile */
+        transition: none !important;
         z-index: 1001;
     }
-    
-    /* Hide on scroll */
-    .side-nav.hidden {
-        transform: translateY(-100%);
-    }
-    
-    body.scrolled-top .side-nav {
-        transform: translateY(0);
-    }
-    
-    .side-nav.expanded {
-        width: 100%;
-        height: var(--topbar-h);
-    }
-    
-    /* Hide menu toggle on mobile - no collapsible state needed */
-    .nav-toggle {
-        display: none;
-    }
-    
+
+    /* Cancel hover expansion on touch devices */
+    .side-nav:hover { width: 100% !important; }
+
     .nav-item {
         flex-direction: column;
         gap: 2px;
-        padding: 6px 4px;
-        margin: 0;
-        min-height: auto;
-        font-size: 0.65rem;
+        padding: 4px 0 !important;
+        border-left: none !important;
+        border-top: 2px solid transparent;
         flex: 1;
         justify-content: center;
         align-items: center;
+        font-size: 10px;
     }
-    
-    .nav-icon {
-        font-size: 1.1rem;
-        line-height: 1;
-    }
-    
-    .nav-label {
-        opacity: 1;
-        font-size: 0.65rem;
-        line-height: 1;
-        white-space: nowrap;
-    }
-    
-    .nav-section {
-        border: none;
-        padding: 0;
-        margin: 0;
-        display: contents;
-    }
-    
-    .nav-primary,
-    .nav-monitoring,
-    .nav-settings {
-        flex-direction: row;
-        border: none;
-        display: contents;
-    }
-    
-    /* Hide desktop top bar on mobile */
-    .top-bar {
-        display: none;
-    }
-    
-    .main-content {
-        margin-left: 0;
-        margin-top: var(--topbar-h);
-        margin-bottom: 0;
-        padding: 12px;
-        transition: margin-top 0.3s ease;
-    }
-    
-    /* body:not(.scrolled-top) override removed */
 
-    body.nav-expanded .main-content {
-        margin-left: 0;
+    .nav-item.active {
+        border-left: none !important;
+        border-top-color: var(--info-color);
+    }
+
+    .nav-item:hover {
+        border-left: none;
+        background: none;
+    }
+
+    .nav-icon { font-size: 1rem; width: auto; }
+
+    .nav-label {
+        opacity: 1 !important;
+        font-size: 9px;
+        letter-spacing: 1px;
+    }
+
+    /* Keep the desktop top-bar — it sits above content, nav sits below */
+    .top-bar {
+        left: 0 !important;  /* full width on mobile — no side-nav offset */
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        margin-top: var(--topbar-h);
+        /* extra bottom padding so last card isn't behind the tab bar */
+        padding-bottom: calc(var(--topbar-h) + 12px);
     }
 }
 
