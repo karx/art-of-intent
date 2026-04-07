@@ -24,7 +24,7 @@ npm install
 firebase functions:config:set gemini.key="YOUR_GEMINI_API_KEY_HERE"
 
 # Set Gemini API URL (optional, uses default if not set)
-firebase functions:config:set gemini.url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
+firebase functions:config:set gemini.url="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent"
 
 # Verify configuration
 firebase functions:config:get

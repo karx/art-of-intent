@@ -115,9 +115,15 @@ service cloud.firestore {
     match /dailyWords/{date} {
       // Anyone can read daily words
       allow read: if true;
-      
+
       // Only Cloud Functions can write (using service account)
       allow write: if false;
+    }
+
+    // User AI provider settings (BYOM)
+    // Encrypted API keys — owner read/write only; Cloud Functions bypass rules
+    match /userSettings/{userId} {
+      allow read, write: if isOwner(userId);
     }
   }
 }

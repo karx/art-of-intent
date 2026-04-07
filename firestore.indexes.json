@@ -47,6 +47,38 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "result",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gameDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "efficiencyScore",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "result",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gameDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "gameDate",
           "order": "ASCENDING"
         },

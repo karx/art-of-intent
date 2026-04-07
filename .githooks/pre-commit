@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Pre-commit hook — mirrors the CI check job.
+# Activate once with: git config core.hooksPath .githooks
+set -euo pipefail
+
+FRONTEND=frontend
+FUNCTIONS=functions
+
+echo "▶ svelte-check"
+(cd "$FRONTEND" && npm run check)
+
+echo "▶ frontend tests"
+(cd "$FRONTEND" && npm test)
+
+echo "▶ functions tests"
+(cd "$FUNCTIONS" && node --test test/gateway.test.js test/crypto.test.js)
+
+echo "✓ all checks passed"
