@@ -9,11 +9,12 @@ firestore-debug.log
 ui-debug.log
 functions/.env
 functions/node_modules/
-functions/package-lock.json
 
 # Node modules
 node_modules/
-package-lock.json
+
+# Lock files — committed for reproducible CI; root package-lock excluded (legacy vanilla stack)
+/package-lock.json
 
 # Build outputs
 dist/
