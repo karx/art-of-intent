@@ -38,6 +38,8 @@
 	const section = $derived(
 		$page.url.pathname === '/leaderboard' ? 'scores' :
 		$page.url.pathname === '/settings'    ? 'settings' :
+		$page.url.pathname === '/about'       ? 'about' :
+		$page.url.pathname === '/help'        ? 'help' :
 		null
 	);
 </script>
@@ -73,6 +75,14 @@
 	<a href="/settings"    class="nav-item" class:active={$page.url.pathname === '/settings'}    title="Settings">
 		<span class="nav-icon">⚙</span>
 		<span class="nav-label">Settings</span>
+	</a>
+	<a href="/about"       class="nav-item" class:active={$page.url.pathname === '/about'}       title="About">
+		<span class="nav-icon">ⓘ</span>
+		<span class="nav-label">About</span>
+	</a>
+	<a href="/help"        class="nav-item" class:active={$page.url.pathname === '/help'}        title="Help">
+		<span class="nav-icon">?</span>
+		<span class="nav-label">Help</span>
 	</a>
 </nav>
 
