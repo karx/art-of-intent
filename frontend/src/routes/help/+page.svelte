@@ -1,6 +1,10 @@
 <svelte:head>
 	<title>How to Play · Art of Intent</title>
 	<meta name="description" content="Learn how to play Art of Intent — guide Arty the haiku bot to say your target words without the blacklist." />
+	<link rel="canonical" href="https://art-of-intent.netlify.app/help" />
+	<meta property="og:url" content="https://art-of-intent.netlify.app/help" />
+	<meta property="og:title" content="How to Play · Art of Intent" />
+	<meta property="og:description" content="Learn how to play Art of Intent — guide Arty the haiku bot to say your target words without the blacklist." />
 </svelte:head>
 
 <div class="help-wrap">

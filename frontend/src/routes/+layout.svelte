@@ -44,6 +44,31 @@
 	);
 </script>
 
+<svelte:head>
+	{@html `<script type="application/ld+json">${JSON.stringify({
+		"@context": "https://schema.org",
+		"@type": "Game",
+		"@id": "https://art-of-intent.netlify.app/",
+		"name": "Art of Intent",
+		"description": "A daily word puzzle where players guide an AI haiku bot to say target words without using blacklisted words. Score based on token efficiency.",
+		"url": "https://art-of-intent.netlify.app/",
+		"genre": "Word Puzzle",
+		"gameMode": "SinglePlayer",
+		"gamePlatform": "Web Browser",
+		"applicationCategory": "Game",
+		"offers": {
+			"@type": "Offer",
+			"price": "0",
+			"priceCurrency": "USD",
+			"availability": "https://schema.org/InStock"
+		},
+		"potentialAction": {
+			"@type": "PlayGameAction",
+			"target": "https://art-of-intent.netlify.app/"
+		}
+	})}</script>`}
+</svelte:head>
+
 <!-- ── Splash / boot screen ─────────────────────────────────────────────── -->
 <div id="splash-screen" class:dismissed={splashDismissed} aria-hidden="true">
 	<div class="splash-content">
