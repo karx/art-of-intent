@@ -1,0 +1,25 @@
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback — let SvelteKit handle all routes client-side
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Cache immutable Vite assets forever
+[[headers]]
+  for = "/_app/immutable/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# No-cache for the entry point so new deploys are picked up immediately
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
