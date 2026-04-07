@@ -10,15 +10,11 @@
     "database": "alpha"
   },
   "hosting": {
-    "public": ".",
+    "public": "frontend/build",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "tests/**",
-      "docs/**",
-      "functions/**",
-      "*.md"
+      "**/node_modules/**"
     ],
     "rewrites": [
       {
