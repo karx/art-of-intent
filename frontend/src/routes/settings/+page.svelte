@@ -2,25 +2,6 @@
 	import { authState } from '$lib/stores/auth.svelte';
 	import { saveUserSettings } from '$lib/api';
 
-	// ── Theme ─────────────────────────────────────────────────────────────────
-	const THEMES = [
-		{ id: 'solarized', label: 'Solarized', icon: '🌙' },
-		{ id: 'polarized', label: 'Polarized', icon: '☀️' },
-		{ id: 'light',     label: 'Light',     icon: '⚪' },
-		{ id: 'dark',      label: 'Dark',      icon: '⚫' },
-		{ id: 'cartoon',   label: 'Cartoon',   icon: '🎨' },
-	];
-
-	let theme = $state(
-		typeof localStorage !== 'undefined' ? (localStorage.getItem('theme') ?? 'solarized') : 'solarized'
-	);
-
-	function applyTheme(id: string) {
-		theme = id;
-		localStorage.setItem('theme', id);
-		document.documentElement.setAttribute('data-theme', id);
-	}
-
 	// ── BYOM ──────────────────────────────────────────────────────────────────
 	type Provider = 'gemini' | 'openai' | 'anthropic' | 'custom';
 
@@ -80,22 +61,6 @@
 <svelte:head><title>Settings · Art of Intent</title></svelte:head>
 
 <div class="container main-content">
-	<!-- ── Theme ─────────────────────────────────────────────────────── -->
-	<section class="settings-section">
-		<h2>Theme</h2>
-		<div class="theme-grid">
-			{#each THEMES as t}
-				<button
-					class="theme-btn {theme === t.id ? 'active' : ''}"
-					onclick={() => applyTheme(t.id)}
-				>
-					<span>{t.icon}</span>
-					<span>{t.label}</span>
-				</button>
-			{/each}
-		</div>
-	</section>
-
 	<!-- ── BYOM ──────────────────────────────────────────────────────── -->
 	<section class="settings-section">
 		<h2>Bring Your Own Model</h2>
@@ -173,23 +138,6 @@
 <style>
 	.settings-section { margin-bottom: 2.5rem; }
 	.settings-section h2 { margin-bottom: 0.75rem; }
-
-	.theme-grid {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-	.theme-btn {
-		padding: 0.4rem 0.8rem;
-		border: 1px solid var(--color-border, #555);
-		background: transparent;
-		cursor: pointer;
-		color: inherit;
-	}
-	.theme-btn.active {
-		border-color: var(--color-primary, #0af);
-		color: var(--color-primary, #0af);
-	}
 
 	label {
 		display: block;

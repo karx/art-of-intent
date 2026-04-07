@@ -9,52 +9,63 @@
 		totalTokens: number;
 		attempts: number;
 		efficiency: number;
+		efficiencyScore: number;
 		matchedWords: string[];
 		date: string;
 	}
 
 	const today = new Date().toISOString().split('T')[0];
 
-	let entries = $state<Entry[]>([]);
-	let loading = $state(true);
-	let error = $state('');
+	let entries  = $state<Entry[]>([]);
+	let showDate = $state(today);
+	let loading  = $state(true);
+	let error    = $state('');
+
+	function mapSession(d: any): Entry {
+		const s = d.data();
+		const totalTokens = s.totalTokens ?? 0;
+		const attempts    = s.attempts ?? 0;
+		return {
+			displayName:     s.displayName ?? s.userName ?? 'Anonymous',
+			totalTokens,
+			attempts,
+			efficiency:      attempts > 0 ? Math.round((totalTokens / attempts) * 10) / 10 : 0,
+			efficiencyScore: s.efficiencyScore ?? (attempts * 10 + Math.floor(totalTokens / 10)),
+			matchedWords:    s.matchedWords ?? [],
+			date:            s.gameDate ?? today,
+		};
+	}
+
+	async function fetchForDate(date: string): Promise<Entry[]> {
+		const q = query(
+			collection(db, 'sessions'),
+			where('result', '==', 'victory'),
+			where('gameDate', '==', date),
+			orderBy('efficiencyScore', 'asc'),
+			limit(10)
+		);
+		const snap = await getDocs(q);
+		return snap.docs.map(mapSession);
+	}
 
 	onMount(async () => {
 		try {
-			// Try today's leaderboard first; fall back to recent sessions
-			const q = query(
-				collection(db, 'leaderboard'),
-				where('date', '==', today),
-				orderBy('totalTokens', 'asc'),
-				limit(10)
-			);
-			const snap = await getDocs(q);
+			entries = await fetchForDate(today);
 
-			if (!snap.empty) {
-				entries = snap.docs.map(d => d.data() as Entry);
-			} else {
-				// Fallback: recent winning sessions
-				const q2 = query(
+			if (entries.length === 0) {
+				// No winners yet today — find the most recent date that has victories.
+				// Requires index: result (asc) + gameDate (desc).
+				const recentQ = query(
 					collection(db, 'sessions'),
 					where('result', '==', 'victory'),
-					where('gameDate', '==', today),
-					orderBy('totalTokens', 'asc'),
-					limit(10)
+					orderBy('gameDate', 'desc'),
+					limit(1)
 				);
-				const snap2 = await getDocs(q2);
-				entries = snap2.docs.map(d => {
-					const d2 = d.data();
-					return {
-						displayName: d2.displayName ?? 'Anonymous',
-						totalTokens: d2.totalTokens ?? 0,
-						attempts:    d2.attempts ?? 0,
-						efficiency:  d2.totalTokens && d2.attempts
-							? Math.round((d2.totalTokens / d2.attempts) * 10) / 10
-							: 0,
-						matchedWords: d2.matchedWords ?? [],
-						date: d2.gameDate ?? today,
-					} as Entry;
-				});
+				const recentSnap = await getDocs(recentQ);
+				if (!recentSnap.empty) {
+					showDate = recentSnap.docs[0].data().gameDate;
+					entries  = await fetchForDate(showDate);
+				}
 			}
 		} catch (e: any) {
 			error = e.message ?? 'Failed to load leaderboard.';
@@ -67,7 +78,9 @@
 <svelte:head><title>Leaderboard · Art of Intent</title></svelte:head>
 
 <div class="container main-content">
-	<p class="page-date">{today}</p>
+	<p class="page-date">
+		{showDate}{#if showDate !== today}&nbsp;· most recent&nbsp;{/if}
+	</p>
 
 	{#if loading}
 		<p>Loading…</p>
@@ -89,13 +102,13 @@
 			</thead>
 			<tbody>
 				{#each entries as entry, i}
-					{@const r = getRating(entry.efficiency ?? entry.totalTokens / Math.max(entry.attempts, 1))}
+					{@const r = getRating(entry.efficiency)}
 					<tr>
 						<td>{i + 1}</td>
 						<td>{entry.displayName}</td>
 						<td>{entry.totalTokens}</td>
 						<td>{entry.attempts}</td>
-						<td>{entry.efficiency?.toFixed(1) ?? '—'}</td>
+						<td>{entry.efficiency.toFixed(1)}</td>
 						<td class="text-{r.color}">{r.stars}</td>
 					</tr>
 				{/each}

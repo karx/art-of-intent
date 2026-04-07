@@ -378,6 +378,11 @@ export const artyGenerateHaiku = onCall({
             });
 
             const details = { provider, providerStatus, retryAfterSeconds };
+            // Include provider message for BYOM so the client can surface actionable errors
+            if (provider !== 'gemini' && providerMessage) details.providerMessage = providerMessage;
+
+            const isBillingError = /credit|billing|quota|payment|balance/i.test(providerMessage);
+
             switch (httpStatus) {
                 case 429:
                     throw new HttpsError('resource-exhausted',
@@ -387,7 +392,9 @@ export const artyGenerateHaiku = onCall({
                         details);
                 case 400:
                     throw new HttpsError('invalid-argument',
-                        'The request was rejected by the AI. Please try a different prompt.',
+                        isBillingError
+                            ? 'Your API account has insufficient credits. Please top up your balance.'
+                            : 'The request was rejected by the AI. Please try a different prompt.',
                         details);
                 case 401:
                 case 403:

@@ -5,10 +5,33 @@
 
 	let { children } = $props();
 
+	let splashDismissed = $state(false);
+	let splashReady     = $state(false); // "READY." line appears
+
 	onMount(() => {
-		const saved = localStorage.getItem('theme') ?? 'solarized';
-		document.documentElement.setAttribute('data-theme', saved);
 		document.body.classList.add('scrolled-top');
+
+		// Reveal the "READY." line after the boot lines animate in (~2.4s)
+		const readyTimer = setTimeout(() => { splashReady = true; }, 2400);
+
+		// Dismiss splash once auth resolves (min 2.8s so the boot feels real)
+		const minTimer   = setTimeout(() => {
+			if (authState.ready) splashDismissed = true;
+		}, 2800);
+
+		// Watch for auth resolving after the minimum
+		const interval = setInterval(() => {
+			if (authState.ready && splashReady) {
+				splashDismissed = true;
+				clearInterval(interval);
+			}
+		}, 100);
+
+		return () => {
+			clearTimeout(readyTimer);
+			clearTimeout(minTimer);
+			clearInterval(interval);
+		};
 	});
 
 	// Current section label for top-bar breadcrumb
@@ -18,6 +41,24 @@
 		null
 	);
 </script>
+
+<!-- ── Splash / boot screen ─────────────────────────────────────────────── -->
+<div id="splash-screen" class:dismissed={splashDismissed} aria-hidden="true">
+	<div class="splash-content">
+		<div class="splash-title">ART OF INTENT</div>
+		<div class="splash-divider">━━━━━━━━━━━━━━━━━━━━━━━━</div>
+		<div class="splash-line splash-line--1">
+			<span class="splash-prompt">&gt;</span> loading daily puzzle...
+		</div>
+		<div class="splash-line splash-line--2">
+			<span class="splash-prompt">&gt;</span> connecting to arty...
+		</div>
+		<div class="splash-line splash-line--3" style="opacity: {splashReady ? 1 : 0}">
+			<span class="splash-prompt">&gt;</span> READY.
+		</div>
+		<div class="splash-cursor">█</div>
+	</div>
+</div>
 
 <!-- ── Side navigation ──────────────────────────────────────────────────── -->
 <nav class="side-nav" aria-label="Main navigation">
@@ -75,11 +116,11 @@
 		font-family: inherit;
 	}
 	.top-bar-prompt {
-		color: var(--sol-yellow);
+		color: var(--warning-color);
 		font-weight: bold;
 	}
 	.top-bar-name {
-		color: var(--sol-cyan);
+		color: var(--info-color);
 		font-weight: bold;
 		font-size: 13px;
 		letter-spacing: 2px;
@@ -94,7 +135,7 @@
 
 	/* ── Auth in top bar ──────────────────────────────────────────────── */
 	.top-bar-user {
-		color: var(--sol-cyan);
+		color: var(--info-color);
 		font-size: 12px;
 		text-transform: uppercase;
 		letter-spacing: 1px;
@@ -124,15 +165,15 @@
 		cursor: pointer;
 	}
 	.top-bar-btn:hover {
-		border-color: var(--sol-cyan);
-		color: var(--sol-cyan);
+		border-color: var(--info-color);
+		color: var(--info-color);
 	}
 	.top-bar-btn--primary {
-		border-color: var(--sol-cyan);
-		color: var(--sol-cyan);
+		border-color: var(--info-color);
+		color: var(--info-color);
 	}
 	.top-bar-btn--primary:hover {
-		background: var(--sol-cyan);
+		background: var(--info-color);
 		color: var(--bg-primary);
 	}
 </style>
