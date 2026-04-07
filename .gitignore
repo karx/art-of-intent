@@ -13,8 +13,7 @@ functions/node_modules/
 # Node modules
 node_modules/
 
-# Lock files — committed for reproducible CI; root package-lock excluded (legacy vanilla stack)
-/package-lock.json
+# Lock files — all committed for reproducible CI
 
 # Build outputs
 dist/
