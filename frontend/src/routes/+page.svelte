@@ -1,15 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { onAuthStateChanged, signInAnonymously, signInWithPopup } from 'firebase/auth';
 	import { doc, getDoc } from 'firebase/firestore';
-	import { auth, db, googleProvider } from '$lib/firebase';
+	import { db } from '$lib/firebase';
+	import { authState } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
 	import { getRating, calculateEfficiency } from '$lib/scoring';
-
-	// ── Auth state ────────────────────────────────────────────────────────────
-	let user = $state<any>(null);
-	let authReady = $state(false);
 
 	// ── UI state ──────────────────────────────────────────────────────────────
 	let prompt = $state('');
@@ -28,14 +23,13 @@
 	const rating = $derived(getRating(efficiency));
 	const today = new Date().toISOString().split('T')[0];
 
-	// ── Init ──────────────────────────────────────────────────────────────────
-	onMount(() => {
-		const unsub = onAuthStateChanged(auth, async (u) => {
-			user = u;
-			authReady = true;
-			if (u) await loadDailyWords();
-		});
-		return unsub;
+	// ── Load words when auth is ready ─────────────────────────────────────────
+	let wordsLoaded = false;
+	$effect(() => {
+		if (authState.user && !wordsLoaded) {
+			wordsLoaded = true;
+			loadDailyWords();
+		}
 	});
 
 	async function loadDailyWords() {
@@ -56,20 +50,10 @@
 		}
 	}
 
-	async function signInGoogle() {
-		try { await signInWithPopup(auth, googleProvider); }
-		catch (e: any) { error = e.message; }
-	}
-
-	async function signInAnon() {
-		try { await signInAnonymously(auth); }
-		catch (e: any) { error = e.message; }
-	}
-
 	// ── Game loop ─────────────────────────────────────────────────────────────
 	async function submit() {
 		const text = prompt.trim();
-		if (!text || loading || gameState.gameOver || !user) return;
+		if (!text || loading || gameState.gameOver || !authState.user) return;
 
 		const lower = text.toLowerCase();
 		const blockedWord = [...gameState.blacklistWords, ...gameState.targetWords]
@@ -130,13 +114,8 @@
 	<header class="top-bar">
 		<h1 class="app-title">Art of Intent</h1>
 		<div class="top-bar-right">
-			{#if !authReady}
-				<span>Loading…</span>
-			{:else if user}
-				<span class="user-name">{user.displayName ?? 'Guest'}</span>
-			{:else}
-				<button class="btn-primary btn-google" onclick={signInGoogle}>Sign in with Google</button>
-				<button class="btn-secondary" onclick={signInAnon}>Play as Guest</button>
+			{#if authState.user}
+				<span class="user-name">{authState.user.displayName ?? 'Guest'}</span>
 			{/if}
 		</div>
 	</header>
@@ -229,14 +208,14 @@
 					placeholder="Enter your prompt to guide Arty… (Ctrl+Enter to send)"
 					rows="3"
 					maxlength="500"
-					disabled={loading || !user || gameState.targetWords.length === 0}
+					disabled={loading || !authState.user || gameState.targetWords.length === 0}
 					bind:value={prompt}
 					onkeydown={handleKeydown}
 				></textarea>
 				<div class="input-controls">
 					<button
 						class="submit-btn"
-						disabled={loading || !prompt.trim() || !user || gameState.targetWords.length === 0}
+						disabled={loading || !prompt.trim() || !authState.user || gameState.targetWords.length === 0}
 						onclick={submit}
 					>
 						{loading ? 'Sending…' : 'Send Prompt'}
