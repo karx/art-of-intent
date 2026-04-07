@@ -109,7 +109,14 @@
 	});
 </script>
 
-<svelte:head><title>Leaderboard · Art of Intent</title></svelte:head>
+<svelte:head>
+	<title>Leaderboard · Art of Intent</title>
+	<meta name="description" content="Top scores and rankings for Art of Intent — the daily AI word puzzle." />
+	<link rel="canonical" href="https://art-of-intent.netlify.app/leaderboard" />
+	<meta property="og:url" content="https://art-of-intent.netlify.app/leaderboard" />
+	<meta property="og:title" content="Leaderboard · Art of Intent" />
+	<meta property="og:description" content="Top scores and rankings for Art of Intent — the daily AI word puzzle." />
+</svelte:head>
 
 <div class="container main-content">
 	<p class="page-date">

@@ -1,0 +1,17 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <style>
+            .minimal-text {
+                font-family: 'Courier New', monospace;
+                font-weight: 700;
+                font-size: 20px;
+                fill: #FFFF55;
+                text-anchor: middle;
+                dominant-baseline: central;
+            }
+        </style>
+    </defs>
+    <rect width="32" height="32" fill="#000000"/>
+    <rect x="2" y="2" width="28" height="28" fill="none" stroke="#55FFFF" stroke-width="2" rx="2"/>
+    <text x="16" y="16" class="minimal-text">AI</text>
+</svg>

@@ -1,3 +1,5 @@
-# allow crawling everything by default
 User-agent: *
-Disallow:
+Disallow: /cheat
+Disallow: /insights
+
+Sitemap: https://art-of-intent.netlify.app/sitemap.xml

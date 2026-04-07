@@ -1,6 +1,10 @@
 <svelte:head>
 	<title>About · Art of Intent</title>
 	<meta name="description" content="Learn about Art of Intent, the rules, gameplay, and creator information." />
+	<link rel="canonical" href="https://art-of-intent.netlify.app/about" />
+	<meta property="og:url" content="https://art-of-intent.netlify.app/about" />
+	<meta property="og:title" content="About · Art of Intent" />
+	<meta property="og:description" content="Learn about Art of Intent, the rules, gameplay, and creator information." />
 </svelte:head>
 
 <div class="about-wrap">

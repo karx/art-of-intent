@@ -295,7 +295,16 @@
 	}
 </script>
 
-<svelte:head><title>Art of Intent</title></svelte:head>
+<svelte:head>
+	<title>Art of Intent — Daily AI Word Puzzle</title>
+	<meta name="description" content="Guide Arty the Haiku Bot with clever prompts. Hit 3 target words, avoid forbidden ones. Daily AI puzzle with global leaderboard." />
+	<link rel="canonical" href="https://art-of-intent.netlify.app/" />
+	<meta property="og:url" content="https://art-of-intent.netlify.app/" />
+	<meta property="og:title" content="Art of Intent — Daily AI Word Puzzle" />
+	<meta property="og:description" content="Guide Arty the Haiku Bot with clever prompts. Hit 3 target words, avoid forbidden ones. Daily AI puzzle with global leaderboard." />
+	<meta name="twitter:title" content="Art of Intent — Daily AI Word Puzzle" />
+	<meta name="twitter:description" content="Guide Arty the Haiku Bot with clever prompts. Hit 3 target words, avoid forbidden ones. Daily AI puzzle with global leaderboard." />
+</svelte:head>
 
 <div class="container main-content">
 

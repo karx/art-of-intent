@@ -1,0 +1,25 @@
+{
+  "name": "Art of Intent",
+  "short_name": "Art of Intent",
+  "description": "Guide Arty the Haiku Bot to say target words without using blacklisted words. Daily AI word puzzle.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "orientation": "portrait-primary",
+  "categories": ["games", "entertainment", "education"],
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
