@@ -82,6 +82,15 @@ class SoundManager {
         setTimeout(() => this.generateBeep(300, 0.3), 400);
     }
     
+    playCheatCode() {
+        // DOS-style cheat code activation — distinctive up/down/way-up fanfare
+        setTimeout(() => this.generateBeep(523, 0.06, 'square'), 0);    // C5
+        setTimeout(() => this.generateBeep(784, 0.06, 'square'), 80);   // G5 (up)
+        setTimeout(() => this.generateBeep(523, 0.06, 'square'), 160);  // C5 (down)
+        setTimeout(() => this.generateBeep(659, 0.06, 'square'), 240);  // E5 (up)
+        setTimeout(() => this.generateBeep(1047, 0.25, 'square'), 320); // C6 (way up, held)
+    }
+
     playClick() {
         // Short click sound
         this.generateBeep(1000, 0.03);

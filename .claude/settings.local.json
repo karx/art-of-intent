@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firebase login:list:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm run:*)",
+      "Bash(wc -l D:/src/art-of-intent/src/js/*.js)",
+      "Bash(npx svelte-check:*)",
+      "Bash(find:*)"
+    ]
+  }
+}

@@ -1,0 +1,101 @@
+name: Android — Build APK / AAB
+
+on:
+  push:
+    tags: ['v*']          # Release builds on version tags
+  workflow_dispatch:       # Manual trigger for ad-hoc builds
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options: [debug, release]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install root dependencies (Capacitor CLI)
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Run frontend tests
+        run: npx vitest run
+        working-directory: frontend
+
+      - name: Build web assets
+        run: npm run build
+        working-directory: frontend
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+        working-directory: .
+
+      # ── Debug build (PRs / manual) ────────────────────────────────────────
+      - name: Build debug APK
+        if: ${{ github.event.inputs.build_type != 'release' && !startsWith(github.ref, 'refs/tags/') }}
+        run: ./gradlew assembleDebug
+        working-directory: android
+
+      - name: Upload debug APK
+        if: ${{ github.event.inputs.build_type != 'release' && !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      # ── Release build (tags) ──────────────────────────────────────────────
+      - name: Decode keystore
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.build_type == 'release'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Build release AAB
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.build_type == 'release'
+        run: |
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=${{ github.workspace }}/android/app/release.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.ANDROID_KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+
+      - name: Upload release AAB
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.build_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ github.ref_name }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 90

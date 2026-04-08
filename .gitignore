@@ -9,11 +9,11 @@ firestore-debug.log
 ui-debug.log
 functions/.env
 functions/node_modules/
-functions/package-lock.json
 
 # Node modules
 node_modules/
-package-lock.json
+
+# Lock files — all committed for reproducible CI
 
 # Build outputs
 dist/
@@ -56,3 +56,4 @@ docs/**/*.wip.md
 
 art-of-intent-firebase-adminsdk-1whdc-d407629ecd.json
 art-of-intent-firebase-adminsdk-*.json
+firestore-backup-*.json

@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /cheat
+Disallow: /insights
+
+Sitemap: https://art-of-intent.netlify.app/sitemap.xml
