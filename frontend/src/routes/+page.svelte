@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { doc, getDoc } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
-	import { authState } from '$lib/stores/auth.svelte';
+	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
 	import { getRating, calculateEfficiency } from '$lib/scoring';
 	import { generateShareCardSVG, shareCard, downloadCard, previewCard, type ShareCardData } from '$lib/share-card';
 	import remarksData from '$lib/arty-remarks.json';
+	import { sound } from '$lib/sound';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -34,6 +35,26 @@
 	let thinking     = $state(false);
 	let thinkingRemark = $state('contemplating...');
 	let trailEnd: HTMLElement | undefined;  // scroll anchor
+
+	// Voice / mic
+	let micRecording = $state(false);
+	function handleMic() {
+		const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+		if (!SR) { showToast('Voice input not supported in this browser', 'error'); return; }
+		const rec = new SR();
+		rec.continuous = false;
+		rec.interimResults = false;
+		rec.onstart  = () => { micRecording = true; };
+		rec.onend    = () => { micRecording = false; };
+		rec.onerror  = () => { micRecording = false; };
+		rec.onresult = (e: any) => {
+			const transcript: string = e.results[0][0].transcript;
+			prompt = transcript;
+			// Auto-submit after a short delay so the textarea updates first
+			setTimeout(() => { if (transcript.trim()) submit(); }, 300);
+		};
+		rec.start();
+	}
 
 	// Toast
 	let toastMsg   = $state('');
@@ -185,7 +206,7 @@
 
 			gameState.attempts++;
 			gameState.creepLevel = newCreep;
-			if (creepMaxed) { gameState.gameOver = true; gameState.wonGame = false; }
+			if (creepMaxed) { gameState.gameOver = true; gameState.wonGame = false; sound.playDefeat(); }
 			trail  = [...trail, entry];
 			prompt = '';
 			error  = '';
@@ -195,6 +216,7 @@
 
 		error   = '';
 		loading = true;
+		sound.playSubmit();
 		startThinking();
 
 		try {
@@ -216,6 +238,12 @@
 			const next = applyAttemptResult(gameState, { tokens, newMatches, blacklistViolations: blacklistHits.length });
 			Object.assign(gameState, next);
 			gameState.matchedWords = next.matchedWords;
+
+			// Audio feedback
+			if (next.wonGame)          sound.playVictory();
+			else if (next.gameOver)    sound.playDefeat();
+			else if (newMatches.length > 0) sound.playMatch();
+			else                       sound.playMiss();
 
 			const entry: TrailEntry = {
 				number:       next.attempts,
@@ -352,7 +380,34 @@
 		<div class="trail-container">
 
 			{#if trail.length === 0 && !thinking}
-				<div class="empty-state">No attempts yet — enter your prompt below.</div>
+				{#if !authState.ready}
+					<div class="empty-state">Loading…</div>
+				{:else if !authState.user}
+					<!-- ── Onboarding panel ─────────────────────────────────── -->
+					<div class="onboarding-panel">
+						<div class="onboarding-title">HOW TO PLAY</div>
+						<ol class="onboarding-steps">
+							<li>Three <span class="ob-target">TARGET</span> words are chosen daily.</li>
+							<li>Write a prompt — Arty the haiku bot will respond.</li>
+							<li>Get Arty to say all three targets without using any <span class="ob-avoid">AVOID</span> words.</li>
+							<li>Score is based on tokens used — fewer is better.</li>
+						</ol>
+						<div class="onboarding-cta-label">Ready? Choose how to play:</div>
+						<div class="onboarding-actions">
+							<button class="btn-primary ob-btn" onclick={signInGoogle}>
+								Sign in with Google
+							</button>
+							<button class="btn-secondary ob-btn" onclick={signInAnon}>
+								Continue as Guest
+							</button>
+						</div>
+						<div class="onboarding-note">
+							Guest progress is saved in this browser only. Sign in to access the leaderboard.
+						</div>
+					</div>
+				{:else}
+					<div class="empty-state">No attempts yet — enter your prompt below.</div>
+				{/if}
 			{/if}
 
 			{#each trail as entry}
@@ -500,7 +555,7 @@
 		<div class="input-section">
 			<div class="input-header">
 				<span class="text-dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;">
-					{#if !authState.user}sign in to play
+					{#if !authState.user}↑ sign in or continue as guest above to play
 					{:else if gameState.targetWords.length === 0}loading words…
 					{:else}prompt arty — ctrl+enter to send
 					{/if}
@@ -518,6 +573,13 @@
 					onkeydown={handleKeydown}
 				></textarea>
 				<div class="input-controls">
+					<button
+						class="voice-btn"
+						class:recording={micRecording}
+						disabled={loading || !authState.user || gameState.targetWords.length === 0 || micRecording}
+						onclick={handleMic}
+						title="Voice input"
+					>MIC</button>
 					<button
 						class="submit-btn"
 						disabled={loading || !prompt.trim() || !authState.user || gameState.targetWords.length === 0}
@@ -641,4 +703,82 @@
 	.text-info    { color: var(--info-color);    }
 	.text-warning { color: var(--warning-color); }
 	.text-error   { color: var(--error-color);   }
+
+	/* ── Onboarding panel ────────────────────────────────────────────────── */
+	.onboarding-panel {
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+		padding: var(--spacing-lg);
+		margin: var(--spacing-md) 0;
+	}
+
+	.onboarding-title {
+		font-size: 11px;
+		letter-spacing: 2px;
+		color: var(--text-dim);
+		margin-bottom: var(--spacing-md);
+	}
+
+	.onboarding-steps {
+		margin: 0 0 var(--spacing-md) 0;
+		padding-left: 1.4em;
+		font-size: 13px;
+		line-height: 1.8;
+		color: var(--text-primary);
+	}
+
+	.onboarding-steps li { margin-bottom: 2px; }
+
+	.ob-target { color: var(--success-color); font-weight: bold; }
+	.ob-avoid  { color: var(--error-color);   font-weight: bold; }
+
+	.onboarding-cta-label {
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		color: var(--text-dim);
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.onboarding-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-sm);
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.ob-btn {
+		font-size: 13px;
+		padding: var(--spacing-sm) var(--spacing-lg);
+		cursor: pointer;
+		font-family: inherit;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+	}
+
+	/* inherit btn-primary / btn-secondary from global theme */
+	.btn-primary {
+		background: var(--info-color);
+		color: var(--bg-primary);
+		border: 1px solid var(--info-color);
+	}
+	.btn-primary:hover {
+		background: var(--bg-primary);
+		color: var(--info-color);
+	}
+	.btn-secondary {
+		background: var(--bg-primary);
+		color: var(--text-primary);
+		border: 1px solid var(--border-color);
+	}
+	.btn-secondary:hover {
+		border-color: var(--info-color);
+		color: var(--info-color);
+	}
+
+	.onboarding-note {
+		font-size: 11px;
+		color: var(--text-dim);
+		letter-spacing: 0.3px;
+	}
 </style>
