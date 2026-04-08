@@ -8,6 +8,7 @@
 	import { generateShareCardSVG, shareCard, downloadCard, previewCard, type ShareCardData } from '$lib/share-card';
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
+	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -24,7 +25,8 @@
 		creepLevel: number;
 		violation: boolean;        // user prompt contained a restricted word
 		violatedWords: string[];
-		type: 'normal' | 'success' | 'violation' | 'victory' | 'defeat';
+		type: 'normal' | 'success' | 'violation' | 'victory' | 'defeat' | 'cheat';
+		cheatCode?: { id: string; title: string; author: string; year: string; wink: string };
 	}
 
 	// ── UI state ──────────────────────────────────────────────────────────────
@@ -109,6 +111,7 @@
 				creepLevel:    gameState.creepLevel,
 				gameOver:      gameState.gameOver,
 				wonGame:       gameState.wonGame,
+				cheated:       gameState.cheated,
 				sessionId:     gameState.sessionId,
 				targetWords:   gameState.targetWords,
 				blacklistWords:gameState.blacklistWords,
@@ -130,6 +133,7 @@
 			gameState.creepLevel     = saved.creepLevel    ?? 0;
 			gameState.gameOver       = saved.gameOver      ?? false;
 			gameState.wonGame        = saved.wonGame       ?? false;
+			gameState.cheated        = saved.cheated       ?? false;
 			gameState.sessionId      = saved.sessionId     ?? null;
 			gameState.targetWords    = saved.targetWords   ?? [];
 			gameState.blacklistWords = saved.blacklistWords ?? [];
@@ -175,10 +179,49 @@
 		} catch { error = "Failed to load today's words. Please refresh."; }
 	}
 
+	// ── Cheat code handler ───────────────────────────────────────────────────
+	function processCheat(code: CheatCode) {
+		const unmatchedWords = gameState.targetWords.filter(w => !gameState.matchedWords.has(w));
+		const giftedWord     = unmatchedWords[0] ?? gameState.targetWords[0] ?? '';
+
+		gameState.cheated  = true;
+		gameState.attempts += 1;
+
+		const newMatched = new Set(gameState.matchedWords);
+		if (giftedWord) newMatched.add(giftedWord);
+		gameState.matchedWords = newMatched;
+
+		const allMatched = gameState.targetWords.length > 0 && newMatched.size >= gameState.targetWords.length;
+		if (allMatched) { gameState.gameOver = true; gameState.wonGame = true; }
+
+		const entry: TrailEntry = {
+			number:       gameState.attempts,
+			prompt:       `✦ ${code.lines.join(' / ')}`,
+			haiku:        giftedWord ? code.funResponse(giftedWord) : `✦ ${code.title} ✦`,
+			timestamp:    new Date().toLocaleTimeString(),
+			promptTokens: 0, outputTokens: 0, tokens: 0,
+			newMatches:   giftedWord ? [giftedWord] : [],
+			blacklistHits: [], creepIncrease: 0, creepLevel: gameState.creepLevel,
+			violation: false, violatedWords: [],
+			type: allMatched ? 'victory' : 'cheat',
+			cheatCode: { id: code.id, title: code.title, author: code.author, year: code.year, wink: code.wink },
+		};
+
+		trail = [...trail, entry];
+		sound.playCheatCode();
+		if (allMatched) setTimeout(() => sound.playVictory(), 650);
+		saveToStorage();
+	}
+
 	// ── Game loop ─────────────────────────────────────────────────────────────
 	async function submit() {
 		const text = prompt.trim();
 		if (!text || loading || gameState.gameOver || !authState.user) return;
+
+		// ── Cheat code detection ──────────────────────────────────────────────
+		const cheatMatch = detectCheatCode(text);
+		if (cheatMatch) { processCheat(cheatMatch.code); prompt = ''; return; }
+		// ─────────────────────────────────────────────────────────────────────
 
 		const lower         = text.toLowerCase();
 		const violatedWords = [...gameState.blacklistWords, ...gameState.targetWords]
@@ -416,7 +459,8 @@
 					entry.type === 'victory'   ? 'trail-item--victory'   :
 					entry.type === 'defeat'    ? 'trail-item--violation' :
 					entry.type === 'violation' ? 'trail-item--violation' :
-					entry.type === 'success'   ? 'trail-item--success'   : ''}
+					entry.type === 'success'   ? 'trail-item--success'   :
+					entry.type === 'cheat'     ? 'trail-item--cheat'     : ''}
 
 				<div class="trail-item {itemClass}">
 
@@ -425,6 +469,7 @@
 						<span>
 							{#if entry.type === 'victory'}VICTORY
 							{:else if entry.type === 'defeat'}GAME OVER
+							{:else if entry.type === 'cheat'}✦ CHEAT CODE — {entry.cheatCode?.title}
 							{:else if isViol}VIOLATION
 							{:else}Attempt #{entry.number}
 							{/if}
@@ -485,6 +530,18 @@
 							{#if entry.type !== 'defeat'}
 								<div class="creep-warning">no tokens consumed</div>
 							{/if}
+						</div>
+					{/if}
+
+					<!-- Cheat code attribution -->
+					{#if entry.cheatCode}
+						<div class="cheat-badge">
+							<span class="cheat-badge-icon">✦</span>
+							<span class="cheat-badge-text">{entry.cheatCode.author}, {entry.cheatCode.year}</span>
+							<span class="cheat-badge-sep">·</span>
+							<span class="cheat-badge-wink">{entry.cheatCode.wink}</span>
+							<span class="cheat-badge-sep">·</span>
+							<a href="/cheat" class="cheat-badge-link">all cheat codes →</a>
 						</div>
 					{/if}
 
@@ -601,6 +658,39 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Cheat code trail item ───────────────────────────────────────────── */
+	:global(.trail-item--cheat) {
+		border-left: 3px solid var(--accent-yellow, #f0c040);
+		animation: cheatSparkle 3s ease-in-out;
+	}
+	@keyframes cheatSparkle {
+		0%, 100% { border-left-color: var(--accent-yellow, #f0c040); }
+		50%       { border-left-color: var(--info-color, #4fc3f7); }
+	}
+	:global(.cheat-badge) {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4em;
+		margin-top: 0.5em;
+		padding: 0.3em 0.6em;
+		font-size: 11px;
+		background: rgba(240, 192, 64, 0.08);
+		border: 1px solid rgba(240, 192, 64, 0.25);
+		color: var(--accent-yellow, #f0c040);
+	}
+	:global(.cheat-badge-icon)  { font-size: 13px; }
+	:global(.cheat-badge-text)  { font-weight: bold; }
+	:global(.cheat-badge-sep)   { opacity: 0.4; }
+	:global(.cheat-badge-wink)  { font-style: italic; opacity: 0.9; }
+	:global(.cheat-badge-link)  {
+		color: inherit;
+		opacity: 0.7;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	:global(.cheat-badge-link:hover) { opacity: 1; }
 
 	/* Dim haiku text for violation entries */
 	:global(.trail-response--dim) {

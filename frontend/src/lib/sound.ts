@@ -57,6 +57,15 @@ class SoundManager {
 		setTimeout(() => this.beep(300, 0.3), 400);
 	}
 
+	playCheatCode() {
+		// DOS-style cheat code activation — distinctive up/down/way-up fanfare
+		setTimeout(() => this.beep(523, 0.06, 'square'), 0);    // C5
+		setTimeout(() => this.beep(784, 0.06, 'square'), 80);   // G5 (up)
+		setTimeout(() => this.beep(523, 0.06, 'square'), 160);  // C5 (down)
+		setTimeout(() => this.beep(659, 0.06, 'square'), 240);  // E5 (up)
+		setTimeout(() => this.beep(1047, 0.25, 'square'), 320); // C6 (way up, held)
+	}
+
 	isEnabled() { return this.enabled; }
 
 	toggle() {
@@ -74,11 +83,12 @@ function mgr(): SoundManager {
 }
 
 export const sound = {
-	playSubmit:  () => mgr().playSubmit(),
-	playMatch:   () => mgr().playMatch(),
-	playMiss:    () => mgr().playMiss(),
-	playVictory: () => mgr().playVictory(),
-	playDefeat:  () => mgr().playDefeat(),
-	isEnabled:   () => mgr().isEnabled(),
-	toggle:      () => mgr().toggle(),
+	playSubmit:    () => mgr().playSubmit(),
+	playMatch:     () => mgr().playMatch(),
+	playMiss:      () => mgr().playMiss(),
+	playVictory:   () => mgr().playVictory(),
+	playDefeat:    () => mgr().playDefeat(),
+	playCheatCode: () => mgr().playCheatCode(),
+	isEnabled:     () => mgr().isEnabled(),
+	toggle:        () => mgr().toggle(),
 };
