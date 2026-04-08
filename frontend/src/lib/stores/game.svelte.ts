@@ -9,6 +9,7 @@ export interface GameState {
 	creepPerViolation: number;
 	gameOver: boolean;
 	wonGame: boolean;
+	cheated: boolean;
 	currentDate: string | null;
 	sessionId: string | null;
 }
@@ -31,6 +32,7 @@ export function createGameState(): GameState {
 		creepPerViolation: 25,
 		gameOver: false,
 		wonGame: false,
+		cheated: false,
 		currentDate: null,
 		sessionId: null,
 	};

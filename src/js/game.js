@@ -1012,7 +1012,7 @@ function processCheatResponse(cheatCode) {
 
     gameState.responseTrail.push(trailItem);
 
-    if (typeof soundManager !== 'undefined') soundManager.playMatch();
+    if (typeof soundManager !== 'undefined') soundManager.playCheatCode();
 
     saveGameState();
     updateUI();
