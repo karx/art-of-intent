@@ -1,6 +1,6 @@
 /**
- * Share card v5 — haiku-forward layout.
- * Ported from src/js/share-card-v5.js + share-card-generator.js.
+ * Share card — haiku-forward layout with cheat-session awareness.
+ * Ported from src/js/share-card-v5.js + v6 cheat branding overlay.
  */
 
 export interface ShareCardData {
@@ -14,11 +14,15 @@ export interface ShareCardData {
 	matchedWords: string[];
 	creepLevel: number;
 	creepThreshold: number;
+	cheated?: boolean;
+	efficiencyScore?: number | null;
 	responseTrail: {
 		number: number;
 		prompt: string;
 		response: string;    // the haiku text
 		foundWords: string[];
+		isCheat?: boolean;
+		cheatCode?: { title: string };
 	}[];
 }
 
@@ -57,6 +61,8 @@ export function generateShareCardSVG(data: ShareCardData): string {
 		creepLevel = 0,
 		creepThreshold = 100,
 		date = new Date().toLocaleDateString('en-CA'),
+		cheated = false,
+		efficiencyScore = null,
 	} = data;
 
 	const c = {
@@ -70,12 +76,14 @@ export function generateShareCardSVG(data: ShareCardData): string {
 		yellow: css('--accent-yellow', '#b58900'),
 		white:  css('--text-primary',  '#93a1a1'),
 		dim:    css('--text-secondary','#586e75'),
+		gold:   '#c8a020',
 	};
 
 	const width = 1200;
 	const height = 630;
 	const isWin = result === 'WIN';
-	const resultColor = isWin ? c.green : c.red;
+	// Cheat sessions show gold; normal sessions green/red as usual.
+	const resultColor = cheated ? c.gold : (isWin ? c.green : c.red);
 	const [matchNum, matchTotal] = matches.split('/').map(Number);
 
 	// Pick best haiku to feature
@@ -91,6 +99,8 @@ export function generateShareCardSVG(data: ShareCardData): string {
 	const haikuLines = rawLines.slice(0, 4).map(l => trunc(l, 42));
 	const featuredWords = featured ? (featured.foundWords ?? []) : [];
 	const featuredPrompt = featured ? trunc(featured.prompt ?? '', 58) : '';
+	const featuredIsCheat = featured?.isCheat ?? false;
+	const featuredCheatTitle = featured?.cheatCode?.title ?? 'CLASSIC HAIKU';
 
 	const matchedSet = new Set(matchedWords.map(w => w.toLowerCase()));
 	const wordBadges = targetWords.length > 0
@@ -114,6 +124,32 @@ export function generateShareCardSVG(data: ShareCardData): string {
 	const lineH     = 38;
 	const haikuBoxH = Math.max(haikuLines.length * lineH + 60, 160);
 
+	const scoreLabel = cheated ? 'NOT RANKED  \u2746' : (efficiencyScore !== null ? String(efficiencyScore) : '\u2014');
+	const scoreColor = cheated ? c.gold : c.white;
+
+	const haikuBoxBorder = (cheated && featuredIsCheat) ? c.gold : c.border;
+	const haikuBoxStrokeW = (cheated && featuredIsCheat) ? '1.5' : '1';
+	const quoteColor = cheated ? c.gold : c.cyan;
+	const promptColor = (cheated && featuredIsCheat) ? c.gold : c.dim;
+	const promptPrefix = (cheated && featuredIsCheat) ? '\u2746' : '&gt;';
+
+	const sectionLabel = featuredIsCheat
+		? `\u2746 CHEAT CODE \u2014 ${xe(featuredCheatTitle)}`
+		: featuredWords.length > 0
+			? `\u2713 MATCH \u2014 HAIKU #${featured?.number ?? ''}`
+			: 'HAIKU';
+
+	const cheatRibbon = cheated ? `
+  <defs>
+    <clipPath id="ribbonClip"><rect width="${width}" height="${height}"/></clipPath>
+  </defs>
+  <g clip-path="url(#ribbonClip)">
+    <rect x="${width - 200}" y="-60" width="260" height="260" fill="${c.gold}" opacity="0.13" transform="rotate(45 ${width - 70} 70)"/>
+    <g transform="translate(${width - 42}, 8) rotate(45)">
+      <text style="font-size:11px;font-family:'Courier New',monospace;fill:${c.gold};font-weight:bold;letter-spacing:2px;text-anchor:middle;">\u2746 CHEAT SESSION</text>
+    </g>
+  </g>` : '';
+
 	return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
   <defs><style>text { font-family: 'Courier New', Courier, monospace; }</style>
     <clipPath id="haikuClip">
@@ -125,29 +161,32 @@ export function generateShareCardSVG(data: ShareCardData): string {
 
   <!-- HEADER -->
   <rect width="${width}" height="${headerH}" fill="${c.bgAlt}"/>
-  <line x1="0" y1="${headerH}" x2="${width}" y2="${headerH}" stroke="${c.border}" stroke-width="1"/>
+  ${cheated
+		? `<rect width="${width}" height="3" fill="${c.gold}" opacity="0.6"/>`
+		: `<line x1="0" y1="${headerH}" x2="${width}" y2="${headerH}" stroke="${c.border}" stroke-width="1"/>`
+	}
   <text x="${leftPad}" y="47" style="font-size:26px;font-weight:bold;fill:${c.cyan};letter-spacing:3px;">ART OF INTENT</text>
   <text x="${leftPad}" y="68" style="font-size:10px;fill:${c.dim};letter-spacing:2px;">HAIKU CHALLENGE</text>
   <text x="${width - 55}" y="36" style="font-size:12px;fill:${c.dim};text-anchor:end;">${xe(date)}</text>
-  <text x="${width - 55}" y="55" style="font-size:18px;font-weight:bold;fill:${resultColor};text-anchor:end;letter-spacing:2px;">${xe(result)}</text>
+  <text x="${width - 55}" y="55" style="font-size:18px;font-weight:bold;fill:${resultColor};text-anchor:end;letter-spacing:2px;">${xe(result)}${cheated ? ' \u2746' : ''}</text>
   <text x="${width - 55}" y="72" style="font-size:13px;fill:${c.cyan};text-anchor:end;">${xe(userName)}</text>
+
+  ${cheatRibbon}
 
   <!-- BODY -->
   <line x1="${dividerX}" y1="${bodyTop + 20}" x2="${dividerX}" y2="${bodyBot - 20}" stroke="${c.border}" stroke-width="1" stroke-dasharray="4,4"/>
 
   <!-- LEFT: haiku -->
-  <text x="${leftPad}" y="${haikuBoxY - 12}" style="font-size:9px;fill:${c.dim};letter-spacing:2px;">
-    ${featuredWords.length > 0 ? `&#x2713; MATCH &#x2014; HAIKU #${featured?.number ?? ''}` : 'HAIKU'}
-  </text>
+  <text x="${leftPad}" y="${haikuBoxY - 12}" style="font-size:9px;fill:${c.dim};letter-spacing:2px;">${sectionLabel}</text>
   <rect x="${haikuBoxX}" y="${haikuBoxY}" width="${haikuBoxW}" height="${haikuBoxH}" fill="${c.bgDeep}" rx="6" opacity="0.7"/>
-  <rect x="${haikuBoxX}" y="${haikuBoxY}" width="${haikuBoxW}" height="${haikuBoxH}" fill="none" stroke="${c.border}" stroke-width="1" rx="6"/>
-  <text x="${haikuBoxX + 14}" y="${haikuBoxY + 44}" style="font-size:52px;fill:${c.cyan};opacity:0.18;font-weight:bold;">&#8220;</text>
+  <rect x="${haikuBoxX}" y="${haikuBoxY}" width="${haikuBoxW}" height="${haikuBoxH}" fill="none" stroke="${haikuBoxBorder}" stroke-width="${haikuBoxStrokeW}" rx="6"/>
+  <text x="${haikuBoxX + 14}" y="${haikuBoxY + 44}" style="font-size:52px;fill:${quoteColor};opacity:0.18;font-weight:bold;">&#8220;</text>
   ${haikuLines.map((line, i) => `
   <text x="${haikuBoxX + 28}" y="${haikuBoxY + 46 + i * lineH}" style="font-size:22px;fill:${c.white};letter-spacing:0.5px;" clip-path="url(#haikuClip)">${xe(line)}</text>`).join('')}
   ${featuredWords.length > 0 ? `
   <text x="${haikuBoxX}" y="${haikuBoxY + haikuBoxH + 26}" style="font-size:13px;fill:${c.green};font-weight:bold;">&#x2713; matched: ${xe(featuredWords.join(', '))}</text>` : ''}
   ${featuredPrompt ? `
-  <text x="${haikuBoxX}" y="${haikuBoxY + haikuBoxH + 46}" style="font-size:11px;fill:${c.dim};">&gt; ${xe(featuredPrompt)}</text>` : ''}
+  <text x="${haikuBoxX}" y="${haikuBoxY + haikuBoxH + 46}" style="font-size:11px;fill:${promptColor};">${promptPrefix} ${xe(featuredPrompt)}</text>` : ''}
 
   <!-- RIGHT: stats -->
   <text x="${rightPad}" y="${bodyTop + 55}" style="font-size:20px;font-weight:bold;fill:${resultColor};letter-spacing:1px;">
@@ -161,24 +200,21 @@ export function generateShareCardSVG(data: ShareCardData): string {
   <text x="${rightPad + 12}" y="${badgeY + 22}" style="font-size:15px;fill:${badgeColor};font-weight:bold;">${b.matched ? '&#x2713;' : '&#x2717;'}  ${xe(b.word)}</text>`;
   }).join('')}
   <line x1="${rightPad}" y1="${bodyTop + 80 + wordBadges.length * 46 + 16}" x2="${width - leftPad}" y2="${bodyTop + 80 + wordBadges.length * 46 + 16}" stroke="${c.border}" stroke-width="1"/>
-  ${(['ATTEMPTS', 'TOKENS', 'CREEP'] as const).map((label, i) => {
-		const vals: Record<string, string> = {
-			ATTEMPTS: `${attempts} / 10`,
-			TOKENS: tokens.toLocaleString(),
-			CREEP: `${creepLevel} / ${creepThreshold}`,
-		};
+  ${([['ATTEMPTS', `${attempts} / 10`, c.white], ['TOKENS', tokens.toLocaleString(), c.white], ['CREEP', `${creepLevel} / ${creepThreshold}`, creepBarColor], ['SCORE', scoreLabel, scoreColor]] as [string, string, string][]).map(([label, val, valColor], i) => {
 		const sy = bodyTop + 80 + wordBadges.length * 46 + 44 + i * 50;
-		const valColor = label === 'CREEP' ? creepBarColor : c.white;
 		return `
   <text x="${rightPad}" y="${sy}" style="font-size:9px;fill:${c.dim};letter-spacing:2px;">${label}</text>
-  <text x="${rightPad}" y="${sy + 22}" style="font-size:20px;font-weight:bold;fill:${valColor};">${xe(vals[label])}</text>`;
+  <text x="${rightPad}" y="${sy + 22}" style="font-size:20px;font-weight:bold;fill:${valColor};">${xe(val)}</text>`;
   }).join('')}
 
   <!-- FOOTER -->
-  <line x1="0" y1="${bodyBot}" x2="${width}" y2="${bodyBot}" stroke="${c.border}" stroke-width="1"/>
+  <line x1="0" y1="${bodyBot}" x2="${width}" y2="${bodyBot}" stroke="${cheated ? c.gold : c.border}" stroke-width="${cheated ? '1.5' : '1'}" opacity="${cheated ? '0.5' : '1'}"/>
   <rect y="${bodyBot}" width="${width}" height="${footerH}" fill="${c.bgAlt}"/>
-  <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:12px;fill:${c.dim};letter-spacing:1px;">DAILY CHALLENGE · PLAY FREE</text>
-  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:14px;fill:${c.dim};">Can you guide Arty better?</text>
+  ${cheated ? `
+  <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:12px;fill:${c.gold};letter-spacing:1px;opacity:0.8;">\u2746 CHEAT SESSION \u00b7 NOT ON LEADERBOARD</text>
+  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:13px;fill:${c.dim};">The masters winked back. Play fair tomorrow?</text>` : `
+  <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:12px;fill:${c.dim};letter-spacing:1px;">DAILY CHALLENGE \u00b7 PLAY FREE</text>
+  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:14px;fill:${c.dim};">Can you guide Arty better?</text>`}
   <text x="${width - leftPad}" y="${bodyBot + 44}" style="font-size:18px;font-weight:bold;fill:${c.cyan};text-anchor:end;letter-spacing:1px;">art-of-intent.netlify.app</text>
 
 </svg>`.trim();

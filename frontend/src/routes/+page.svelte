@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { doc, getDoc } from 'firebase/firestore';
+	import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
@@ -211,6 +211,7 @@
 		sound.playCheatCode();
 		if (allMatched) setTimeout(() => sound.playVictory(), 650);
 		saveToStorage();
+		if (allMatched) saveSessionToFirestore();
 	}
 
 	// ── Game loop ─────────────────────────────────────────────────────────────
@@ -254,6 +255,7 @@
 			prompt = '';
 			error  = '';
 			saveToStorage();
+			if (creepMaxed) saveSessionToFirestore();
 			return;
 		}
 
@@ -304,6 +306,7 @@
 			trail  = [...trail, entry];
 			prompt = '';
 			saveToStorage();
+			if (next.gameOver) saveSessionToFirestore();
 		} catch (e: any) {
 			stopThinking();
 			error = e.message;
@@ -316,22 +319,73 @@
 		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
 	}
 
+	// ── Firestore session save ────────────────────────────────────────────────
+	async function saveSessionToFirestore() {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+
+		const isVictory = gameState.wonGame;
+		const efficiencyScore = gameState.cheated
+			? null
+			: (isVictory ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
+
+		try {
+			await setDoc(
+				doc(db, 'sessions', gameState.sessionId),
+				{
+					sessionId:         gameState.sessionId,
+					userId:            user.uid,
+					displayName:       user.displayName ?? user.email ?? 'Anonymous',
+					userName:          user.displayName ?? 'Anonymous',
+					gameDate:          today,
+					date:              today,
+					targetWords:       gameState.targetWords,
+					blacklistWords:    gameState.blacklistWords,
+					status:            'completed',
+					result:            isVictory ? 'victory' : 'defeat',
+					isWin:             isVictory,
+					cheated:           gameState.cheated,
+					attempts:          gameState.attempts,
+					totalTokens:       gameState.totalTokens,
+					matchedWords:      [...gameState.matchedWords],
+					matchedWordsCount: gameState.matchedWords.size,
+					efficiencyScore,
+					updatedAt:         serverTimestamp(),
+					createdAt:         serverTimestamp(),
+					isPublic:          true,
+				},
+				{ merge: true },
+			);
+		} catch (e) {
+			console.error('saveSessionToFirestore failed', e);
+		}
+	}
+
 	// ── Share ─────────────────────────────────────────────────────────────────
 	function buildCardData(): ShareCardData {
 		return {
-			result:        gameState.wonGame ? 'WIN' : 'LOSS',
-			attempts:      gameState.attempts,
-			tokens:        gameState.totalTokens,
-			matches:       `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
-			date:          today,
-			userName:      authState.user?.displayName ?? 'Guest',
-			targetWords:   gameState.targetWords,
-			matchedWords:  [...gameState.matchedWords],
-			creepLevel:    gameState.creepLevel,
-			creepThreshold:gameState.creepThreshold,
+			result:         gameState.wonGame ? 'WIN' : 'LOSS',
+			attempts:       gameState.attempts,
+			tokens:         gameState.totalTokens,
+			matches:        `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+			date:           today,
+			userName:       authState.user?.displayName ?? 'Guest',
+			targetWords:    gameState.targetWords,
+			matchedWords:   [...gameState.matchedWords],
+			creepLevel:     gameState.creepLevel,
+			creepThreshold: gameState.creepThreshold,
+			cheated:        gameState.cheated,
+			efficiencyScore: gameState.cheated ? null : efficiency,
 			responseTrail: trail
 				.filter(e => !e.violation)
-				.map(e => ({ number: e.number, prompt: e.prompt, response: e.haiku, foundWords: e.newMatches })),
+				.map(e => ({
+					number:    e.number,
+					prompt:    e.prompt,
+					response:  e.haiku,
+					foundWords: e.newMatches,
+					isCheat:   e.type === 'cheat' || (e.type === 'victory' && !!e.cheatCode),
+					cheatCode: e.cheatCode ? { title: e.cheatCode.title } : undefined,
+				})),
 		};
 	}
 

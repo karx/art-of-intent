@@ -12,6 +12,7 @@
 		efficiencyScore: number;
 		matchedWords: string[];
 		date: string;
+		cheated: boolean;
 	}
 
 	interface Stats {
@@ -30,6 +31,9 @@
 	let loading  = $state(true);
 	let error    = $state('');
 
+	const ranked   = $derived(entries.filter(e => !e.cheated).slice(0, 10));
+	const cheaters = $derived(entries.filter(e => e.cheated));
+
 	function mapSession(d: any): Entry {
 		const s = d.data();
 		const totalTokens = s.totalTokens ?? 0;
@@ -42,6 +46,7 @@
 			efficiencyScore: s.efficiencyScore ?? (attempts * 10 + Math.floor(totalTokens / 10)),
 			matchedWords:    s.matchedWords ?? [],
 			date:            s.gameDate ?? today,
+			cheated:         s.cheated === true,
 		};
 	}
 
@@ -51,21 +56,23 @@
 			where('result', '==', 'victory'),
 			where('gameDate', '==', date),
 			orderBy('efficiencyScore', 'asc'),
-			limit(10)
+			limit(25),
 		);
 		const snap = await getDocs(q);
 		return snap.docs.map(mapSession);
 	}
 
 	function deriveStats(rows: Entry[], targetWords: string[]): Stats {
-		const avgAttempts = rows.length
-			? Math.round((rows.reduce((s, e) => s + e.attempts, 0) / rows.length) * 10) / 10
+		// Stats are derived from ranked (non-cheated) entries only.
+		const clean = rows.filter(e => !e.cheated);
+		const avgAttempts = clean.length
+			? Math.round((clean.reduce((s, e) => s + e.attempts, 0) / clean.length) * 10) / 10
 			: 0;
 		return {
-			winners:      rows.length,
+			winners:      clean.length,
 			avgAttempts,
-			bestAttempts: rows[0]?.attempts ?? 0,
-			bestScore:    rows[0]?.efficiencyScore ?? 0,
+			bestAttempts: clean[0]?.attempts ?? 0,
+			bestScore:    clean[0]?.efficiencyScore ?? 0,
 			targetWords,
 		};
 	}
@@ -157,31 +164,61 @@
 			</div>
 		</div>
 
-		<table class="leaderboard-table">
-			<thead>
-				<tr>
-					<th>#</th>
-					<th>Player</th>
-					<th>Score</th>
-					<th>Attempts</th>
-					<th>Tok/Att</th>
-					<th>Rating</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each entries as entry, i}
-					{@const r = getRating(entry.efficiency)}
+		{#if ranked.length > 0}
+			<table class="leaderboard-table">
+				<thead>
 					<tr>
-						<td>{i + 1}</td>
-						<td>{entry.displayName}</td>
-						<td>{entry.efficiencyScore}</td>
-						<td>{entry.attempts}</td>
-						<td>{entry.efficiency.toFixed(1)}</td>
-						<td class="text-{r.color}">{r.stars}</td>
+						<th>#</th>
+						<th>Player</th>
+						<th>Score</th>
+						<th>Attempts</th>
+						<th>Tok/Att</th>
+						<th>Rating</th>
 					</tr>
-				{/each}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{#each ranked as entry, i}
+						{@const r = getRating(entry.efficiency)}
+						<tr>
+							<td>{i + 1}</td>
+							<td>{entry.displayName}</td>
+							<td>{entry.efficiencyScore}</td>
+							<td>{entry.attempts}</td>
+							<td>{entry.efficiency.toFixed(1)}</td>
+							<td class="text-{r.color}">{r.stars}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{:else}
+			<p class="empty-state">No ranked scores yet. Be the first!</p>
+		{/if}
+
+		{#if cheaters.length > 0}
+			<div class="cheat-section">
+				<p class="cheat-heading">✦ cheat session hall</p>
+				<table class="leaderboard-table cheat-table">
+					<thead>
+						<tr>
+							<th></th>
+							<th>Player</th>
+							<th>Attempts</th>
+							<th>Tok/Att</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each cheaters as entry}
+							<tr>
+								<td class="cheat-mark">✦</td>
+								<td>{entry.displayName}</td>
+								<td>{entry.attempts}</td>
+								<td>{entry.efficiency.toFixed(1)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -238,6 +275,22 @@
 		border-bottom: 1px solid var(--color-border, #333);
 	}
 	.leaderboard-table th { opacity: 0.7; font-weight: normal; }
+
+	.cheat-section {
+		margin-top: 2.5rem;
+		border-top: 1px solid #c8a020;
+		padding-top: 1rem;
+		opacity: 0.85;
+	}
+	.cheat-heading {
+		font-size: 11px;
+		letter-spacing: 2px;
+		text-transform: uppercase;
+		color: #c8a020;
+		margin-bottom: 0.75rem;
+	}
+	.cheat-table { opacity: 0.8; }
+	.cheat-mark  { color: #c8a020; font-size: 0.75rem; padding-right: 0.25rem; }
 
 	.page-date    { font-size: 11px; color: var(--text-dim, #586e75); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
 	.empty-state  { opacity: 0.6; }
