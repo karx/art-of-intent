@@ -12,6 +12,7 @@
 		efficiencyScore: number;
 		matchedWords: string[];
 		date: string;
+		cheated: boolean;
 	}
 
 	interface Stats {
@@ -24,7 +25,8 @@
 
 	const today = new Date().toISOString().split('T')[0];
 
-	let entries  = $state<Entry[]>([]);
+	let ranked   = $state<Entry[]>([]);
+	let cheaters = $state<Entry[]>([]);
 	let showDate = $state(today);
 	let stats    = $state<Stats | null>(null);
 	let loading  = $state(true);
@@ -42,19 +44,31 @@
 			efficiencyScore: s.efficiencyScore ?? (attempts * 10 + Math.floor(totalTokens / 10)),
 			matchedWords:    s.matchedWords ?? [],
 			date:            s.gameDate ?? today,
+			cheated:         s.cheated === true,
 		};
 	}
 
-	async function fetchForDate(date: string): Promise<Entry[]> {
-		const q = query(
-			collection(db, 'sessions'),
-			where('result', '==', 'victory'),
-			where('gameDate', '==', date),
-			orderBy('efficiencyScore', 'asc'),
-			limit(10)
-		);
-		const snap = await getDocs(q);
-		return snap.docs.map(mapSession);
+	async function fetchForDate(date: string): Promise<{ ranked: Entry[]; cheaters: Entry[] }> {
+		const [rankedSnap, cheatSnap] = await Promise.all([
+			getDocs(query(
+				collection(db, 'sessions'),
+				where('result',  '==', 'victory'),
+				where('cheated', '==', false),
+				where('gameDate','==', date),
+				orderBy('efficiencyScore', 'asc'),
+				limit(10),
+			)),
+			getDocs(query(
+				collection(db, 'sessions'),
+				where('result',  '==', 'victory'),
+				where('cheated', '==', true),
+				where('gameDate','==', date),
+			)),
+		]);
+		return {
+			ranked:   rankedSnap.docs.map(mapSession),
+			cheaters: cheatSnap.docs.map(mapSession),
+		};
 	}
 
 	function deriveStats(rows: Entry[], targetWords: string[]): Stats {
@@ -81,26 +95,26 @@
 
 	onMount(async () => {
 		try {
-			entries = await fetchForDate(today);
+			let result = await fetchForDate(today);
 
-			if (entries.length === 0) {
-				// No winners yet today — fall back to most recent date with victories.
-				// Requires index: result (asc) + gameDate (desc).
-				const recentQ = query(
+			if (result.ranked.length === 0 && result.cheaters.length === 0) {
+				// Nothing today — fall back to the most recent date with any victory.
+				const recentSnap = await getDocs(query(
 					collection(db, 'sessions'),
 					where('result', '==', 'victory'),
 					orderBy('gameDate', 'desc'),
-					limit(1)
-				);
-				const recentSnap = await getDocs(recentQ);
+					limit(1),
+				));
 				if (!recentSnap.empty) {
 					showDate = recentSnap.docs[0].data().gameDate;
-					entries  = await fetchForDate(showDate);
+					result   = await fetchForDate(showDate);
 				}
 			}
 
+			ranked   = result.ranked;
+			cheaters = result.cheaters;
 			const targetWords = await fetchTargetWords(showDate);
-			stats = deriveStats(entries, targetWords);
+			stats = deriveStats(ranked, targetWords);
 		} catch (e: any) {
 			error = e.message ?? 'Failed to load leaderboard.';
 		} finally {
@@ -127,7 +141,7 @@
 		<p>Loading…</p>
 	{:else if error}
 		<p class="text-error">{error}</p>
-	{:else if entries.length === 0}
+	{:else if ranked.length === 0 && cheaters.length === 0}
 		<p class="empty-state">No scores yet today. Be the first to complete the puzzle!</p>
 	{:else}
 		{#if stats?.targetWords.length}
@@ -157,31 +171,61 @@
 			</div>
 		</div>
 
-		<table class="leaderboard-table">
-			<thead>
-				<tr>
-					<th>#</th>
-					<th>Player</th>
-					<th>Score</th>
-					<th>Attempts</th>
-					<th>Tok/Att</th>
-					<th>Rating</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each entries as entry, i}
-					{@const r = getRating(entry.efficiency)}
+		{#if ranked.length > 0}
+			<table class="leaderboard-table">
+				<thead>
 					<tr>
-						<td>{i + 1}</td>
-						<td>{entry.displayName}</td>
-						<td>{entry.efficiencyScore}</td>
-						<td>{entry.attempts}</td>
-						<td>{entry.efficiency.toFixed(1)}</td>
-						<td class="text-{r.color}">{r.stars}</td>
+						<th>#</th>
+						<th>Player</th>
+						<th>Score</th>
+						<th>Attempts</th>
+						<th>Tok/Att</th>
+						<th>Rating</th>
 					</tr>
-				{/each}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{#each ranked as entry, i}
+						{@const r = getRating(entry.efficiency)}
+						<tr>
+							<td>{i + 1}</td>
+							<td>{entry.displayName}</td>
+							<td>{entry.efficiencyScore}</td>
+							<td>{entry.attempts}</td>
+							<td>{entry.efficiency.toFixed(1)}</td>
+							<td class="text-{r.color}">{r.stars}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{:else}
+			<p class="empty-state">No ranked scores yet. Be the first!</p>
+		{/if}
+
+		{#if cheaters.length > 0}
+			<div class="cheat-section">
+				<p class="cheat-heading">✦ cheat session hall</p>
+				<table class="leaderboard-table cheat-table">
+					<thead>
+						<tr>
+							<th></th>
+							<th>Player</th>
+							<th>Attempts</th>
+							<th>Tok/Att</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each cheaters as entry}
+							<tr>
+								<td class="cheat-mark">✦</td>
+								<td>{entry.displayName}</td>
+								<td>{entry.attempts}</td>
+								<td>{entry.efficiency.toFixed(1)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -238,6 +282,22 @@
 		border-bottom: 1px solid var(--color-border, #333);
 	}
 	.leaderboard-table th { opacity: 0.7; font-weight: normal; }
+
+	.cheat-section {
+		margin-top: 2.5rem;
+		border-top: 1px solid #c8a020;
+		padding-top: 1rem;
+		opacity: 0.85;
+	}
+	.cheat-heading {
+		font-size: 11px;
+		letter-spacing: 2px;
+		text-transform: uppercase;
+		color: #c8a020;
+		margin-bottom: 0.75rem;
+	}
+	.cheat-table { opacity: 0.8; }
+	.cheat-mark  { color: #c8a020; font-size: 0.75rem; padding-right: 0.25rem; }
 
 	.page-date    { font-size: 11px; color: var(--text-dim, #586e75); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; }
 	.empty-state  { opacity: 0.6; }

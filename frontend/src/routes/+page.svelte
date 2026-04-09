@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { doc, getDoc } from 'firebase/firestore';
+	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
@@ -156,6 +156,7 @@
 	$effect(() => {
 		if (authState.user && !wordsLoaded) {
 			wordsLoaded = true;
+			ensureUserProfile();
 			initGame();
 		}
 	});
@@ -176,6 +177,7 @@
 			gameState.sessionId      = crypto.randomUUID();
 			error = '';
 			saveToStorage();
+			saveSessionStart();
 		} catch { error = "Failed to load today's words. Please refresh."; }
 	}
 
@@ -211,6 +213,7 @@
 		sound.playCheatCode();
 		if (allMatched) setTimeout(() => sound.playVictory(), 650);
 		saveToStorage();
+		if (allMatched) saveSessionToFirestore();
 	}
 
 	// ── Game loop ─────────────────────────────────────────────────────────────
@@ -254,6 +257,7 @@
 			prompt = '';
 			error  = '';
 			saveToStorage();
+			if (creepMaxed) saveSessionToFirestore();
 			return;
 		}
 
@@ -304,9 +308,11 @@
 			trail  = [...trail, entry];
 			prompt = '';
 			saveToStorage();
+			if (next.gameOver) saveSessionToFirestore();
 		} catch (e: any) {
 			stopThinking();
 			error = e.message;
+			logEvent('api_error', { message: e.message, code: e.code ?? null });
 		} finally {
 			loading = false;
 		}
@@ -316,22 +322,160 @@
 		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
 	}
 
+	// ── Firestore helpers ─────────────────────────────────────────────────────
+
+	/** Gap 1 — persist user profile so displayName survives across sessions. Skips anonymous users. */
+	async function ensureUserProfile() {
+		const user = authState.user;
+		if (!user || user.isAnonymous) return;
+		const ref = doc(db, 'users', user.uid);
+		try {
+			const snap = await getDoc(ref);
+			if (!snap.exists()) {
+				await setDoc(ref, {
+					userId:      user.uid,
+					displayName: user.displayName ?? user.email ?? 'Anonymous',
+					stats:       {},
+					preferences: {},
+					createdAt:   serverTimestamp(),
+					lastSeen:    serverTimestamp(),
+				});
+			} else {
+				await setDoc(ref, {
+					displayName: user.displayName ?? user.email ?? 'Anonymous',
+					lastSeen:    serverTimestamp(),
+				}, { merge: true });
+			}
+		} catch (e) { console.error('ensureUserProfile failed', e); }
+	}
+
+	/** Gap 2 — record a session as in_progress at game start so abandoned games are visible. */
+	async function saveSessionStart() {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		try {
+			await setDoc(
+				doc(db, 'sessions', gameState.sessionId),
+				{
+					sessionId:      gameState.sessionId,
+					userId:         user.uid,
+					displayName:    user.displayName ?? user.email ?? 'Anonymous',
+					userName:       user.displayName ?? 'Anonymous',
+					gameDate:       today,
+					date:           today,
+					targetWords:    gameState.targetWords,
+					blacklistWords: gameState.blacklistWords,
+					status:         'in_progress',
+					cheated:        false,
+					isPublic:       true,
+					createdAt:      serverTimestamp(),
+					updatedAt:      serverTimestamp(),
+				},
+				{ merge: true },
+			);
+		} catch (e) { console.error('saveSessionStart failed', e); }
+	}
+
+	/** Gap 3 — lightweight event log for errors and key player actions. */
+	async function logEvent(type: string, data: Record<string, unknown> = {}) {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		const event = { type, ts: new Date().toISOString(), ...data };
+		try {
+			await setDoc(
+				doc(db, 'sessionEvents', gameState.sessionId),
+				{
+					sessionId: gameState.sessionId,
+					userId:    user.uid,
+					events:    arrayUnion(event),
+				},
+				{ merge: true },
+			);
+		} catch { /* non-fatal */ }
+	}
+
+	// ── Firestore session save ────────────────────────────────────────────────
+	async function saveSessionToFirestore() {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+
+		const isVictory = gameState.wonGame;
+		const efficiencyScore = gameState.cheated
+			? null
+			: (isVictory ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
+
+		const attemptsData = trail.map(e => ({
+				attemptNumber: e.number,
+				timestamp:     e.timestamp,
+				prompt:        e.prompt.slice(0, 500),
+				response:      e.haiku.slice(0, 500),
+				promptTokens:  e.promptTokens,
+				outputTokens:  e.outputTokens,
+				totalTokens:   e.tokens,
+				foundWords:    e.newMatches,
+				isViolation:   e.violation,
+				isCheat:       e.type === 'cheat' || (e.type === 'victory' && !!e.cheatCode),
+			}));
+
+		try {
+			await setDoc(
+				doc(db, 'sessions', gameState.sessionId),
+				{
+					sessionId:         gameState.sessionId,
+					userId:            user.uid,
+					displayName:       user.displayName ?? user.email ?? 'Anonymous',
+					userName:          user.displayName ?? 'Anonymous',
+					gameDate:          today,
+					date:              today,
+					targetWords:       gameState.targetWords,
+					blacklistWords:    gameState.blacklistWords,
+					status:            'completed',
+					result:            isVictory ? 'victory' : 'defeat',
+					isWin:             isVictory,
+					cheated:           gameState.cheated,
+					attempts:          gameState.attempts,
+					totalTokens:       gameState.totalTokens,
+					creepLevel:        gameState.creepLevel,
+					matchedWords:      [...gameState.matchedWords],
+					matchedWordsCount: gameState.matchedWords.size,
+					efficiencyScore,
+					attemptsData,
+					updatedAt:         serverTimestamp(),
+					createdAt:         serverTimestamp(),
+					isPublic:          true,
+				},
+				{ merge: true },
+			);
+		} catch (e) {
+			console.error('saveSessionToFirestore failed', e);
+		}
+	}
+
 	// ── Share ─────────────────────────────────────────────────────────────────
 	function buildCardData(): ShareCardData {
 		return {
-			result:        gameState.wonGame ? 'WIN' : 'LOSS',
-			attempts:      gameState.attempts,
-			tokens:        gameState.totalTokens,
-			matches:       `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
-			date:          today,
-			userName:      authState.user?.displayName ?? 'Guest',
-			targetWords:   gameState.targetWords,
-			matchedWords:  [...gameState.matchedWords],
-			creepLevel:    gameState.creepLevel,
-			creepThreshold:gameState.creepThreshold,
+			result:         gameState.wonGame ? 'WIN' : 'LOSS',
+			attempts:       gameState.attempts,
+			tokens:         gameState.totalTokens,
+			matches:        `${gameState.matchedWords.size}/${gameState.targetWords.length}`,
+			date:           today,
+			userName:       authState.user?.displayName ?? 'Guest',
+			targetWords:    gameState.targetWords,
+			matchedWords:   [...gameState.matchedWords],
+			creepLevel:     gameState.creepLevel,
+			creepThreshold: gameState.creepThreshold,
+			cheated:        gameState.cheated,
+			efficiencyScore: gameState.cheated ? null : efficiency,
 			responseTrail: trail
 				.filter(e => !e.violation)
-				.map(e => ({ number: e.number, prompt: e.prompt, response: e.haiku, foundWords: e.newMatches })),
+				.map(e => ({
+					number:    e.number,
+					prompt:    e.prompt,
+					response:  e.haiku,
+					foundWords: e.newMatches,
+					isCheat:   e.type === 'cheat' || (e.type === 'victory' && !!e.cheatCode),
+					cheatCode: e.cheatCode ? { title: e.cheatCode.title } : undefined,
+				})),
 		};
 	}
 
@@ -355,6 +499,7 @@
 		try {
 			const outcome = await shareCard(generateShareCardSVG(buildCardData()), 'Art of Intent', buildShareText());
 			if (outcome === 'downloaded') showToast('Card saved — share it anywhere!', 'success');
+			if (outcome !== 'cancelled') logEvent('share', { outcome });
 		} catch { await copyText(); }
 	}
 
