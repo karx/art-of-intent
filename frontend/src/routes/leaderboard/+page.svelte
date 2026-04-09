@@ -25,14 +25,12 @@
 
 	const today = new Date().toISOString().split('T')[0];
 
-	let entries  = $state<Entry[]>([]);
+	let ranked   = $state<Entry[]>([]);
+	let cheaters = $state<Entry[]>([]);
 	let showDate = $state(today);
 	let stats    = $state<Stats | null>(null);
 	let loading  = $state(true);
 	let error    = $state('');
-
-	const ranked   = $derived(entries.filter(e => !e.cheated).slice(0, 10));
-	const cheaters = $derived(entries.filter(e => e.cheated));
 
 	function mapSession(d: any): Entry {
 		const s = d.data();
@@ -50,29 +48,38 @@
 		};
 	}
 
-	async function fetchForDate(date: string): Promise<Entry[]> {
-		const q = query(
-			collection(db, 'sessions'),
-			where('result', '==', 'victory'),
-			where('gameDate', '==', date),
-			orderBy('efficiencyScore', 'asc'),
-			limit(25),
-		);
-		const snap = await getDocs(q);
-		return snap.docs.map(mapSession);
+	async function fetchForDate(date: string): Promise<{ ranked: Entry[]; cheaters: Entry[] }> {
+		const [rankedSnap, cheatSnap] = await Promise.all([
+			getDocs(query(
+				collection(db, 'sessions'),
+				where('result',  '==', 'victory'),
+				where('cheated', '==', false),
+				where('gameDate','==', date),
+				orderBy('efficiencyScore', 'asc'),
+				limit(10),
+			)),
+			getDocs(query(
+				collection(db, 'sessions'),
+				where('result',  '==', 'victory'),
+				where('cheated', '==', true),
+				where('gameDate','==', date),
+			)),
+		]);
+		return {
+			ranked:   rankedSnap.docs.map(mapSession),
+			cheaters: cheatSnap.docs.map(mapSession),
+		};
 	}
 
 	function deriveStats(rows: Entry[], targetWords: string[]): Stats {
-		// Stats are derived from ranked (non-cheated) entries only.
-		const clean = rows.filter(e => !e.cheated);
-		const avgAttempts = clean.length
-			? Math.round((clean.reduce((s, e) => s + e.attempts, 0) / clean.length) * 10) / 10
+		const avgAttempts = rows.length
+			? Math.round((rows.reduce((s, e) => s + e.attempts, 0) / rows.length) * 10) / 10
 			: 0;
 		return {
-			winners:      clean.length,
+			winners:      rows.length,
 			avgAttempts,
-			bestAttempts: clean[0]?.attempts ?? 0,
-			bestScore:    clean[0]?.efficiencyScore ?? 0,
+			bestAttempts: rows[0]?.attempts ?? 0,
+			bestScore:    rows[0]?.efficiencyScore ?? 0,
 			targetWords,
 		};
 	}
@@ -88,26 +95,26 @@
 
 	onMount(async () => {
 		try {
-			entries = await fetchForDate(today);
+			let result = await fetchForDate(today);
 
-			if (entries.length === 0) {
-				// No winners yet today — fall back to most recent date with victories.
-				// Requires index: result (asc) + gameDate (desc).
-				const recentQ = query(
+			if (result.ranked.length === 0 && result.cheaters.length === 0) {
+				// Nothing today — fall back to the most recent date with any victory.
+				const recentSnap = await getDocs(query(
 					collection(db, 'sessions'),
 					where('result', '==', 'victory'),
 					orderBy('gameDate', 'desc'),
-					limit(1)
-				);
-				const recentSnap = await getDocs(recentQ);
+					limit(1),
+				));
 				if (!recentSnap.empty) {
 					showDate = recentSnap.docs[0].data().gameDate;
-					entries  = await fetchForDate(showDate);
+					result   = await fetchForDate(showDate);
 				}
 			}
 
+			ranked   = result.ranked;
+			cheaters = result.cheaters;
 			const targetWords = await fetchTargetWords(showDate);
-			stats = deriveStats(entries, targetWords);
+			stats = deriveStats(ranked, targetWords);
 		} catch (e: any) {
 			error = e.message ?? 'Failed to load leaderboard.';
 		} finally {
@@ -134,7 +141,7 @@
 		<p>Loading…</p>
 	{:else if error}
 		<p class="text-error">{error}</p>
-	{:else if entries.length === 0}
+	{:else if ranked.length === 0 && cheaters.length === 0}
 		<p class="empty-state">No scores yet today. Be the first to complete the puzzle!</p>
 	{:else}
 		{#if stats?.targetWords.length}

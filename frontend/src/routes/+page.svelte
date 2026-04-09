@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
@@ -156,6 +156,7 @@
 	$effect(() => {
 		if (authState.user && !wordsLoaded) {
 			wordsLoaded = true;
+			ensureUserProfile();
 			initGame();
 		}
 	});
@@ -176,6 +177,7 @@
 			gameState.sessionId      = crypto.randomUUID();
 			error = '';
 			saveToStorage();
+			saveSessionStart();
 		} catch { error = "Failed to load today's words. Please refresh."; }
 	}
 
@@ -310,6 +312,7 @@
 		} catch (e: any) {
 			stopThinking();
 			error = e.message;
+			logEvent('api_error', { message: e.message, code: e.code ?? null });
 		} finally {
 			loading = false;
 		}
@@ -317,6 +320,78 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+	}
+
+	// ── Firestore helpers ─────────────────────────────────────────────────────
+
+	/** Gap 1 — persist user profile so displayName survives across sessions. Skips anonymous users. */
+	async function ensureUserProfile() {
+		const user = authState.user;
+		if (!user || user.isAnonymous) return;
+		const ref = doc(db, 'users', user.uid);
+		try {
+			const snap = await getDoc(ref);
+			if (!snap.exists()) {
+				await setDoc(ref, {
+					userId:      user.uid,
+					displayName: user.displayName ?? user.email ?? 'Anonymous',
+					stats:       {},
+					preferences: {},
+					createdAt:   serverTimestamp(),
+					lastSeen:    serverTimestamp(),
+				});
+			} else {
+				await setDoc(ref, {
+					displayName: user.displayName ?? user.email ?? 'Anonymous',
+					lastSeen:    serverTimestamp(),
+				}, { merge: true });
+			}
+		} catch (e) { console.error('ensureUserProfile failed', e); }
+	}
+
+	/** Gap 2 — record a session as in_progress at game start so abandoned games are visible. */
+	async function saveSessionStart() {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		try {
+			await setDoc(
+				doc(db, 'sessions', gameState.sessionId),
+				{
+					sessionId:      gameState.sessionId,
+					userId:         user.uid,
+					displayName:    user.displayName ?? user.email ?? 'Anonymous',
+					userName:       user.displayName ?? 'Anonymous',
+					gameDate:       today,
+					date:           today,
+					targetWords:    gameState.targetWords,
+					blacklistWords: gameState.blacklistWords,
+					status:         'in_progress',
+					cheated:        false,
+					isPublic:       true,
+					createdAt:      serverTimestamp(),
+					updatedAt:      serverTimestamp(),
+				},
+				{ merge: true },
+			);
+		} catch (e) { console.error('saveSessionStart failed', e); }
+	}
+
+	/** Gap 3 — lightweight event log for errors and key player actions. */
+	async function logEvent(type: string, data: Record<string, unknown> = {}) {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		const event = { type, ts: new Date().toISOString(), ...data };
+		try {
+			await setDoc(
+				doc(db, 'sessionEvents', gameState.sessionId),
+				{
+					sessionId: gameState.sessionId,
+					userId:    user.uid,
+					events:    arrayUnion(event),
+				},
+				{ merge: true },
+			);
+		} catch { /* non-fatal */ }
 	}
 
 	// ── Firestore session save ────────────────────────────────────────────────
@@ -424,6 +499,7 @@
 		try {
 			const outcome = await shareCard(generateShareCardSVG(buildCardData()), 'Art of Intent', buildShareText());
 			if (outcome === 'downloaded') showToast('Card saved — share it anywhere!', 'success');
+			if (outcome !== 'cancelled') logEvent('share', { outcome });
 		} catch { await copyText(); }
 	}
 
