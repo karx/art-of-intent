@@ -329,6 +329,19 @@
 			? null
 			: (isVictory ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
 
+		const attemptsData = trail.map(e => ({
+				attemptNumber: e.number,
+				timestamp:     e.timestamp,
+				prompt:        e.prompt.slice(0, 500),
+				response:      e.haiku.slice(0, 500),
+				promptTokens:  e.promptTokens,
+				outputTokens:  e.outputTokens,
+				totalTokens:   e.tokens,
+				foundWords:    e.newMatches,
+				isViolation:   e.violation,
+				isCheat:       e.type === 'cheat' || (e.type === 'victory' && !!e.cheatCode),
+			}));
+
 		try {
 			await setDoc(
 				doc(db, 'sessions', gameState.sessionId),
@@ -347,9 +360,11 @@
 					cheated:           gameState.cheated,
 					attempts:          gameState.attempts,
 					totalTokens:       gameState.totalTokens,
+					creepLevel:        gameState.creepLevel,
 					matchedWords:      [...gameState.matchedWords],
 					matchedWordsCount: gameState.matchedWords.size,
 					efficiencyScore,
+					attemptsData,
 					updatedAt:         serverTimestamp(),
 					createdAt:         serverTimestamp(),
 					isPublic:          true,
