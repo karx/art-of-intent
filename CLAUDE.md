@@ -13,13 +13,16 @@ Play: https://art-of-intent.netlify.app
 ## Commands
 
 ```bash
+# Build the frontend
+npm run build                         # runs: cd frontend && npm run build
+
 # Deploy everything
 firebase deploy
 
 # Deploy only the Cloud Functions (most common during development)
 firebase deploy --only functions
 
-# Deploy only hosting (static frontend)
+# Deploy only hosting (Svelte build output)
 firebase deploy --only hosting
 
 # Deploy only Firestore rules/indexes
@@ -27,9 +30,33 @@ firebase deploy --only firestore
 
 # View live function logs
 firebase functions:log
+
+# Mobile (Capacitor)
+npm run cap:sync                      # sync Svelte build into android/ ios/
+npm run cap:open:android
+npm run cap:open:ios
 ```
 
-There is no build step — the frontend is plain HTML/CSS/JS served directly from the repo root. No bundler, no transpilation.
+The frontend is a **SvelteKit app** in `frontend/`. Build output goes to `frontend/build/`, which is what Firebase Hosting and Capacitor both serve.
+
+---
+
+## Repo Structure
+
+```
+frontend/          SvelteKit app (the game UI)
+  src/
+    routes/        Pages: +page.svelte (game), leaderboard/, insights/, help/, about/
+    lib/           Shared: firebase.ts, api.ts, share-card.ts, stores/, scoring.ts, sound.ts
+  static/          PWA assets: manifest, favicons, og image, robots.txt, sitemap
+functions/         Firebase Cloud Functions (Node.js 20)
+docs/              Design docs, data model, future work
+scripts/           Admin utilities (manual-deploy-words.cjs, repo-scan.js)
+android/           Capacitor Android project
+ios/               Capacitor iOS project
+generate-og-image.{html,js}   OG image generator utility
+generate-icons.{html,cjs}     Icon generator utility
+```
 
 ---
 
@@ -37,71 +64,63 @@ There is no build step — the frontend is plain HTML/CSS/JS served directly fro
 
 ### Deployment
 
-- **Firebase Hosting** — serves the static frontend from the repo root (`.`)
+- **Netlify** — primary hosting, serves `frontend/build` (SvelteKit static adapter)
+- **Firebase Hosting** — alternative hosting, also serves `frontend/build`
 - **Firebase Cloud Functions v2** (Node.js 20, `us-central1`) — `functions/` directory
 - **Firestore** — database ID `alpha` (non-default; must be set explicitly in all queries)
 - **Firebase Auth** — anonymous + Google OAuth
+- **Capacitor** — wraps `frontend/build` into Android APK and iOS app
 
-### The Two Cloud Functions
+### Cloud Functions
 
 **`artyGenerateHaiku`** (HTTPS Callable) — The core game loop:
 1. Validates Firebase Auth token
 2. Reads today's `dailyWords/{YYYY-MM-DD}` from Firestore server-side
-3. Builds the full system prompt (`buildSystemInstruction`) — client cannot influence this
-4. Calls Gemini API with `GEMINI_API_KEY` from environment
-5. Maps Gemini HTTP errors to typed `HttpsError` codes with structured `details` (retry seconds, quota metric)
+3. Builds the full system prompt — client cannot influence this
+4. Calls Gemini API (or user's BYOM provider via `userSettings`)
+5. Maps errors to typed `HttpsError` codes with structured `details`
 
-**`generateDailyWords`** (Scheduled, daily midnight UTC) — Generates today's 3 target words + 5-7 blacklist words using a date-seeded deterministic RNG. Stores to `dailyWords/{YYYY-MM-DD}`.
+**`generateDailyWords`** (Scheduled, daily midnight UTC) — Generates today's 3 target words + 5–7 blacklist words using a date-seeded deterministic RNG. Stores to `dailyWords/{YYYY-MM-DD}`.
 
-### Frontend Module Loading
-
-Scripts load in order via `<script>` tags in `index.html`. Firebase modules use `type="module"`, the rest are classic scripts. Load order matters:
-
-```
-share-card-v3.js → share-card-v4.js → share-card-v5.js → share-card-generator.js
-firebase-config.js → firebase-auth.js → firebase-db.js → ui-components.js
-welcome-modal.js → firebase-integration.js → game.js
-```
-
-`game.js` is the main orchestrator — ~2000 lines, `type="module"`. It imports `httpsCallable` and `functions` from `firebase-config.js`.
+**`saveUserSettings`** (HTTPS Callable) — Encrypts and stores a player's BYOM API key in `userSettings/{uid}`.
 
 ### Key Data Flow
 
 ```
-game.js  →  callArtyAPI()
-         →  httpsCallable(functions, 'artyGenerateHaiku')
-         →  Cloud Function reads Firestore + calls Gemini
-         →  returns fullResponse (raw Gemini API response object)
-         →  processResponse() extracts text, tokens, checks target/blacklist words
-         →  updateUI() + saveGameState()
++page.svelte  →  callArtyAPI()          (frontend/src/lib/api.ts)
+              →  httpsCallable(functions, 'artyGenerateHaiku')
+              →  Cloud Function reads Firestore + calls Gemini
+              →  returns { responseText, userPromptTokens, usageMetadata }
+              →  applyAttemptResult()   (game.svelte store)
+              →  trail[] updated → saveToStorage() + saveSessionToFirestore()
 ```
 
 ### Gemini Model
 
 Current model: `gemini-3.1-flash-lite-preview`
-Configured as default in `functions/index.js`. Can be overridden per-deployment via `GEMINI_API_URL` in `functions/.env`.
+Configured as default in `functions/index.js`. Can be overridden via `GEMINI_API_URL` in `functions/.env`.
 
 ### Error Handling Convention
 
-Cloud Function throws typed `HttpsError` with `details: { geminiStatus, retryAfterSeconds, quotaMetric }`. Client (`callArtyAPI`) switches on `error.code` and surfaces human-readable messages. Errors display inline in the trail via `showArtyError()` — no `alert()` in the share/API flows.
+Cloud Function throws typed `HttpsError` with `details: { geminiStatus, retryAfterSeconds, quotaMetric }`. Client (`callArtyAPI` in `api.ts`) switches on `error.code` and surfaces human-readable messages. Errors display inline in the trail — no `alert()`.
 
 ### Share Cards
 
-`share-card-generator.js` dispatches to versioned generators. Default is **v5** (`share-card-v5.js`). All three call sites in `game.js` use `buildCardData()` helper. `shareImage()` in the generator handles Web Share API (mobile) vs PNG download (desktop) and returns `'shared' | 'downloaded' | 'cancelled'`.
+`frontend/src/lib/share-card.ts` generates SVG share cards. Cheat sessions render with gold branding. `buildCardData()` in `+page.svelte` is the single source of truth. `shareCard()` handles Web Share API (mobile) vs PNG download (desktop), returns `'shared' | 'downloaded' | 'cancelled'`.
 
 ### Firestore Collections
 
-| Collection | Notes |
-|---|---|
-| `dailyWords/{YYYY-MM-DD}` | Written only by Cloud Function. Public read. |
-| `users/` | Owner write, public read |
-| `sessions/` | Owner write, public read |
-| `leaderboard/` | Auth write, public read |
+See `docs/data-model.md` for the full field inventory.
 
-All Firestore calls must specify database ID `alpha`:
-```js
-// firebase-config.js already handles this via initializeApp + db.settings
-```
+| Collection | Written by | Notes |
+|---|---|---|
+| `dailyWords/{YYYY-MM-DD}` | Cloud Function | Public read |
+| `sessions/{sessionId}` | Frontend on game-over | Owner write, public read |
+| `sessionEvents/{sessionId}` | Frontend (logEvent) | Auth write |
+| `users/{userId}` | Frontend on sign-in | Owner write, public read |
+| `userSettings/{userId}` | Cloud Function | Owner read/write only |
+
+All Firestore calls must specify database ID `alpha` — handled by `frontend/src/lib/firebase.ts`.
 
 ---
 
@@ -112,13 +131,13 @@ Functions require `functions/.env` (gitignored):
 GEMINI_API_KEY=...
 GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent
 ```
-See `functions/.env.example` for the template. `GEMINI_API_URL` overrides the hardcoded default in `functions/index.js`.
+See `functions/.env.example` for the template.
 
 ---
 
 ## CSS / Theming
 
-`dos-theme.css` is the primary stylesheet and sets `body { font-size: 15px }` — making `1rem = 15px`. All mobile inputs must use `font-size: 16px` explicitly (already in the `@media (max-width: 768px)` block in `styles.css`) to prevent iOS auto-zoom. Themes override CSS variables defined in `dos-theme.css`.
+Theming is done via CSS variables defined in `frontend/src/app.css` (or imported dos-theme). The base font is 15px (`1rem = 15px`). All mobile inputs use `font-size: 16px` explicitly to prevent iOS auto-zoom.
 
 ---
 
