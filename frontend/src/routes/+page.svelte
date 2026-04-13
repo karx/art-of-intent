@@ -9,6 +9,7 @@
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
+	import ArtyWidget from '$lib/ArtyWidget.svelte';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -30,8 +31,14 @@
 	}
 
 	// ── UI state ──────────────────────────────────────────────────────────────
-	let prompt       = $state('');
-	let loading      = $state(false);
+	let prompt              = $state('');
+	let loading             = $state(false);
+	let lastPromptPersonal  = $state(false);
+
+	const PERSONAL_RE = /\b(i|me|my|myself|i'm|i've|i'd|i'll|feel|felt|think|thought|love|want|wish|hope|imagine|dream|remember|believe|miss)\b/i;
+	function detectSentiment(text: string): boolean {
+		return PERSONAL_RE.test(text);
+	}
 	let error        = $state('');
 	let trail        = $state<TrailEntry[]>([]);
 	let thinking     = $state(false);
@@ -263,6 +270,7 @@
 
 		error   = '';
 		loading = true;
+		lastPromptPersonal = detectSentiment(text);
 		sound.playSubmit();
 		startThinking();
 
@@ -560,6 +568,9 @@
 			{#if gameState.attempts > 0}
 				<span class="text-{rating.color}">{efficiency} tok/att {rating.stars}</span>
 			{/if}
+			<span class="arty-score-widget">
+				<ArtyWidget size={72} {loading} {lastPromptPersonal} />
+			</span>
 		</div>
 	</section>
 
@@ -729,26 +740,33 @@
 	<!-- ── Game-over panel ───────────────────────────────────────────────── -->
 	{#if gameState.gameOver}
 		<div class="game-over-panel {gameState.wonGame ? 'game-over-panel--win' : 'game-over-panel--loss'}">
-			<div class="game-over-title">
-				{gameState.wonGame ? '✦ VICTORY' : '✦ DARKNESS WINS'}
+			<div class="game-over-body">
+				<div class="game-over-left">
+					<div class="game-over-title">
+						{gameState.wonGame ? '✦ VICTORY' : '✦ DARKNESS WINS'}
+					</div>
+					<div class="game-over-stats">
+						<span>{gameState.attempts} att</span>
+						<span>·</span>
+						<span>{gameState.totalTokens} tok</span>
+						<span>·</span>
+						<span>{efficiency} tok/att</span>
+						<span>·</span>
+						<span class="text-{rating.color}">{rating.stars} {rating.label}</span>
+					</div>
+					<div class="game-over-actions">
+						<button class="btn-secondary" onclick={handlePreview}>Preview Card</button>
+						<button class="btn-primary" onclick={handleShare}>
+							{'share' in navigator ? 'Share Card' : 'Save Card'}
+						</button>
+						<button class="btn-secondary" onclick={copyText}>Copy Text</button>
+					</div>
+					<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
+				</div>
+				<div class="game-over-arty">
+					<ArtyWidget size={148} loading={false} {lastPromptPersonal} />
+				</div>
 			</div>
-			<div class="game-over-stats">
-				<span>{gameState.attempts} att</span>
-				<span>·</span>
-				<span>{gameState.totalTokens} tok</span>
-				<span>·</span>
-				<span>{efficiency} tok/att</span>
-				<span>·</span>
-				<span class="text-{rating.color}">{rating.stars} {rating.label}</span>
-			</div>
-			<div class="game-over-actions">
-				<button class="btn-secondary" onclick={handlePreview}>Preview Card</button>
-				<button class="btn-primary" onclick={handleShare}>
-					{'share' in navigator ? 'Share Card' : 'Save Card'}
-				</button>
-				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
-			</div>
-			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
 		</div>
 	{/if}
 
@@ -850,6 +868,17 @@
 		font-size: 13px;
 	}
 
+	/* Arty widget inside score-compact */
+	:global(.score-compact) { align-items: center; }
+	.arty-score-widget {
+		margin-left: auto;
+		display: flex;
+		align-items: center;
+	}
+	@media (max-width: 480px) {
+		.arty-score-widget { display: none; }
+	}
+
 	/* Game-over panel */
 	.game-over-panel {
 		margin: var(--spacing-md) 0;
@@ -869,6 +898,17 @@
 		letter-spacing: 1px;
 		color: var(--text-dim);
 		margin-bottom: var(--spacing-sm);
+	}
+
+	.game-over-body {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--spacing-lg);
+	}
+	.game-over-left  { flex: 1; min-width: 0; }
+	.game-over-arty  { flex-shrink: 0; opacity: 0.92; }
+	@media (max-width: 480px) {
+		.game-over-arty { display: none; }
 	}
 
 	.game-over-title {

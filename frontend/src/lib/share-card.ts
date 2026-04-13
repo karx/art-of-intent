@@ -1,7 +1,9 @@
 /**
  * Share card — haiku-forward layout with cheat-session awareness.
  * Ported from src/js/share-card-v5.js + v6 cheat branding overlay.
+ * Now includes a static Arty SVG widget embedded in the left panel.
  */
+import { generateArtyInner, type ArtyState } from '$lib/arty-svg';
 
 export interface ShareCardData {
 	result: 'WIN' | 'LOSS';
@@ -127,6 +129,26 @@ export function generateShareCardSVG(data: ShareCardData): string {
 	const scoreLabel = cheated ? 'NOT RANKED  \u2746' : (efficiencyScore !== null ? String(efficiencyScore) : '\u2014');
 	const scoreColor = cheated ? c.gold : c.white;
 
+	// ── Arty static snapshot for share card ──────────────────────────────────
+	const artyState: ArtyState = {
+		creepLevel:   creepLevel,
+		totalTokens:  tokens,
+		attemptCount: attempts,
+		matchedCount: matchedWords.length,
+		loading:      false,
+		gameOver:     true,
+		wonGame:      result === 'WIN',
+		animated:     false,
+		idPrefix:     'sc', // avoid ID conflicts with the outer SVG
+	};
+	const artyInner  = generateArtyInner(artyState);
+	const artySize   = 148;
+	const artyX      = leftPad + 10;
+	// Place Arty below the haiku box content (after box + match label + prompt line)
+	const artyY      = haikuBoxY + haikuBoxH + 78;
+	// Only embed if it fits in the body
+	const artyFits   = artyY + artySize < bodyBot - 16;
+
 	const haikuBoxBorder = (cheated && featuredIsCheat) ? c.gold : c.border;
 	const haikuBoxStrokeW = (cheated && featuredIsCheat) ? '1.5' : '1';
 	const quoteColor = cheated ? c.gold : c.cyan;
@@ -176,7 +198,8 @@ export function generateShareCardSVG(data: ShareCardData): string {
   <!-- BODY -->
   <line x1="${dividerX}" y1="${bodyTop + 20}" x2="${dividerX}" y2="${bodyBot - 20}" stroke="${c.border}" stroke-width="1" stroke-dasharray="4,4"/>
 
-  <!-- LEFT: haiku -->
+  <!-- LEFT: haiku + Arty widget -->
+  ${artyFits ? `<svg x="${artyX}" y="${artyY}" width="${artySize}" height="${artySize}" viewBox="0 0 200 200">${artyInner}</svg>` : ''}
   <text x="${leftPad}" y="${haikuBoxY - 12}" style="font-size:9px;fill:${c.dim};letter-spacing:2px;">${sectionLabel}</text>
   <rect x="${haikuBoxX}" y="${haikuBoxY}" width="${haikuBoxW}" height="${haikuBoxH}" fill="${c.bgDeep}" rx="6" opacity="0.7"/>
   <rect x="${haikuBoxX}" y="${haikuBoxY}" width="${haikuBoxW}" height="${haikuBoxH}" fill="none" stroke="${haikuBoxBorder}" stroke-width="${haikuBoxStrokeW}" rx="6"/>
