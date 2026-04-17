@@ -9,7 +9,8 @@
       "Bash(npm run:*)",
       "Bash(wc -l D:/src/art-of-intent/src/js/*.js)",
       "Bash(npx svelte-check:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

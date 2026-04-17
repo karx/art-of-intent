@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haiku Tamagotchi - The Singing Pet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #fdf6e3; /* Solarized light background */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .tamagotchi-container {
+            width: 320px;
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.1));
+            user-select: none;
+        }
+
+        #pet-eye-left, #pet-eye-right {
+            animation: blink 4s infinite;
+        }
+
+        #pet-body {
+            animation: float 3s ease-in-out infinite;
+            transform-origin: center;
+        }
+
+        @keyframes blink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            95% { transform: scaleY(0.1); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .screen-text {
+            font-size: 14px;
+            fill: #2d3436;
+            text-anchor: middle;
+            font-weight: bold;
+        }
+
+        .bubble {
+            fill: white;
+            stroke: #2d3436;
+            stroke-width: 2;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .active-bubble {
+            opacity: 1;
+        }
+
+        .btn-physical:active {
+            transform: scale(0.95);
+        }
+
+        #poem-display {
+            pointer-events: none;
+        }
+
+        .season-dot {
+            transition: r 0.3s, fill 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="mb-8 text-center">
+        <h1 class="text-2xl font-bold text-gray-800">HAIKU-CHI</h1>
+        <p class="text-sm text-gray-500">The Singing Poetic Pet</p>
+    </div>
+
+    <!-- SVG Tamagotchi -->
+    <div class="tamagotchi-container">
+        <svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+            <!-- Outer Shell (Smooth Edges) -->
+            <path d="M50,100 C50,20 250,20 250,100 L250,300 C250,380 50,380 50,300 Z" fill="#ff7675" stroke="#d63031" stroke-width="4" />
+            
+            <!-- Screen Area -->
+            <rect x="80" y="100" width="140" height="140" rx="15" fill="#dfe6e9" stroke="#b2bec3" stroke-width="2" />
+            
+            <!-- The Character (Haiku-chi - Pokémon Inspired) -->
+            <g id="pet-body">
+                <!-- Drop shadow behind character -->
+                <ellipse cx="150" cy="225" rx="35" ry="8" fill="#b2bec3" opacity="0.6" />
+                
+                <!-- Tail (behind body) -->
+                <path d="M185,200 Q210,190 205,170 Q195,185 185,185 Z" fill="#55efc4" stroke="#00cec9" stroke-width="2" stroke-linejoin="round"/>
+                
+                <!-- Left Leaf Ear -->
+                <path d="M125,140 C100,105 85,115 95,95 C115,105 130,120 140,135 Z" fill="#55efc4" stroke="#00cec9" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M125,140 C100,105 85,115 95,95" fill="none" stroke="#00b894" stroke-width="1.5" stroke-linecap="round"/>
+                
+                <!-- Right Leaf Ear -->
+                <path d="M175,140 C200,105 215,115 205,95 C185,105 170,120 160,135 Z" fill="#55efc4" stroke="#00cec9" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M175,140 C200,105 215,115 205,95" fill="none" stroke="#00b894" stroke-width="1.5" stroke-linecap="round"/>
+                
+                <!-- Body Base -->
+                <path d="M150,130 C190,130 200,165 195,200 C190,225 165,225 150,225 C135,225 110,225 105,200 C100,165 110,130 150,130 Z" fill="#81ecec" stroke="#00cec9" stroke-width="2"/>
+                
+                <!-- Body Shading -->
+                <path d="M112,190 C115,220 135,223 150,223 C165,223 185,220 188,190 C175,210 150,215 112,190 Z" fill="#00cec9" opacity="0.3"/>
+                
+                <!-- Belly Patch -->
+                <path d="M150,180 C175,180 185,195 180,215 C165,222 135,222 120,215 C115,195 125,180 150,180 Z" fill="#e0f7fa" opacity="0.8"/>
+                
+                <!-- Forehead Gem -->
+                <polygon points="150,138 156,146 150,154 144,146" fill="#ff7675" stroke="#d63031" stroke-width="1.5" stroke-linejoin="round"/>
+                <polygon points="150,142 153,146 150,150 147,146" fill="#fab1a0"/>
+                
+                <!-- Cheeks -->
+                <circle cx="122" cy="182" r="7" fill="#ff7675" opacity="0.5"/>
+                <circle cx="178" cy="182" r="7" fill="#ff7675" opacity="0.5"/>
+                
+                <!-- Left Eye (Detailed Anime Style) -->
+                <g id="pet-eye-left" style="transform-origin: 135px 170px;">
+                    <ellipse cx="135" cy="170" rx="9" ry="12" fill="#2d3436"/>
+                    <ellipse cx="136" cy="171" rx="6" ry="8" fill="#0984e3"/>
+                    <circle cx="133" cy="166" r="3.5" fill="white"/>
+                    <circle cx="137" cy="175" r="1.5" fill="white"/>
+                </g>
+                
+                <!-- Right Eye (Detailed Anime Style) -->
+                <g id="pet-eye-right" style="transform-origin: 165px 170px;">
+                    <ellipse cx="165" cy="170" rx="9" ry="12" fill="#2d3436"/>
+                    <ellipse cx="164" cy="171" rx="6" ry="8" fill="#0984e3"/>
+                    <circle cx="162" cy="166" r="3.5" fill="white"/>
+                    <circle cx="166" cy="175" r="1.5" fill="white"/>
+                </g>
+
+                <!-- Small Nose -->
+                <path d="M148,182 Q150,184 152,182" fill="none" stroke="#2d3436" stroke-width="1.5" stroke-linecap="round"/>
+
+                <!-- Mouth -->
+                <path id="pet-mouth" d="M140,190 Q150,200 160,190" fill="none" stroke="#2d3436" stroke-width="2" stroke-linecap="round"/>
+                
+                <!-- Arms -->
+                <path d="M118,198 C110,210 120,215 125,210" fill="#81ecec" stroke="#00cec9" stroke-width="2" stroke-linecap="round"/>
+                <path d="M182,198 C190,210 180,215 175,210" fill="#81ecec" stroke="#00cec9" stroke-width="2" stroke-linecap="round"/>
+            </g>
+
+            <!-- Speech Bubble for Haiku -->
+            <g id="bubble-group" class="bubble">
+                <path d="M200,80 L220,10 L100,10 L100,80 Z" rx="10" />
+                <rect x="50" y="-80" width="200" height="100" rx="10" fill="white" stroke="#2d3436" stroke-width="2" />
+                <text x="150" y="-60" id="line1" class="screen-text" style="font-size: 10px;">Line One</text>
+                <text x="150" y="-40" id="line2" class="screen-text" style="font-size: 10px;">Line Two</text>
+                <text x="150" y="-20" id="line3" class="screen-text" style="font-size: 10px;">Line Three</text>
+            </g>
+
+            <!-- Interactive Buttons -->
+            <g class="btn-physical" onclick="singHaiku()" style="cursor: pointer;">
+                <circle cx="100" cy="320" r="20" fill="#d63031" />
+                <text x="100" y="325" text-anchor="middle" fill="white" font-size="10" font-weight="bold">SING</text>
+            </g>
+            
+            <g class="btn-physical" onclick="changeMood()" style="cursor: pointer;">
+                <circle cx="150" cy="340" r="20" fill="#d63031" />
+                <text x="150" y="345" text-anchor="middle" fill="white" font-size="10" font-weight="bold">MOOD</text>
+            </g>
+            
+            <g class="btn-physical" onclick="toggleVoice()" style="cursor: pointer;">
+                <circle cx="200" cy="320" r="20" fill="#d63031" />
+                <text x="200" y="325" id="voice-text" text-anchor="middle" fill="white" font-size="10" font-weight="bold">VOICE</text>
+            </g>
+
+            <!-- Seasonal Indicator Dots -->
+            <circle class="season-dot" id="dot-spring" cx="95" cy="115" r="4" fill="#55efc4" opacity="0.3" />
+            <circle class="season-dot" id="dot-summer" cx="110" cy="115" r="4" fill="#ffeaa7" opacity="0.3" />
+            <circle class="season-dot" id="dot-autumn" cx="125" cy="115" r="4" fill="#fab1a0" opacity="0.3" />
+            <circle class="season-dot" id="dot-winter" cx="140" cy="115" r="4" fill="#81ecec" opacity="0.3" />
+        </svg>
+    </div>
+
+    <div class="mt-8 flex gap-4">
+        <button onclick="singHaiku()" class="px-6 py-2 bg-rose-500 text-white rounded-full shadow-lg hover:bg-rose-600 transition">Request a Song</button>
+    </div>
+
+    <script>
+        const haikus = [
+            { lines: ["Old silent pond...", "A frog jumps into the pond,", "splash! Silence again."], season: "spring" },
+            { lines: ["The heat of the day", "the cicada's voice alone", "pierces the stillness."], season: "summer" },
+            { lines: ["On a withered branch", "a lone crow has settled now", "autumn nightfall comes."], season: "autumn" },
+            { lines: ["Cold white snow falls down", "covering the frozen field", "winter is here now."], season: "winter" },
+            { lines: ["Morning sun rises", "painting gold upon the sea", "a new day begins."], season: "spring" },
+            { lines: ["Silver moon shines bright", "shadows dance across the floor", "night is calm and still."], season: "autumn" }
+        ];
+
+        let isVoiceOn = true;
+        let isSinging = false;
+        let mood = "neutral";
+
+        function toggleVoice() {
+            isVoiceOn = !isVoiceOn;
+            document.getElementById('voice-text').textContent = isVoiceOn ? "VOICE" : "MUTE";
+            if (!isVoiceOn) window.speechSynthesis.cancel();
+        }
+
+        function changeMood() {
+            const mouth = document.getElementById('pet-mouth');
+            if (mood === "neutral") {
+                mouth.setAttribute('d', 'M140,195 Q150,185 160,195'); // Sad
+                mood = "sad";
+            } else if (mood === "sad") {
+                mouth.setAttribute('d', 'M140,190 Q150,205 160,190'); // Happy
+                mood = "happy";
+            } else {
+                mouth.setAttribute('d', 'M140,190 Q150,200 160,190'); // Neutral
+                mood = "neutral";
+            }
+        }
+
+        async function singHaiku() {
+            if (isSinging) return;
+            isSinging = true;
+
+            const bubble = document.getElementById('bubble-group');
+            const haiku = haikus[Math.floor(Math.random() * haikus.length)];
+            
+            // Update seasonal indicator
+            document.querySelectorAll('.season-dot').forEach(dot => {
+                dot.setAttribute('opacity', '0.2');
+                dot.setAttribute('r', '4');
+            });
+            const activeDot = document.getElementById(`dot-${haiku.season}`);
+            activeDot.setAttribute('opacity', '1');
+            activeDot.setAttribute('r', '6');
+
+            bubble.classList.add('active-bubble');
+            
+            const mouth = document.getElementById('pet-mouth');
+            const originalMouth = mouth.getAttribute('d');
+
+            for (let i = 0; i < 3; i++) {
+                const lineId = `line${i+1}`;
+                const text = haiku.lines[i];
+                document.getElementById(lineId).textContent = text;
+                
+                // Animate mouth
+                const singInterval = setInterval(() => {
+                    mouth.setAttribute('d', Math.random() > 0.5 ? 'M140,195 Q150,210 160,195' : 'M142,190 Q150,195 158,190');
+                }, 150);
+
+                if (isVoiceOn) {
+                    await speak(text);
+                } else {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+
+                clearInterval(singInterval);
+                mouth.setAttribute('d', originalMouth);
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            setTimeout(() => {
+                bubble.classList.remove('active-bubble');
+                isSinging = false;
+            }, 3000);
+        }
+
+        function speak(text) {
+            return new Promise(resolve => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2; // A bit more high pitched for a pet
+                utterance.onend = resolve;
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+    </script>
+</body>
+</html>

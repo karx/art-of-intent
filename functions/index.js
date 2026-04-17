@@ -258,6 +258,311 @@ export const saveUserSettings = onCall({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// generateArtyAppearance — derive Arty's visual theme from a prompt + haiku
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Appearance field validators ───────────────────────────────────────────────
+const HEX_RE    = /^#[0-9a-fA-F]{6}$/;
+const isHex     = (v) => typeof v === 'string' && HEX_RE.test(v);
+const clampInt  = (v, lo, hi, fallback) => {
+    const n = typeof v === 'number' ? Math.round(v) : fallback;
+    return Math.min(hi, Math.max(lo, n));
+};
+const clampFloat = (v, lo, hi, fallback) => {
+    const n = typeof v === 'number' ? v : fallback;
+    return Math.min(hi, Math.max(lo, n));
+};
+const oneOf     = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+
+const EYE_SHAPES   = ['circle', 'rect', 'diamond', 'bar'];
+const CHEST_PATS   = ['core', 'circuit', 'scanner', 'gauge', 'empty'];
+const ANTENNA_STYS = ['none', 'single', 'dual', 'coil'];
+const SHOULDER_STYS= ['none', 'pads', 'vents', 'fins'];
+const LEG_STYS     = ['legs', 'hover', 'treads'];
+const BG_SCENES    = ['void', 'grid', 'stars', 'circuit', 'waves'];
+
+/**
+ * Ask Gemini flash-lite to design Arty's visual appearance for this haiku.
+ * The LLM outputs actual hex colours and numeric parameters — real design
+ * authority, not just enum picking. Returns null on any failure.
+ */
+async function generateArtyAppearance(userPrompt, haikuText) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    const baseUrl = (process.env.GEMINI_API_URL || '')
+        .replace(/:generateContent.*/, '')
+        .replace(/\/models\/[^/]+$/, '');
+    const appearanceUrl = baseUrl
+        ? `${baseUrl}/models/gemini-2.0-flash-lite:generateContent`
+        : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+
+    const systemText = `You are a visual designer for a floating robot companion named Arty rendered in Three.js.
+
+Arty is an egg-shaped metallic bot hovering in space, with a large glowing visor showing its face.
+Given the user prompt and haiku, return a JSON object defining Arty's appearance.
+
+Required fields:
+- primary: "#RRGGBB" — dominant emotional colour
+- secondary: "#RRGGBB" — contrasting accent colour
+- bgGlow: "#RRGGBB" — very dark background tint (luminance < 20%)
+- eyeShape: "circle" | "rect" | "diamond" | "bar"
+- eyeSize: integer 2–6
+- mouthCurve: float -1.0 (frown) to 1.0 (smile)
+- headRx: integer 4–20 (head corner radius)
+- bodyRx: integer 0–12 (body corner radius)
+- chestPattern: "core" | "circuit" | "scanner" | "gauge" | "empty"
+- antennaStyle: "none" | "single" | "dual" | "coil"
+- shoulderStyle: "none" | "pads" | "vents" | "fins"
+- legStyle: "legs" | "hover" | "treads"
+- bgScene: "void" | "grid" | "stars" | "circuit" | "waves"
+- glowRadius: integer 0–6
+- scanlines: boolean
+- faceSVG: string — raw SVG elements overlaid on the visor face (see rules below)
+
+faceSVG rules:
+- NO outer svg tag, NO text elements, NO scripts, NO images
+- Viewbox is 512x384. Use ONLY: path, circle, rect, line, ellipse, polygon
+- Use single quotes for ALL attribute values (e.g. fill='none' not fill="none")
+- Keep opacity between 0.1 and 0.4. Max 4 elements. stroke-width 0.5-1.5
+- Reflect the haiku imagery subtly — DO NOT cover eyes or mouth area (avoid y 100-300, x 100-400)
+- Use empty string if haiku has no clear visual imagery
+
+faceSVG examples:
+- Stars/cosmos: <circle cx='256' cy='50' r='100' fill='none' stroke='#aaccff' stroke-width='0.8' opacity='0.2'/><circle cx='256' cy='50' r='60' fill='none' stroke='#aaccff' stroke-width='0.5' opacity='0.15'/>
+- Fire/heat: <path d='M180,384 C200,320 230,280 256,240 C282,280 312,320 332,384' fill='none' stroke='#ff6600' stroke-width='1.2' opacity='0.25'/>
+- Rain/water: <line x1='60' y1='0' x2='40' y2='384' stroke='#88ccff' stroke-width='0.7' opacity='0.18'/><line x1='456' y1='0' x2='436' y2='384' stroke='#88ccff' stroke-width='0.7' opacity='0.18'/>
+- Void/silence: (empty string)
+
+Design intent:
+- primary/secondary: be specific and creative — pure #FF0000 red for passion, #4B0082 indigo for mystery, etc.
+- mouthCurve: reflect haiku sentiment precisely
+- bgScene stars for cosmos/infinity, waves for emotion/flow, circuit for tech/logic
+- glowRadius 0=harsh, 6=dreamlike`;
+
+    const userText = `Prompt: "${userPrompt.slice(0, 280)}"\n\nHaiku: "${haikuText.slice(0, 380)}"`;
+
+    try {
+        const res = await fetch(`${appearanceUrl}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemText }] },
+                contents: [{ parts: [{ text: userText }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json',  // guarantees valid JSON encoding
+                    maxOutputTokens: 600,
+                    temperature: 0.85,
+                },
+            }),
+            signal: AbortSignal.timeout(8000),
+        });
+
+        if (!res.ok) {
+            logger.warn('generateArtyAppearance_http_error', { status: res.status });
+            return null;
+        }
+        const json = await res.json();
+        const raw  = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (!raw) return null;
+
+        // With responseMimeType=application/json Gemini returns valid JSON directly.
+        // Strip fences defensively in case an older model wraps it anyway.
+        const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim();
+        const parsed  = JSON.parse(cleaned);
+
+        // ── Validate and clamp every field — nothing untrusted reaches the client ──
+        // faceSVG: basic server-side safety check (full sanitisation happens client-side)
+        const rawFaceSVG = typeof parsed.faceSVG === 'string' ? parsed.faceSVG : '';
+        const BLOCKED_SVG = [/<script/i, /<foreignObject/i, /<image/i, /on\w+\s*=/i, /javascript:/i, /xlink:href/i];
+        const faceSVG = rawFaceSVG.length < 3000 && !BLOCKED_SVG.some(re => re.test(rawFaceSVG))
+            ? rawFaceSVG : '';
+
+        return {
+            primary:      isHex(parsed.primary)   ? parsed.primary   : '#00FFFF',
+            secondary:    isHex(parsed.secondary) ? parsed.secondary : '#00FF00',
+            bgGlow:       isHex(parsed.bgGlow)    ? parsed.bgGlow    : '#001a1a',
+            eyeShape:     oneOf(parsed.eyeShape,  EYE_SHAPES,    'circle'),
+            eyeSize:      clampInt(parsed.eyeSize,   2, 6, 4),
+            mouthCurve:   clampFloat(parsed.mouthCurve, -1.0, 1.0, 0),
+            headRx:       clampInt(parsed.headRx,    4, 20, 8),
+            bodyRx:       clampInt(parsed.bodyRx,    0, 12, 4),
+            chestPattern: oneOf(parsed.chestPattern, CHEST_PATS,    'core'),
+            antennaStyle: oneOf(parsed.antennaStyle, ANTENNA_STYS,  'single'),
+            shoulderStyle:oneOf(parsed.shoulderStyle,SHOULDER_STYS, 'none'),
+            legStyle:     oneOf(parsed.legStyle,     LEG_STYS,      'legs'),
+            bgScene:      oneOf(parsed.bgScene,      BG_SCENES,     'void'),
+            glowRadius:   clampInt(parsed.glowRadius, 0, 6, 2),
+            scanlines:    parsed.scanlines === true,
+            faceSVG,
+        };
+    } catch (e) {
+        logger.warn('generateArtyAppearance_failed', { error: e.message });
+        return null; // never break the haiku flow over cosmetics
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateArtyAsciiUpdate — evolve the ASCII window based on prompt + haiku
+// ─────────────────────────────────────────────────────────────────────────────
+
+const INITIAL_ARTY_ASCII = `  · ✦ · *  ★    * · ✦  · *   ★   · ✦ ·
+    ·   ·    ✦  ·   ·    ✦   ·   ·   ·
+
+          ╭────────────────────╮
+  ════════╡  ◉             ◉   ╞════════
+          │    ·   ───────  ·  │
+          ╰─────────┬──┬────────╯
+         ╭──────────┴──┴───────────╮
+         │   ╔══════════════════╗  │
+         │   ║  ░░  ▓▓▓▓▓  ░░  ║  │
+         │   ║  ░░  ▓░░░▓  ░░  ║  │
+         │   ╚══════════════════╝  │
+         ╰────────┬──────────┬─────╯
+               ╱╱ │          │ ╲╲
+          ════════╧══════════╧════════
+  ─ · ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ · ─ ·
+  ✦ · ─ ─ · ─ ─ ─ ─ ─ ─ · ─ ─ ─ · ✦ ·`;
+
+/**
+ * Build Arty's ASCII portrait progressively — using the haiku's own characters
+ * as literal construction material. Attempt 1 = head hint, 10 = full figure + environment.
+ */
+async function generateArtyAsciiUpdate(currentAscii, userPrompt, haikuText, attemptCount) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    const baseUrl = (process.env.GEMINI_API_URL || '')
+        .replace(/:generateContent.*/, '')
+        .replace(/\/models\/[^/]+$/, '');
+    const asciiUrl = baseUrl
+        ? `${baseUrl}/models/gemini-2.0-flash-lite:generateContent`
+        : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+
+    // Stage determines which body part gets added this attempt
+    const stage = Math.min(attemptCount, 10);
+    const stageGuide = [
+        /* 1 */ `HEAD OUTLINE ONLY. Use the haiku's letters to trace the curve of a head around the ◉ ◉ eyes. No body yet. Sky above is minimal dots.`,
+        /* 2 */ `HEAD (from haiku letters) + FACE DETAIL. Add a mouth formed from haiku chars. Eyes can now have expression. Bare shoulders hinted.`,
+        /* 3 */ `HEAD complete + SHOULDERS/PYLONS appearing. Use haiku letters to form the shoulder lines extending from the head.`,
+        /* 4 */ `HEAD + SHOULDERS + UPPER TORSO beginning. Haiku chars start flowing down the chest area. A chest panel edge forms.`,
+        /* 5 */ `HEAD + SHOULDERS + FULL TORSO. Chest panel fills with haiku chars forming a pattern. Waist visible.`,
+        /* 6 */ `Full upper body (head, shoulders, torso) + ARM HINTS. Arms extend using haiku chars. Environment sky takes shape from the prompt.`,
+        /* 7 */ `Full body above waist + LEGS/BASE appearing. Haiku chars form leg structure. Ground line appears below.`,
+        /* 8 */ `Near-complete figure. Legs/base solid. Haiku chars fill remaining gaps. Environment above and below active.`,
+        /* 9 */ `Complete figure. Haiku chars texture every surface. Rich environment: sky biome + ground detail matching the prompt.`,
+        /* 10 */ `Complete figure + fully evolved scene. Haiku chars integrated into every element — body, sky, ground, and surroundings.`,
+    ][stage - 1];
+
+    const systemText = `You are building Arty — a robot companion — letter by letter, using the haiku's own characters as construction material.
+
+═══ CORE MECHANIC ═══
+The haiku text is not just inspiration — its ACTUAL LETTERS physically build Arty's body.
+Take the haiku characters and arrange them to FORM the structural lines and surfaces of Arty.
+
+HOW TO USE HAIKU LETTERS:
+  • Trace outlines: haiku chars follow the curved or straight edges of body parts
+    Example — head top from "moonlight falls": ...m o o n l i g h t · f a l l s...
+  • Fill surfaces: haiku text flows across chest panels and body areas
+    Example — chest fill: │  m o o n · l i g h t  │
+  • Form ground/sky: scattered haiku chars become environment elements
+    Example — ground from "soft petals": s o f t · · p e t a l s · · · s o
+  • Letters can repeat and rearrange freely — spell the haiku across the art
+
+CURRENT STAGE: ${stageGuide}
+
+═══ PROGRESSIVE BODY PARTS ═══
+The ◉ ◉ eyes are ALWAYS present and always made of ◉ (or variant: ◎ ● ○ ◈ based on mood).
+Body parts are built with haiku letters as structural chars — box-drawing chars (╭╮╰╯│─═╡╞╔╗╚╝║) used only as joints/anchors.
+
+Body part reference (built with haiku chars):
+  HEAD:      haiku letters curve around the ◉ ◉ eyes in an oval/box shape
+  MOUTH:     haiku chars form a line between the eyes: · h a i k u · or ═════ focused
+  SHOULDERS: haiku letters extend horizontally from head sides: a i k · · · k i a
+  TORSO:     haiku chars cascade vertically below head, filling the body rectangle
+  ARMS:      haiku chars reach outward: h a i── ●  or  ●──k u
+  LEGS/BASE: haiku chars ground the figure: h a i k u under the torso
+
+═══ MOOD FROM USER PROMPT + HAIKU ═══
+User prompt (70% weight) shapes:
+  - Which body variation appears (confident/slumped/reaching)
+  - Eye char: ◉ default · ◎ calm · ○ sad/empty · ◈ focused · ▣ glitchy · ● intense
+  - Environment biome (sky + ground chars)
+
+Haiku (30% weight) shapes:
+  - The actual letters used in the construction
+  - Emotional temperature of the layout
+
+═══ ENVIRONMENT ═══
+The biome FILLS THE ENTIRE CANVAS — not just top and bottom rows.
+Environment elements appear EVERYWHERE: beside Arty, between body parts, in gaps, on all sides.
+Think of the biome as the AIR around Arty — it permeates the whole scene.
+
+Biome placement examples:
+  Rain: │╎╏ streaks fall through EVERY open column — beside the head, beside the torso, in gaps
+  Forest: ♣ ♦ ♠ leaves scattered AROUND all sides of Arty, roots below AND vines beside
+  Ocean: ~ ≈ waves ripple through side columns, foam ° beside shoulders, depth below
+  Fire: ° ˄ ^ embers float AROUND the whole figure — above, beside, between parts
+  Space: ✦ · ★ fill ALL blank space — sides, between arms, everywhere
+  Code: { } [ ] # characters RAIN through every open column top to bottom
+  Storm: ≈ ~ and │ in side columns AND above AND between all gaps
+
+At later stages (7-10): environment characters are dense and active across the full canvas.
+
+Canvas safe chars: printable ASCII + · ✦ ★ ◉ ◎ ● ○ ◈ ▣ ░ ▒ ▓ │ ─ ╭ ╮ ╯ ╰ ┌ ┐ └ ┘ ╔ ═ ╗ ╚ ╝ ║ ╡ ╞ ╱ ╲ ━ ≈ ~ ♪ ♫ ♣ ♦ ♠ ♥ ° ˄
+
+Target: ~40 chars wide, 12–18 lines. Keep line widths consistent (±4 chars).
+
+CRITICAL: Output ONLY the raw ASCII art — nothing else. No explanation. No fences. No labels.`;
+
+    const safeCurrentAscii = (typeof currentAscii === 'string' && currentAscii.length < 2000)
+        ? currentAscii : INITIAL_ARTY_ASCII;
+
+    // Extract haiku's individual characters as a flat string for the LLM to use as building material
+    const haikuChars = haikuText.replace(/\s+/g, ' ').trim().slice(0, 300);
+    const userText = `CURRENT ASCII WINDOW:\n${safeCurrentAscii}\n\nATTEMPT: ${attemptCount} of 10\n\nHAIKU (use these letters to BUILD Arty):\n"${haikuChars}"\n\nUSER PROMPT (mood + environment direction):\n"${userPrompt.slice(0, 200)}"`;
+
+    try {
+        const res = await fetch(`${asciiUrl}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemText }] },
+                contents: [{ parts: [{ text: userText }] }],
+                generationConfig: {
+                    maxOutputTokens: 500,
+                    temperature: 0.88,
+                },
+            }),
+            signal: AbortSignal.timeout(8000),
+        });
+
+        if (!res.ok) {
+            logger.warn('generateArtyAsciiUpdate_http_error', { status: res.status });
+            return null;
+        }
+        const json = await res.json();
+        const raw  = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (!raw) return null;
+
+        // Strip markdown fences defensively
+        const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+
+        // Validate: has reasonable line count and contains printable content
+        const lines = cleaned.split('\n');
+        if (lines.length < 5 || lines.length > 25 || cleaned.length < 20) {
+            logger.warn('generateArtyAsciiUpdate_invalid_format', { lineCount: lines.length });
+            return null;
+        }
+
+        return cleaned;
+    } catch (e) {
+        logger.warn('generateArtyAsciiUpdate_failed', { error: e.message });
+        return null; // never break the haiku flow
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // artyGenerateHaiku — AI Gateway entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -273,7 +578,7 @@ export const artyGenerateHaiku = onCall({
     memory: '256MiB',
     cors: true
 }, async (request) => {
-    const {userPrompt, sessionId} = request.data;
+    const {userPrompt, sessionId, currentAsciiWindow, attemptCount} = request.data;
 
     // Validate authentication
     if (!request.auth) {
@@ -455,6 +760,13 @@ export const artyGenerateHaiku = onCall({
             totalTokenCount:      gatewayResult.inputTokens + gatewayResult.outputTokens,
         };
 
+        // ── Generate Arty's visuals (appearance + ASCII window) in parallel ─────
+        const safeAttempt = Math.max(1, Math.min(10, parseInt(attemptCount) || 1));
+        const [artyAppearance, artyAsciiWindow] = await Promise.all([
+            generateArtyAppearance(userPrompt, responseText),
+            generateArtyAsciiUpdate(currentAsciiWindow, userPrompt, responseText, safeAttempt),
+        ]);
+
         return {
             success: true,
             data: {
@@ -463,6 +775,8 @@ export const artyGenerateHaiku = onCall({
                 userPromptTokens,
                 systemPromptTokens,
                 provider,
+                artyAppearance,
+                artyAsciiWindow,
                 fullResponse: { text: responseText, finishReason, usageMetadata },
             }
         };

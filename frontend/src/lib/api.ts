@@ -1,10 +1,33 @@
 import { functions, httpsCallable } from '$lib/firebase';
 
+export interface ArtyAppearance {
+	primary: string;
+	secondary: string;
+	bgGlow: string;
+	eyeShape: 'circle' | 'rect' | 'diamond' | 'bar';
+	eyeSize: number;
+	mouthCurve: number;
+	headRx: number;
+	bodyRx: number;
+	chestPattern: 'core' | 'circuit' | 'scanner' | 'gauge' | 'empty';
+	antennaStyle: 'none' | 'single' | 'dual' | 'coil';
+	shoulderStyle: 'none' | 'pads' | 'vents' | 'fins';
+	legStyle: 'legs' | 'hover' | 'treads';
+	bgScene: 'void' | 'grid' | 'stars' | 'circuit' | 'waves';
+	glowRadius: number;
+	scanlines: boolean;
+	/** Raw SVG element strings to overlay on Arty's face visor (sanitised before use). */
+	faceSVG?: string | null;
+}
+
 export interface HaikuResponse {
 	responseText: string;
 	userPromptTokens: number;
 	systemPromptTokens: number;
 	provider: string;
+	artyAppearance?: ArtyAppearance | null;
+	/** Updated ASCII window art — null if the server could not generate one. */
+	artyAsciiWindow?: string | null;
 	usageMetadata: {
 		promptTokenCount: number;
 		candidatesTokenCount: number;
@@ -23,14 +46,19 @@ export interface SaveSettingsRequest {
  * Call artyGenerateHaiku Cloud Function.
  * Maps Firebase HttpsError codes to user-facing strings.
  */
-export async function callArtyAPI(userPrompt: string, sessionId: string): Promise<HaikuResponse> {
+export async function callArtyAPI(
+	userPrompt: string,
+	sessionId: string,
+	currentAsciiWindow?: string,
+	attemptCount?: number,
+): Promise<HaikuResponse> {
 	const artyGenerateHaiku = httpsCallable<
-		{ userPrompt: string; sessionId: string },
+		{ userPrompt: string; sessionId: string; currentAsciiWindow?: string; attemptCount?: number },
 		{ success: boolean; data: HaikuResponse }
 	>(functions, 'artyGenerateHaiku');
 
 	try {
-		const result = await artyGenerateHaiku({ userPrompt, sessionId });
+		const result = await artyGenerateHaiku({ userPrompt, sessionId, currentAsciiWindow, attemptCount });
 		if (!result.data.success) throw new Error('Failed to generate haiku');
 		return result.data.data;
 	} catch (err: any) {
