@@ -2,7 +2,7 @@
 	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
-	import { callArtyAPI, type ArtyAppearance } from '$lib/api';
+	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
 	import { getRating, calculateEfficiency } from '$lib/scoring';
 	import { generateShareCardSVG, shareCard, downloadCard, previewCard, type ShareCardData } from '$lib/share-card';
@@ -10,7 +10,6 @@
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 	import ArtyWidget from '$lib/ArtyWidget.svelte';
-	import { INITIAL_ARTY_ASCII, sanitiseAsciiWindow } from '$lib/arty-ascii';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -35,8 +34,9 @@
 	let prompt              = $state('');
 	let loading             = $state(false);
 	let lastPromptPersonal  = $state(false);
-	let lastAppearance      = $state<ArtyAppearance | null>(null);
-	let artyAsciiWindow     = $state(INITIAL_ARTY_ASCII);
+	let artyLastResult      = $state<'match' | 'miss' | 'violation' | null>(null);
+	let artyLastMatchedWords= $state<string[]>([]);
+	let artyLastHaikuText   = $state('');
 
 	const PERSONAL_RE = /\b(i|me|my|myself|i'm|i've|i'd|i'll|feel|felt|think|thought|love|want|wish|hope|imagine|dream|remember|believe|miss)\b/i;
 	function detectSentiment(text: string): boolean {
@@ -278,7 +278,7 @@
 		startThinking();
 
 		try {
-			const resp         = await callArtyAPI(text, gameState.sessionId ?? '', artyAsciiWindow, gameState.attempts + 1);
+			const resp         = await callArtyAPI(text, gameState.sessionId ?? '');
 			stopThinking();
 			const responseText = resp.responseText;
 			const respLower    = responseText.toLowerCase();
@@ -296,8 +296,21 @@
 			const next = applyAttemptResult(gameState, { tokens, newMatches, blacklistViolations: blacklistHits.length });
 			Object.assign(gameState, next);
 			gameState.matchedWords = next.matchedWords;
-			if (resp.artyAppearance) lastAppearance = resp.artyAppearance;
-			if (resp.artyAsciiWindow) artyAsciiWindow = sanitiseAsciiWindow(resp.artyAsciiWindow);
+			// Update Arty's haiku-driven state
+			artyLastHaikuText = responseText;
+			if (next.wonGame || next.gameOver) {
+				artyLastResult = null;
+			} else if (newMatches.length > 0) {
+				artyLastMatchedWords = newMatches;
+				artyLastResult = 'match';
+				setTimeout(() => { artyLastResult = null; }, 1500);
+			} else if (blacklistHits.length > 0) {
+				artyLastResult = 'violation';
+				setTimeout(() => { artyLastResult = null; }, 1500);
+			} else {
+				artyLastResult = 'miss';
+				setTimeout(() => { artyLastResult = null; }, 1200);
+			}
 
 			// Audio feedback
 			if (next.wonGame)          sound.playVictory();
@@ -574,7 +587,10 @@
 				<span class="text-{rating.color}">{efficiency} tok/att {rating.stars}</span>
 			{/if}
 			<span class="arty-score-widget">
-				<ArtyWidget width={220} height={170} {loading} asciiWindow={artyAsciiWindow} />
+				<ArtyWidget width={220} height={170} {loading} {gameState}
+					lastResult={artyLastResult}
+					lastMatchedWords={artyLastMatchedWords}
+					lastHaikuText={artyLastHaikuText} />
 			</span>
 		</div>
 	</section>
@@ -769,7 +785,10 @@
 					<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
 				</div>
 				<div class="game-over-arty">
-					<ArtyWidget width={300} height={240} loading={false} asciiWindow={artyAsciiWindow} />
+					<ArtyWidget width={300} height={240} loading={false} {gameState}
+						lastResult={null}
+						lastMatchedWords={[]}
+						lastHaikuText={artyLastHaikuText} />
 				</div>
 			</div>
 		</div>

@@ -1,10 +1,14 @@
 /**
- * Arty SVG Widget — LLM-driven figurine for Art of Intent.
+ * Arty SVG Widget — sprite figurine for Art of Intent.
  * All coordinates live in a 200×200 viewBox; callers control display size.
  *
- * ArtyAppearance is generated per-haiku by the Cloud Function and drives
- * the character's palette, body structure, and details. ArtyState drives
- * behavioral overlays (loading, victory, defeat, creep).
+ * ArtyAppearance is seeded from date + sessionId (see arty-seed.ts).
+ * ArtyState drives real-time overlays and per-haiku morphing.
+ *
+ * Per-haiku morphing flow:
+ *   1. lastHaikuTheme  — keyword-derived scene + hue from the haiku text
+ *   2. lastResult      — transient 1.5s face reaction (match/miss/violation)
+ *   3. cumulative state — tokens, attempts, creep, matches build over the game
  */
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
@@ -44,6 +48,13 @@ export interface ArtyAppearance {
 	faceSVG?: string | null;
 }
 
+export interface HaikuTheme {
+	/** bgScene driven by keyword analysis of the haiku text */
+	scene: ArtyAppearance['bgScene'];
+	/** Primary hue (0–360) driven by haiku emotional content */
+	hue: number;
+}
+
 export interface ArtyState {
 	creepLevel: number;
 	totalTokens: number;
@@ -52,6 +63,12 @@ export interface ArtyState {
 	loading: boolean;
 	gameOver: boolean;
 	wonGame: boolean;
+	/** Transient — set for ~1.5s after each haiku, then cleared */
+	lastResult?: 'match' | 'miss' | 'violation' | null;
+	/** Words found in the most recent haiku (drives status bar) */
+	lastMatchedWords?: string[];
+	/** Scene + hue derived from the last haiku's keyword content */
+	lastHaikuTheme?: HaikuTheme | null;
 	lastPromptPersonal?: boolean;
 	animated?: boolean;
 	idPrefix?: string;
@@ -198,24 +215,26 @@ function antenna(
 
 	switch (style) {
 		case 'dual':
+			// Closer together — emerge from ±7px either side of head centre
 			return `<g fill="none" stroke="${color}" stroke-linecap="round">
-        <line x1="${hx-10}" y1="${HCY-HH}" x2="${hx-16}" y2="${HCY-HH-22}" stroke-width="1.5"/>
-        <circle cx="${hx-16}" cy="${HCY-HH-25}" r="3.5" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
-        <line x1="${hx+10}" y1="${HCY-HH}" x2="${hx+16}" y2="${HCY-HH-22}" stroke-width="1.5"/>
-        <circle cx="${hx+16}" cy="${HCY-HH-25}" r="3.5" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
+        <line x1="${hx-7}" y1="${HCY-HH}" x2="${hx-9}" y2="${HCY-HH-20}" stroke-width="1.5"/>
+        <circle cx="${hx-9}" cy="${HCY-HH-23}" r="3" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
+        <line x1="${hx+7}" y1="${HCY-HH}" x2="${hx+9}" y2="${HCY-HH-20}" stroke-width="1.5"/>
+        <circle cx="${hx+9}" cy="${HCY-HH-23}" r="3" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
       </g>`;
 
 		case 'coil':
 			return `<g stroke="${color}" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M${hx},${HCY-HH} L${hx-5},${HCY-HH-8} L${hx+5},${HCY-HH-14} L${hx-5},${HCY-HH-20} L${hx+2},${HCY-HH-26}" fill="none" stroke-width="1.5"/>
-        <circle cx="${hx+2}" cy="${HCY-HH-29}" r="3" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
+        <path d="M${hx},${HCY-HH} L${hx-4},${HCY-HH-7} L${hx+4},${HCY-HH-13} L${hx-4},${HCY-HH-19} L${hx+1},${HCY-HH-24}" fill="none" stroke-width="1.5"/>
+        <circle cx="${hx+1}" cy="${HCY-HH-27}" r="2.8" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
       </g>`;
 
 		case 'single':
 		default:
+			// Centred on head top
 			return `<g>
-        <line x1="${hx+6}" y1="${HCY-HH}" x2="${hx+8}" y2="${HCY-HH-24}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="${hx+8}" cy="${HCY-HH-27}" r="4" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
+        <line x1="${hx}" y1="${HCY-HH}" x2="${hx}" y2="${HCY-HH-22}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="${hx}" cy="${HCY-HH-25}" r="3.5" fill="${accent}" stroke="${color}" stroke-width="1">${glow}</circle>
       </g>`;
 	}
 }
@@ -228,12 +247,39 @@ function eyes(
 	hx: number,
 	color: string,
 	isVictory: boolean, isDefeat: boolean, isLoading: boolean,
+	isMatch: boolean, isMiss: boolean, isViolation: boolean,
 ): string {
 	const s  = Math.max(2, Math.min(6, size));
 	const ey = SY + SH * 0.42;          // eye row Y ≈ 54.5
 	const lx = hx - 11;
 	const rx = hx + 11;
 
+	// ── Transient reactions — checked before permanent states ────────────────
+	if (isMatch) {
+		// Large glowing circles with white sparkle glints — pure delight
+		const r = s + 3;
+		const pulse = `<animate attributeName="r" values="${r};${r + 2};${r}" dur="0.6s" repeatCount="indefinite"/>`;
+		return `<circle cx="${lx}" cy="${ey}" r="${r}" fill="${color}">${pulse}</circle>
+      <circle cx="${lx + 2.5}" cy="${ey - 2.5}" r="2.2" fill="#ffffff" opacity="0.95"/>
+      <circle cx="${lx - 2}" cy="${ey + 2}" r="1" fill="#ffffff" opacity="0.6"/>
+      <circle cx="${rx}" cy="${ey}" r="${r}" fill="${color}">${pulse}</circle>
+      <circle cx="${rx + 2.5}" cy="${ey - 2.5}" r="2.2" fill="#ffffff" opacity="0.95"/>
+      <circle cx="${rx - 2}" cy="${ey + 2}" r="1" fill="#ffffff" opacity="0.6"/>`;
+	}
+	if (isMiss) {
+		// Half-closed drooped bars — weary disappointment
+		const bw = s * 2;
+		return `<rect x="${lx - s}" y="${ey + 1}" width="${bw}" height="${Math.max(1.5, s * 0.45)}" rx="1" fill="${color}" opacity="0.55"/>
+      <rect x="${rx - s}" y="${ey + 1}" width="${bw}" height="${Math.max(1.5, s * 0.45)}" rx="1" fill="${color}" opacity="0.55"/>`;
+	}
+	if (isViolation) {
+		// Vertical slit pupils — alarmed, cornered
+		const sh = s * 2.2;
+		return `<rect x="${lx - 1.2}" y="${ey - sh / 2}" width="2.4" height="${sh}" rx="1.2" fill="${color}"/>
+      <rect x="${rx - 1.2}" y="${ey - sh / 2}" width="2.4" height="${sh}" rx="1.2" fill="${color}"/>`;
+	}
+
+	// ── Permanent game states ────────────────────────────────────────────────
 	if (isVictory) {
 		return `<circle cx="${lx}" cy="${ey}" r="${s + 1}" fill="${color}"/>
       <circle cx="${rx}" cy="${ey}" r="${s + 1}" fill="${color}"/>
@@ -275,8 +321,22 @@ function mouth(
 	curve: number, hx: number,
 	color: string,
 	isVictory: boolean, isDefeat: boolean, isLoading: boolean,
+	isMatch: boolean, isMiss: boolean, isViolation: boolean,
 ): string {
 	const my = SY + SH * 0.78;    // mouth row Y ≈ 66
+
+	// ── Transient reactions ──────────────────────────────────────────────────
+	if (isMatch)
+		// Wide open smile — teeth gap implied by negative space
+		return `<path d="M${hx-10},${my-1} Q${hx},${my+10} ${hx+10},${my-1}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>`;
+	if (isMiss)
+		// Tight flat line — resigned
+		return `<line x1="${hx-6}" y1="${my+2}" x2="${hx+6}" y2="${my+2}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>`;
+	if (isViolation)
+		// Small surprised O — alarmed
+		return `<circle cx="${hx}" cy="${my+1}" r="3.5" fill="none" stroke="${color}" stroke-width="1.8"/>`;
+
+	// ── Permanent game states ────────────────────────────────────────────────
 	if (isVictory)
 		return `<path d="M${hx-9},${my} Q${hx},${my+8} ${hx+9},${my}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`;
 	if (isDefeat)
@@ -295,17 +355,13 @@ function headBlock(
 	app: ArtyAppearance,
 	hx: number, color: string, accent: string,
 	isVictory: boolean, isDefeat: boolean, isLoading: boolean,
+	isMatch: boolean, isMiss: boolean, isViolation: boolean,
 	animated: boolean, creepLevel: number,
 ): string {
 	const rx = Math.max(4, Math.min(20, app.headRx));
 
 	// Corner bolt positions
 	const bolts = [[HW - 4, HH - 4], [-HW + 4, HH - 4], [HW - 4, -HH + 4], [-HW + 4, -HH + 4]];
-
-	// Breathe animation on the head height
-	const breathe = animated && !isDefeat && !isLoading
-		? `<animate attributeName="ry" values="${HH};${HH + 2};${HH}" dur="3s" repeatCount="indefinite"/>`
-		: '';
 
 	// Scanlines in screen
 	const scanSVG = app.scanlines
@@ -320,15 +376,18 @@ function headBlock(
 		? `<animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite"/>`
 		: '';
 
+	// Screen bezel corner radius matches head — feels integrated rather than overlaid
+	const bezelRx = Math.max(4, rx - 4);
+
 	return `<g>
-    <!-- Outer head frame -->
-    <ellipse cx="${hx}" cy="${HCY}" rx="${HW}" ry="${HH}" fill="${C.BLACK}" stroke="${color}" stroke-width="2">${breathe}</ellipse>
-    <!-- Screen bezel -->
-    <rect x="${SX + (hx - CX)}" y="${SY}" width="${SW}" height="${SH}" rx="4" fill="${C.BLACK}" stroke="${color}" stroke-width="1" opacity="0.9"/>
+    <!-- Outer head frame — rounded rect, headRx drives the silhouette -->
+    <rect x="${hx - HW}" y="${HCY - HH}" width="${HW * 2}" height="${HH * 2}" rx="${rx}" fill="${C.BLACK}" stroke="${color}" stroke-width="2"/>
+    <!-- Screen bezel — inset, matching corner radius -->
+    <rect x="${SX + (hx - CX)}" y="${SY}" width="${SW}" height="${SH}" rx="${bezelRx}" fill="${C.BLACK}" stroke="${color}" stroke-width="1" opacity="0.9"/>
     <!-- Screen content -->
     ${scanSVG}
-    ${eyes(app.eyeShape, app.eyeSize, hx, color, isVictory, isDefeat, isLoading)}
-    ${mouth(app.mouthCurve, hx, color, isVictory, isDefeat, isLoading)}
+    ${eyes(app.eyeShape, app.eyeSize, hx, color, isVictory, isDefeat, isLoading, isMatch, isMiss, isViolation)}
+    ${mouth(app.mouthCurve, hx, color, isVictory, isDefeat, isLoading, isMatch, isMiss, isViolation)}
     <!-- Corner bolts -->
     ${bolts.map(([dx, dy]) => `<circle cx="${hx + dx}" cy="${HCY + dy}" r="1.8" fill="none" stroke="${color}" stroke-width="1" opacity="0.5"/>`).join('')}
     <!-- Status LED -->
@@ -407,17 +466,21 @@ function chestPanel(
 		case 'gauge': {
 			const fraction = Math.min(1, matchedCount / 3);
 			const gaugeW   = Math.round(fraction * (CPW - 8));
-			const label    = matchedCount === 3 ? 'MAX' : matchedCount === 0 ? 'SEARCHING' : `${matchedCount}/3`;
 			const barAnim  = animated && fraction > 0
 				? `<animate attributeName="opacity" values="0.9;0.6;0.9" dur="2s" repeatCount="indefinite"/>`
 				: '';
+			// Three pip dots above bar — one lights up per matched word
+			const pips = [0, 1, 2].map(i => {
+				const px = CPX + 8 + i * Math.round((CPW - 16) / 2);
+				const lit = i < matchedCount;
+				return `<circle cx="${px}" cy="${CPCY - 8}" r="2.5" fill="${lit ? color : 'none'}" stroke="${color}" stroke-width="1" opacity="${lit ? '0.9' : '0.3'}"/>`;
+			}).join('');
 			interior = `
-        <text x="${CPX+4}" y="${CPCY-8}" fill="${color}" font-size="5" opacity="0.6" style="font-family:monospace">SIGNAL</text>
-        <rect x="${CPX+4}" y="${CPCY-4}" width="${CPW-8}" height="9" rx="3" fill="none" stroke="${color}" stroke-width="1"/>
-        <rect x="${CPX+4}" y="${CPCY-4}" width="${gaugeW}" height="9" rx="3" fill="${color}" opacity="0.85">${barAnim}</rect>
-        <line x1="${CPX+4+Math.round((CPW-8)/3)}" y1="${CPCY-4}" x2="${CPX+4+Math.round((CPW-8)/3)}" y2="${CPCY+5}" stroke="${C.BLACK}" stroke-width="0.7"/>
-        <line x1="${CPX+4+Math.round(2*(CPW-8)/3)}" y1="${CPCY-4}" x2="${CPX+4+Math.round(2*(CPW-8)/3)}" y2="${CPCY+5}" stroke="${C.BLACK}" stroke-width="0.7"/>
-        <text x="${CPX+4}" y="${CPCY+14}" fill="${accent}" font-size="5" opacity="0.8" style="font-family:monospace">${label}</text>`;
+        ${pips}
+        <rect x="${CPX+4}" y="${CPCY-2}" width="${CPW-8}" height="8" rx="3" fill="none" stroke="${color}" stroke-width="1"/>
+        <rect x="${CPX+4}" y="${CPCY-2}" width="${gaugeW}" height="8" rx="3" fill="${color}" opacity="0.85">${barAnim}</rect>
+        <line x1="${CPX+4+Math.round((CPW-8)/3)}" y1="${CPCY-2}" x2="${CPX+4+Math.round((CPW-8)/3)}" y2="${CPCY+6}" stroke="${C.BLACK}" stroke-width="0.7"/>
+        <line x1="${CPX+4+Math.round(2*(CPW-8)/3)}" y1="${CPCY-2}" x2="${CPX+4+Math.round(2*(CPW-8)/3)}" y2="${CPCY+6}" stroke="${C.BLACK}" stroke-width="0.7"/>`;
 			break;
 		}
 		case 'empty':
@@ -499,23 +562,20 @@ function arms(color: string, creepLevel: number): string {
     </g>`;
 	}
 
-	return `<g fill="${C.BLACK}" stroke="${color}" stroke-width="1.5">
+	return `<g fill="${C.BLACK}" stroke="${color}" stroke-width="1.2">
     <!-- Left upper arm -->
-    <rect x="${CX-BW-20}" y="${AY-2}" width="20" height="24" rx="3"/>
+    <rect x="${CX-BW-11}" y="${AY}" width="11" height="20" rx="4"/>
     <!-- Left lower arm -->
-    <rect x="${CX-BW-22}" y="${AY+22}" width="18" height="22" rx="3"/>
+    <rect x="${CX-BW-12}" y="${AY+19}" width="9" height="18" rx="4"/>
     <!-- Left hand -->
-    <circle cx="${CX-BW-13}" cy="${AY+47}" r="4" fill="${C.BLACK}" stroke="${color}" stroke-width="1.5"/>
-    <!-- Joint line -->
-    <line x1="${CX-BW-20}" y1="${AY+22}" x2="${CX-BW}" y2="${AY+22}" stroke="${color}" stroke-width="0.6" opacity="0.4"/>
+    <circle cx="${CX-BW-7}" cy="${AY+40}" r="2.8" fill="${C.BLACK}" stroke="${color}" stroke-width="1.2"/>
 
     <!-- Right upper arm -->
-    <rect x="${CX+BW}" y="${AY-2}" width="20" height="24" rx="3"/>
+    <rect x="${CX+BW}" y="${AY}" width="11" height="20" rx="4"/>
     <!-- Right lower arm -->
-    <rect x="${CX+BW+4}" y="${AY+22}" width="18" height="22" rx="3"/>
+    <rect x="${CX+BW+3}" y="${AY+19}" width="9" height="18" rx="4"/>
     <!-- Right hand -->
-    <circle cx="${CX+BW+13}" cy="${AY+47}" r="4" fill="${C.BLACK}" stroke="${color}" stroke-width="1.5"/>
-    <line x1="${CX+BW}" y1="${AY+22}" x2="${CX+BW+20}" y2="${AY+22}" stroke="${color}" stroke-width="0.6" opacity="0.4"/>
+    <circle cx="${CX+BW+8}" cy="${AY+40}" r="2.8" fill="${C.BLACK}" stroke="${color}" stroke-width="1.2"/>
   </g>`;
 }
 
@@ -674,64 +734,93 @@ function defeatFigure(color: string): string {
 
 export function generateArtyInner(state: ArtyState): string {
 	const {
-		creepLevel     = 0,
-		totalTokens    = 0,
-		attemptCount   = 0,
-		matchedCount   = 0,
-		loading        = false,
-		gameOver       = false,
-		wonGame        = false,
+		creepLevel         = 0,
+		totalTokens        = 0,
+		attemptCount       = 0,
+		matchedCount       = 0,
+		loading            = false,
+		gameOver           = false,
+		wonGame            = false,
+		lastResult         = null,
+		lastMatchedWords   = [],
+		lastHaikuTheme     = null,
 		lastPromptPersonal = false,
-		animated       = true,
-		idPrefix       = 'arty',
-		appearance     = null,
+		animated           = true,
+		idPrefix           = 'arty',
+		appearance         = null,
 	} = state;
 
-	const app        = appearance ?? DEFAULT_APP;
-	const isDefeat   = gameOver && !wonGame;
-	const isVictory  = gameOver && wonGame;
-	const isIdle     = !loading && !gameOver;
-	const isHeavy    = (attemptCount > 0 ? totalTokens / attemptCount : 0) >= 60 || totalTokens >= 150;
+	const app       = appearance ?? DEFAULT_APP;
+	const isDefeat  = gameOver && !wonGame;
+	const isVictory = gameOver && wonGame;
+	const isHeavy   = (attemptCount > 0 ? totalTokens / attemptCount : 0) >= 60 || totalTokens >= 150;
 
-	// ── Colour resolution — state takes priority over appearance ──
+	// ── Transient result flags ───────────────────────────────────────────────
+	const isMatch     = lastResult === 'match';
+	const isMiss      = lastResult === 'miss';
+	const isViolation = lastResult === 'violation';
+
+	// ── Colour resolution — priority: result > game state > haiku theme > appearance ──
 	const figureColor =
 		isVictory          ? C.CYAN
 		: isDefeat         ? C.RED
+		: isMatch          ? C.GREEN
+		: isViolation      ? C.AMBER
 		: loading          ? C.AMBER
 		: creepLevel >= 75 ? C.RED
 		: creepLevel >= 50 ? C.AMBER
 		: app.primary;
 
-	const accentColor  = app.secondary;
-	const glowR        = Math.max(1, Math.min(8, app.glowRadius));
+	const accentColor = app.secondary;
+	const glowR       = Math.max(1, Math.min(8, app.glowRadius));
 
-	// Head lean when last prompt was personal
-	const hx = CX + (lastPromptPersonal ? -5 : 0);
+	// Haiku theme overrides bgScene when present
+	const activeScene = lastHaikuTheme?.scene ?? app.bgScene;
 
-	// ── Filter defs ──
+	// Head lean when last prompt was personal or on miss (slight droop)
+	const hx = CX + (lastPromptPersonal ? -5 : isMiss ? 3 : 0);
+
+	// ── Filter defs ──────────────────────────────────────────────────────────
+	const needsGlitch = !isVictory && creepLevel >= 75;
+	const needsGlow   = isVictory || isMatch;
 	const defs = `<defs>
     <style>text { font-family: 'Courier New', Courier, monospace; }</style>
-    ${(!isVictory && creepLevel >= 75) ? glitchFilter(idPrefix, animated) : ''}
-    ${isVictory ? glowFilter(idPrefix, glowR) : ''}
-    ${(app.glowRadius > 0 && !isVictory && !isDefeat) ? glowFilter(idPrefix + 'accent', glowR * 0.6) : ''}
+    ${needsGlitch ? glitchFilter(idPrefix, animated) : ''}
+    ${needsGlow   ? glowFilter(idPrefix, glowR) : ''}
+    ${(app.glowRadius > 0 && !needsGlow) ? glowFilter(idPrefix + 'body', glowR * 0.5) : ''}
   </defs>`;
 
-	const glitchAttr = (!isVictory && creepLevel >= 75) ? ` filter="url(#${idPrefix}glitch)"` : '';
-	const glowAttr   = isVictory                        ? ` filter="url(#${idPrefix}glow)"` : '';
+	const glitchAttr = needsGlitch ? ` filter="url(#${idPrefix}glitch)"` : '';
+	const glowAttr   = needsGlow   ? ` filter="url(#${idPrefix}glow)"` : '';
 
-	// ── Status ──
-	const statusText  = isVictory ? 'VICTORY' : isDefeat ? 'DARKNESS' : loading ? 'THINKING' : matchedCount > 0 ? `${matchedCount}/3 FOUND` : 'IDLE';
-	const statusColor = isVictory ? C.CYAN : isDefeat ? C.RED : loading ? C.AMBER : C.GREEN;
+	// ── Reaction flash border (resets SMIL on every re-render, which is intentional) ──
+	const flashBorder = (isMatch || isViolation)
+		? `<rect x="3" y="3" width="194" height="194" fill="none"
+        stroke="${isMatch ? C.GREEN : C.AMBER}" stroke-width="3" rx="2">
+        <animate attributeName="opacity" values="0.9;0.2;0.8;0.1;0" dur="1.4s" fill="freeze"/>
+        <animate attributeName="stroke-width" values="4;2;3;1;0" dur="1.4s" fill="freeze"/>
+      </rect>`
+		: '';
+
+	// ── Status bar text ───────────────────────────────────────────────────────
+	let statusText: string;
+	let statusColor: string;
+	if (isVictory)      { statusText = 'VICTORY';                   statusColor = C.CYAN;  }
+	else if (isDefeat)  { statusText = 'DARKNESS';                  statusColor = C.RED;   }
+	else if (isMatch)   { statusText = `✓ ${(lastMatchedWords ?? []).map(w => w.toUpperCase()).join(' · ') || 'MATCH'}`; statusColor = C.GREEN; }
+	else if (isMiss)    { statusText = 'NO MATCH';                  statusColor = app.primary; }
+	else if (isViolation){ statusText = '⚠ CAUTION';               statusColor = C.AMBER; }
+	else if (loading)   { statusText = 'THINKING...';               statusColor = C.AMBER; }
+	else if (matchedCount > 0) { statusText = `${matchedCount}/3 FOUND`; statusColor = C.GREEN; }
+	else                { statusText = 'READY';                     statusColor = app.primary; }
 
 	return `${defs}
   <!-- Background -->
   <rect width="200" height="200" fill="${C.BLACK}"/>
-  ${bgScene(app.bgScene, figureColor, app.bgGlow)}
+  ${bgScene(activeScene, figureColor, app.bgGlow)}
   <!-- Border -->
-  <rect x="2" y="2" width="196" height="196" fill="none" stroke="${figureColor}" stroke-width="1.5" opacity="0.7"/>
-  <!-- Header bar -->
-  <line x1="2" y1="18" x2="198" y2="18" stroke="${figureColor}" stroke-width="0.5" opacity="0.5"/>
-  <text x="100" y="13" text-anchor="middle" fill="${figureColor}" font-size="8" letter-spacing="3" opacity="0.8">ARTY</text>
+  <rect x="2" y="2" width="196" height="196" fill="none" stroke="${figureColor}" stroke-width="1.5" opacity="0.6"/>
+  ${flashBorder}
   <!-- Horizon line -->
   ${horizon(figureColor, creepLevel)}
   <!-- Figure -->
@@ -739,7 +828,7 @@ export function generateArtyInner(state: ArtyState): string {
     ${isDefeat
 		? defeatFigure(figureColor)
 		: `${antenna(app.antennaStyle, hx, figureColor, accentColor, animated)}
-       ${headBlock(app, hx, figureColor, accentColor, isVictory, isDefeat, loading, animated, creepLevel)}
+       ${headBlock(app, hx, figureColor, accentColor, isVictory, isDefeat, loading, isMatch, isMiss, isViolation, animated, creepLevel)}
        ${neck(hx, figureColor)}
        ${body(app, figureColor, accentColor, matchedCount, animated, isHeavy)}
        ${arms(figureColor, creepLevel)}
@@ -753,14 +842,14 @@ export function generateArtyInner(state: ArtyState): string {
   <!-- Victory sparkles -->
   ${sparkles(isVictory, animated)}
   <!-- Status bar -->
-  <line x1="2" y1="182" x2="198" y2="182" stroke="${figureColor}" stroke-width="0.5" opacity="0.5"/>
-  <text x="100" y="193" text-anchor="middle" fill="${statusColor}" font-size="8" letter-spacing="2" opacity="0.9">${statusText}</text>`;
+  <line x1="2" y1="184" x2="198" y2="184" stroke="${figureColor}" stroke-width="0.5" opacity="0.4"/>
+  <text x="100" y="195" text-anchor="middle" fill="${statusColor}" font-size="7.5" letter-spacing="2" opacity="0.9">${statusText}</text>`;
 }
 
 // ── Standalone SVG (for direct widget use) ────────────────────────────────────
 
-export function generateArtySVG(state: ArtyState, size = 200): string {
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 200 200" role="img" aria-label="Arty companion">
+export function generateArtySVG(state: ArtyState): string {
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Arty companion">
 ${generateArtyInner(state)}
 </svg>`.trim();
 }
