@@ -1,3 +1,17 @@
+---
+published: false
+title: "Pipeline: Enhanced AI Gateway"
+tags:
+  - pipeline
+  - gateway
+  - backend
+description: "Retry, caching, per-request logging, rate limiting, and cost estimation on top of the existing multi-provider AI gateway. 5 independent phases."
+date: 2026-04-25
+layer: L1-Instance
+maturity: BUDDING
+para: Pipeline
+---
+
 # Project: Enhanced AI Gateway
 
 **Branch:** `kaaro/feat/gateway-enhanced` (planned)  
