@@ -9,6 +9,7 @@
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
+	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -27,6 +28,7 @@
 		violatedWords: string[];
 		type: 'normal' | 'success' | 'violation' | 'victory' | 'defeat' | 'cheat';
 		cheatCode?: { id: string; title: string; author: string; year: string; wink: string };
+		securitySignal?: PurifyResult;
 	}
 
 	// ── UI state ──────────────────────────────────────────────────────────────
@@ -226,6 +228,27 @@
 		if (cheatMatch) { processCheat(cheatMatch.code); prompt = ''; return; }
 		// ─────────────────────────────────────────────────────────────────────
 
+		// ── Prompt injection detection ────────────────────────────────────────
+		const purifyResult = PromptPurify.sanitize(text);
+		if (purifyResult.blocked) {
+			error = 'Prompt blocked: potential injection attempt detected. Please rephrase.';
+			return;
+		}
+		if (purifyResult.threats.length > 0) {
+			logEvent('prompt_injection_detected', {
+				threats: purifyResult.threats.map(t => t.type),
+				promptLength: text.length,
+				attemptNumber: gameState.attempts + 1,
+			});
+		} else if (purifyResult.warnings.length > 0) {
+			logEvent('prompt_injection_warning', {
+				warnings: purifyResult.warnings.map(w => w.type),
+				promptLength: text.length,
+				attemptNumber: gameState.attempts + 1,
+			});
+		}
+		// ─────────────────────────────────────────────────────────────────────
+
 		const lower         = text.toLowerCase();
 		const violatedWords = [...gameState.blacklistWords, ...gameState.targetWords]
 			.filter(w => lower.includes(w.toLowerCase()));
@@ -248,6 +271,7 @@
 				creepIncrease, creepLevel: newCreep,
 				violation: true, violatedWords,
 				type: creepMaxed ? 'defeat' : 'violation',
+				securitySignal: purifyResult,
 			};
 
 			gameState.attempts++;
@@ -303,6 +327,7 @@
 				type: next.wonGame ? 'victory'
 				    : next.gameOver ? 'defeat'
 				    : newMatches.length > 0 ? 'success' : 'normal',
+				securitySignal: purifyResult,
 			};
 
 			trail  = [...trail, entry];
@@ -625,6 +650,25 @@
 					<!-- Prompt — theme adds "> USER: " prefix via ::before -->
 					<div class="trail-prompt">{entry.prompt}</div>
 
+					<!-- Security signal -->
+					{#if entry.securitySignal}
+						{@const sig = entry.securitySignal}
+						{@const sigState = sig.blocked ? 'blocked' : sig.threats.length > 0 ? 'threat' : sig.warnings.length > 0 ? 'warning' : 'clean'}
+						{#if sigState !== 'clean'}
+							<div class="security-signal security-signal--{sigState}">
+								<span class="security-signal-dot"></span>
+								<span class="security-signal-label">
+									{sigState === 'blocked' ? 'BLOCKED' : sigState === 'threat' ? 'THREAT DETECTED' : 'WARNING'}
+								</span>
+								{#if sig.threats.length > 0}
+									<span class="security-signal-detail">{sig.threats.map(t => t.type).join(', ')}</span>
+								{:else if sig.warnings.length > 0}
+									<span class="security-signal-detail">{sig.warnings.map(w => w.type).join(', ')}</span>
+								{/if}
+							</div>
+						{/if}
+					{/if}
+
 					<!-- Response — theme adds "< ARTY: " prefix via ::before -->
 					<div class="trail-response {isViol ? 'trail-response--dim' : ''}">{entry.haiku}</div>
 
@@ -841,6 +885,64 @@
 	:global(.trail-response--dim) {
 		opacity: 0.45;
 		font-style: italic;
+	}
+
+	/* ── Security signal ────────────────────────────────────────────────── */
+	:global(.security-signal) {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 5px;
+		padding: 2px 8px;
+		font-size: 10px;
+		font-family: inherit;
+		letter-spacing: 0.8px;
+		text-transform: uppercase;
+		border-radius: 2px;
+	}
+	:global(.security-signal-dot) {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+	:global(.security-signal-label) {
+		font-weight: 600;
+	}
+	:global(.security-signal-detail) {
+		opacity: 0.7;
+		font-weight: 400;
+		font-size: 9px;
+	}
+
+	:global(.security-signal--warning) {
+		color: var(--warning-color);
+		background: rgba(212, 160, 23, 0.08);
+		border: 1px solid rgba(212, 160, 23, 0.25);
+	}
+	:global(.security-signal--warning .security-signal-dot) {
+		background: var(--warning-color);
+		box-shadow: 0 0 4px rgba(212, 160, 23, 0.5);
+	}
+
+	:global(.security-signal--threat) {
+		color: var(--error-color);
+		background: rgba(255, 85, 85, 0.08);
+		border: 1px solid rgba(255, 85, 85, 0.25);
+	}
+	:global(.security-signal--threat .security-signal-dot) {
+		background: var(--error-color);
+		box-shadow: 0 0 4px rgba(255, 85, 85, 0.5);
+	}
+
+	:global(.security-signal--blocked) {
+		color: #dc2626;
+		background: rgba(220, 38, 38, 0.12);
+		border: 1px solid rgba(220, 38, 38, 0.35);
+	}
+	:global(.security-signal--blocked .security-signal-dot) {
+		background: #dc2626;
+		box-shadow: 0 0 4px rgba(220, 38, 38, 0.6);
 	}
 
 	/* Inline error in trail */
