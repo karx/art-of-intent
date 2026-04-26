@@ -6,6 +6,7 @@
  * - saveUserSettings:    Encrypt + store user's AI provider settings (callable).
  * - generateDailyWords:  Generate daily target/blacklist words (scheduled).
  * - forceUpdateDailyWords: Admin-only regeneration (callable).
+ * - generateKaaroEntry:  Generate a kaaroViewer library brief (callable). Supports BYOM.
  */
 
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
@@ -902,4 +903,95 @@ export const forceUpdateDailyWords = onCall({
         logger.error('forceUpdateDailyWords failed', { error: error.message, stack: error.stack });
         throw new HttpsError('internal', `Failed to generate words: ${error.message}`);
     }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// generateKaaroEntry — kaaroViewer LLM proxy
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * LLM proxy for the kaaroViewer embed.
+ *
+ * kaaroViewer's explore.mjs builds the full prompt client-side and passes it
+ * here. This function resolves the user's BYOM provider (or falls back to the
+ * built-in Gemini key) and returns the raw LLM text for the pipeline to parse.
+ *
+ * Input:  { prompt: string }   — full prompt pre-built by explore.mjs
+ * Output: { text: string }     — raw LLM response (brief JSON string)
+ */
+export const generateKaaroEntry = onCall({
+    maxInstances: 10,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated to generate a kaaroViewer entry');
+    }
+
+    const { prompt } = request.data ?? {};
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+        throw new HttpsError('invalid-argument', 'prompt is required');
+    }
+    if (prompt.length > 32000) {
+        throw new HttpsError('invalid-argument', 'prompt must be 32 000 characters or less');
+    }
+
+    // ── Resolve provider: BYOM first, built-in Gemini fallback ───────────────
+    let provider = 'gemini';
+    let providerConfig;
+
+    const userSettingsDoc = await db.collection('userSettings').doc(request.auth.uid).get();
+    if (userSettingsDoc.exists) {
+        const settings = userSettingsDoc.data();
+        const encKey = process.env.GATEWAY_ENCRYPTION_KEY;
+        if (settings.aiProvider && settings.encryptedApiKey && encKey) {
+            try {
+                const apiKey = await decryptApiKey(settings.encryptedApiKey, encKey);
+                provider = settings.aiProvider;
+                providerConfig = {
+                    endpoint: settings.aiEndpoint || defaultEndpointFor(provider),
+                    apiKey,
+                    model: settings.aiModel,
+                };
+            } catch (decryptErr) {
+                logger.warn('generateKaaroEntry_byom_decrypt_failed', {
+                    uid: request.auth.uid,
+                    error: decryptErr.message,
+                });
+            }
+        }
+    }
+
+    if (!providerConfig) {
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        if (!geminiApiKey) throw new HttpsError('failed-precondition', 'API configuration error');
+        provider = 'gemini';
+        providerConfig = {
+            endpoint: defaultEndpointFor('gemini'),
+            apiKey: geminiApiKey,
+        };
+    }
+
+    logger.info('generateKaaroEntry_request', {
+        uid: request.auth.uid,
+        provider,
+        promptLength: prompt.length,
+    });
+
+    // kaaroViewer builds a combined prompt (no separate system/user split) —
+    // pass it as the user turn with a minimal system instruction.
+    const systemInstruction = 'You are a knowledge cartographer. Follow the instructions in the user message exactly and respond only with valid JSON.';
+
+    const result = await routeToProvider(provider, systemInstruction, prompt, providerConfig);
+
+    logger.info('generateKaaroEntry_ok', {
+        uid: request.auth.uid,
+        provider,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+    });
+
+    return { text: result.text };
 });

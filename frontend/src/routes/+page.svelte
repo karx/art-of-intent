@@ -10,6 +10,7 @@
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
+	import KaaroViewer from '$lib/KaaroViewer.svelte';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -793,6 +794,13 @@
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
 			</div>
 			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
+			{#if gameState.wonGame && authState.user}
+				<div class="kaaro-unlock">
+					<div class="kaaro-unlock-hdr">✦ EXPLORE THE CONCEPTS</div>
+					<div class="kaaro-unlock-sub">Enter any topic to generate a living knowledge graph with kaaroViewer.</div>
+					<KaaroViewer />
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -1117,5 +1125,22 @@
 		font-size: 11px;
 		color: var(--text-dim);
 		letter-spacing: 0.3px;
+	}
+
+	.kaaro-unlock {
+		margin-top: 24px;
+		border-top: 1px solid var(--border-color);
+		padding-top: 20px;
+	}
+	.kaaro-unlock-hdr {
+		font-size: 11px;
+		letter-spacing: 2px;
+		color: var(--info-color);
+		margin-bottom: 6px;
+	}
+	.kaaro-unlock-sub {
+		font-size: 12px;
+		color: var(--text-dim);
+		margin-bottom: 14px;
 	}
 </style>

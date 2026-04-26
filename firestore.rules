@@ -125,5 +125,23 @@ service cloud.firestore {
     match /userSettings/{userId} {
       allow read, write: if isOwner(userId);
     }
+
+    // kaaroViewer library entries — generated after puzzle victory
+    match /libraryEntries/{entryId} {
+      // Owner can always read their own entries; public entries readable by all
+      allow read: if resource.data.uid == request.auth.uid
+                  || resource.data.public == true;
+
+      // Only the owning authenticated user can create
+      allow create: if isAuthenticated()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasAll(['uid', 'brief', 'seed', 'createdAt']);
+
+      // Owner can update (e.g. toggle public flag)
+      allow update: if isOwner(resource.data.uid)
+                    && request.resource.data.uid == resource.data.uid;
+
+      allow delete: if false;
+    }
   }
 }
