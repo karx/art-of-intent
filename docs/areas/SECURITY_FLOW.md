@@ -1,3 +1,17 @@
+---
+published: false
+title: "Security Flow"
+tags:
+  - security
+description: "Security model for Art of Intent: client-side PromptPurify injection detection + server-side Cloud Function validation + Gemini built-in safety + DOMPurify XSS protection."
+date: 2026-04-25
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
+> **Restored in SvelteKit.** `PromptPurify` was dropped during the vanilla-JS → SvelteKit migration and has been re-implemented as `frontend/src/lib/prompt-purify.ts`. The flow below reflects the current state.
+
 # Security Flow Diagram
 
 ## User Prompt Submission Flow
