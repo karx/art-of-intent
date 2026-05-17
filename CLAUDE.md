@@ -146,3 +146,54 @@ Theming is done via CSS variables defined in `frontend/src/app.css` (or imported
 See `docs/future-work.md` for scoped, ready-to-implement items. The two highest-priority items are:
 1. **Result URL** — encode score in `#r=<base64>` hash for shareable read-only result links
 2. **Streak counter** — day-over-day retention feature
+
+---
+
+## PKM — Knowledge Maintenance
+
+This project is part of a personal knowledge garden. Every meaningful change is an opportunity to enrich the knowledge surface. **Do both tracks: ship code and maintain docs.**
+
+### eBrain Area
+Art of Intent lives under the **Products** area in eBrain (`D:/src/eBrain/3 Areas/`). It is an L2-System: a working product maintained over time.
+
+### PARA for the Agent Engineering Era
+
+| Folder | Role | When to write |
+|---|---|---|
+| `docs/projects/` | **Pipelines** — bounded runs with a goal | At sprint start; crystallize on close |
+| `docs/areas/` | **Areas** — maintained responsibilities | When a system changes; keep callable |
+| `docs/resources/` | **Skill Surfaces** — callable HOWTOs | When a pattern solidifies; atomic, one pattern per doc |
+| `docs/crystallized/` | **Crystallized** — closed pipelines with learnings | When a pipeline closes; encode what's reusable |
+
+### Frontmatter (required on every doc)
+
+```yaml
+---
+published: false
+title: ""
+tags: []
+description: ""          # 1–3 sentences
+date: YYYY-MM-DD
+layer: ""                # L4-Identity | L3-Principle | L2-System | L1-Instance
+maturity: ""             # STUB | SEED | BUDDING | EVERGREEN
+para: ""                 # Pipeline | Area | SkillSurface | Crystallized
+---
+```
+
+### What to Do While Working
+
+**Starting a feature:** Create or update a Pipeline doc in `docs/projects/` — goal, starting context, files in scope.
+
+**Making a significant decision:** Add a decision note to the affected Area doc — what was decided, what was considered, why this path.
+
+**Pattern emerges:** Encode it as a Skill Surface in `docs/resources/` — atomic, callable, one pattern per doc.
+
+**Closing a pipeline:** Write a crystallization note in `docs/crystallized/` — what was built, what was learned, what's reusable. Update the parent Area README.
+
+**Something breaks or surprises:** Capture it — even a STUB (title + one sentence) is better than nothing. These are the most valuable seeds.
+
+### Do Not
+- Do not create docs without frontmatter
+- Do not write docs that only say what the code says — write **why**
+- Do not let a pipeline close without a crystallization note
+- Do not leave `FIREBASE_ARCHITECTURE.md` or `SECURITY_FLOW.md` as authoritative — both are marked STALE

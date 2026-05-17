@@ -1,3 +1,16 @@
+---
+published: false
+title: "Future Work — Art of Intent"
+tags:
+  - backlog
+  - planning
+description: "Scoped, ready-to-implement backlog items ordered by priority. Each item has a clear goal, approach, and the exact files to change."
+date: 2026-04-25
+layer: L1-Instance
+maturity: BUDDING
+para: Pipeline
+---
+
 # Future Work
 
 Items documented here are scoped, ready to implement, and ordered by priority.
@@ -39,8 +52,8 @@ Items documented here are scoped, ready to implement, and ordered by priority.
 - This reframes the share as a challenge, not a brag.
 
 **Files to change:**
-- `src/js/share-card-v4.js` / `src/js/share-card-generator.js` — card layout and text
-- `src/js/game.js` — pass winning haiku(s) into share payload (already available in `gameState.responseTrail`)
+- `frontend/src/lib/share-card.ts` — card layout and text rendering
+- `frontend/src/routes/+page.svelte` — pass winning haiku(s) into `buildCardData()` (already available in `gameState.trail`)
 
 ---
 
@@ -78,9 +91,8 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 2. Share card image — encode the URL as a QR code in the bottom-right corner (optional / phase 2).
 
 **Files to change:**
-- `index.html` — detect `#r=` hash on load, show result view
-- `src/js/game.js` — `generateResultUrl()` helper, add "Copy Link" button to modal
-- `src/css/styles.css` — result view styles (reuse modal-content)
+- `frontend/src/routes/+page.svelte` — detect `#r=` hash on load, show result view; add "Copy Link" button to game-over banner
+- `frontend/src/lib/stores/game.svelte.ts` — `generateResultUrl()` helper
 
 ---
 
@@ -90,11 +102,6 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 - **Word hint** — show category (e.g. `[nature]`) after 3 failed attempts on a word.
 - **Creep animation** — flash counter red on increase; shake game area at 75+.
 - **Practice mode** — random words, no leaderboard, unlimited attempts.
-- **Web Share API** — `navigator.share()` for native mobile share sheet.
 
 ---
 
-## 4. Known Issues (low priority)
-
-- `next.md` at repo root is a scratch file with mixed content — should be cleaned up or moved to `docs/`.
-- `aboutV2.html` is untracked and possibly stale — verify and either commit or delete.

@@ -1,3 +1,16 @@
+---
+published: false
+title: "Vision — Art of Intent"
+tags:
+  - vision
+  - product
+description: "Product north star: what Art of Intent is, where it's going, and the design principles that constrain every decision."
+date: 2026-04-25
+layer: L3-Principle
+maturity: EVERGREEN
+para: Area
+---
+
 # Vision — Art of Intent
 
 ## What It Is

@@ -1,3 +1,17 @@
+---
+published: false
+title: "Pipeline: Multi-Platform Architecture"
+tags:
+  - pipeline
+  - sveltekit
+  - mobile
+description: "Migration from 35 vanilla JS files to SvelteKit monorepo with BYOM AI gateway, CI/CD, and Capacitor mobile builds. Phases 1–4 complete."
+date: 2026-04-25
+layer: L1-Instance
+maturity: EVERGREEN
+para: Pipeline
+---
+
 # Project: Multi-Platform Architecture
 
 **Branch:** `claude/multi-platform-architecture-BnRbW`  

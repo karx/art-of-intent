@@ -1,4 +1,15 @@
-# PromptPurify 🛡️
+---
+published: false
+title: "PromptPurify — Client-Side Prompt Injection Detection"
+tags: [security, library, prompt-injection]
+description: "Documents the PromptPurify client-side library: 7 injection pattern categories, sanitization behavior, and configurable blocking modes. Implemented in frontend/src/lib/prompt-purify.ts."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
+# PromptPurify
 
 Client-side prompt injection detection and sanitization library, inspired by [DOMPurify](https://github.com/cure53/DOMPurify).
 

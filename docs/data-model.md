@@ -1,3 +1,16 @@
+---
+published: false
+title: "Data Model — Art of Intent"
+tags:
+  - firestore
+  - architecture
+description: "Firestore collections, field inventory, who writes what, and how data flows from player interaction to persistent storage."
+date: 2026-04-25
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Data Model — Art of Intent
 
 How data flows from player interactions into Firestore, and how it is read back.

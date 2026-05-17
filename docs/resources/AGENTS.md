@@ -1,93 +1,85 @@
-# Art of Intent - Project Guidelines
+---
+published: false
+title: "Agent Guidelines — Art of Intent"
+tags:
+  - agents
+  - reference
+description: "How AI agents should orient in this codebase. Stack facts, key files, patterns to follow, and known pitfalls."
+date: 2026-04-25
+layer: L2-System
+maturity: BUDDING
+para: SkillSurface
+---
 
-## Project Overview
-A text-based game where players guide "Arty" (an LLM haiku bot) to speak target words without using blacklisted words. Built with vanilla JavaScript, HTML, and CSS.
+# Agent Guidelines — Art of Intent
 
-## Common Commands
-- `python3 -m http.server 8000` - Start development server
-- Game URL: Check port 8000 in the preview
+> Read this before making any changes. It encodes hard-won context that isn't obvious from the code.
 
-## Project Structure
-- `index.html` - Main game interface
-- `game.js` - Game logic, API integration, tracking system
-- `styles.css` - Dark theme styling with code editor aesthetics
-- `TRACKING.md` - Documentation for analytics and export system
-- `example-session.jsonld` - Sample export file
+---
 
-## Key Features
+## Stack (current)
 
-### Game Mechanics
-- Daily target words (3) and blacklist words (5-7)
-- Words generated using date-based seeding for consistency
-- All progress persists in localStorage for the day
-- Resets at midnight local time
+| Layer | Technology |
+|---|---|
+| Frontend | SvelteKit 2 + Svelte 5 runes (TypeScript, Vite, `adapter-static`) |
+| Cloud Functions | Firebase Cloud Functions v2, Node 20, ES modules |
+| Database | Firestore, database ID **`alpha`** (non-default — must be explicit in all queries) |
+| Auth | Firebase Auth — anonymous + Google OAuth |
+| Hosting | Netlify (primary), Firebase Hosting (secondary) |
+| Mobile | Capacitor — wraps `frontend/build` into Android + iOS |
+| AI | Gemini via Cloud Function; user-swappable via BYOM gateway |
 
-### LLM Integration
-- Uses Gemini 2.0 Flash API
-- System instructions implement "Haiku Bot" persona
-- Tracks token usage (prompt, output, total)
-- API key stored in game.js (line 22)
+The old stack (vanilla JS, 35 files, Python dev server) is fully retired. Any doc referencing `src/js/`, `index.html` at repo root, `game.js`, or `python3 -m http.server` is stale.
 
-### Tracking System
-**IMPORTANT**: The game tracks comprehensive analytics:
-- Every user prompt and AI response
-- All token usage metrics
-- Event timeline (submissions, API calls, errors)
-- KPIs and aggregate statistics
-- JSON-LD export functionality
+---
 
-### Data Storage
-- localStorage for session persistence
-- No backend server required
-- Export generates `.jsonld` files locally
+## Key Entry Points
 
-## Code Conventions
+| File | What it is |
+|---|---|
+| `frontend/src/routes/+page.svelte` | Main game UI — auth, prompt input, trail, score bar, game-over |
+| `frontend/src/lib/stores/game.svelte.ts` | All reactive game state via Svelte 5 `$state` runes |
+| `frontend/src/lib/api.ts` | `callArtyAPI()`, `saveUserSettings()` — Cloud Function callers |
+| `frontend/src/lib/share-card.ts` | SVG share card generator — cheat-aware, gold branding for cheat sessions |
+| `frontend/src/lib/firebase.ts` | Firebase SDK init — Firestore `alpha` db, Auth, Functions |
+| `frontend/src/lib/scoring.ts` | Pure scoring logic — `calculateEfficiency()`, `getRating()` |
+| `functions/index.js` | Both Cloud Functions: `artyGenerateHaiku` + `generateDailyWords` |
+| `functions/gateway/` | Multi-provider AI dispatcher — Gemini, OpenAI, Anthropic, Custom |
+| `functions/crypto.js` | AES-256-GCM encrypt/decrypt for BYOM API keys |
 
-### JavaScript
-- Use `const` for immutable values
-- camelCase for function and variable names
-- Track events with `trackEvent(type, data)`
-- Always save state after mutations with `saveGameState()`
+---
 
-### Event Tracking
-When adding new features, track relevant events:
-```javascript
-trackEvent('event_type', {
-    key: 'value',
-    timestamp: Date.now()
-});
-```
+## Critical Patterns
 
-### JSON-LD Schema
-Follow the established vocabulary:
-- Use `aoi:` prefix for custom types
-- Include `@type`, `@id` for all entities
-- Maintain Schema.org compatibility
+**Firestore database ID.** Every Firestore call must specify `{ databaseId: 'alpha' }`. This is handled in `firebase.ts`. If you add a new Cloud Function that touches Firestore, use `getFirestore(app, 'alpha')` — not `getFirestore(app)`.
 
-## Important Files to Preserve
-- `game.js` - Contains all game logic and tracking
-- `TRACKING.md` - Analytics documentation
-- `example-session.jsonld` - Reference export format
+**Server-side truth.** Daily words, system prompts, and user API keys live only in Cloud Functions. The client sends only `userPrompt` + `sessionId`. Never move word/key logic client-side.
 
-## API Configuration
-Gemini API endpoint: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
+**No `alert()`.** All error and status messages surface inline — in the trail or via `showToast()`. Never use `alert()`, `confirm()`, or `prompt()`.
 
-System instruction template includes:
-- Haiku Bot role definition
-- 5-7-5 syllable structure requirement
-- Blacklist word violation protocol
-- Example interactions
+**iOS zoom fix.** All mobile inputs must have `font-size: 16px` explicitly to prevent iOS auto-zoom. Enforce this in CSS, not JS.
 
-## Testing
-1. Start server: `python3 -m http.server 8000`
-2. Open game in browser
-3. Submit prompts to test tracking
-4. Click "Export Session Data" to verify JSON-LD output
-5. Check browser console for event logs
+**Share card single source of truth.** `buildCardData()` in `+page.svelte` is the only place that assembles share card data. `shareCard()` returns `'shared' | 'downloaded' | 'cancelled'` — callers show a toast based on that return value.
 
-## Future Enhancements
-Consider tracking:
-- User session patterns across days
-- Successful prompt strategies
-- Token efficiency trends
-- Word difficulty metrics
+**Error propagation.** Cloud Function throws typed `HttpsError` with structured `details`. `callArtyAPI()` in `api.ts` switches on `error.code` and returns a typed result — callers render it inline, never throw to the browser.
+
+**Cheat sessions.** If a player uses a BYOM key against the live puzzle, `cheated = true` is written to the session. Cheat sessions show gold card branding, have `efficiencyScore: null`, and are separated into a "cheat hall" on the leaderboard.
+
+---
+
+## Do Not
+
+- Do not read `src/js/` — that directory is from the retired stack
+- Do not use `alert()` for any user-visible message
+- Do not write new Firestore code without specifying `alpha` as the database ID
+- Do not move daily word logic or API keys to the client
+- Do not create notes without frontmatter (see [[docs/README.md]] conventions)
+
+---
+
+## Related
+
+- [[docs/data-model.md]] — Firestore collections and field inventory
+- [[docs/areas/FIREBASE_FUNCTIONS_ARCHITECTURE.md]] — Cloud Function internals
+- [[docs/areas/SECURITY_FLOW.md]] — prompt sanitisation and injection defence
+- [[docs/VISION.md]] — product north star and stack rationale

@@ -1,3 +1,14 @@
+---
+published: false
+title: "Creep/Darkness System"
+tags: [gameplay, mechanics, design]
+description: "Design spec for the progressive blacklist penalty system. Creep accumulates +25 per violation on a 0–100 scale; game ends at 100. Graduated visual feedback (green → amber → red) communicates risk."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Creep/Darkness System
 
 ## Overview

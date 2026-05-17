@@ -1,3 +1,14 @@
+---
+published: false
+title: "Authentication Flow Design"
+tags: [auth, ux, design, onboarding]
+description: "Design for replacing auto-anonymous-login with an explicit welcome modal. Users choose Google sign-in or guest mode on first visit; clear value proposition for each path."
+date: 2026-05-17
+layer: L2-System
+maturity: SEED
+para: Area
+---
+
 # Authentication Flow Design
 
 ## Current Problem

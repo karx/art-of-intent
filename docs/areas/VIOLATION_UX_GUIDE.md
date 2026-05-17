@@ -1,3 +1,14 @@
+---
+published: false
+title: "Violation & Feedback UX"
+tags: [ux, feedback, design, blacklist]
+description: "UX design for blacklist hits and input rejection. Contemplative not punitive: two feedback types (Input Rejected — no tokens; Blacklist Hit — tokens consumed), with brand-consistent copy."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Feedback System - Art of Intent Brand
 
 ## Design Philosophy
