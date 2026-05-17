@@ -1,3 +1,14 @@
+---
+published: false
+title: "Theme System Design"
+tags: [design, theming, css, ui]
+description: "Multi-theme system for Art of Intent. Five themes (Solarized default, Polarized, Light, and others) implemented via CSS variables. Theme selection persisted to localStorage and applied to share card generation."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Theme System Design
 
 ## Overview

@@ -1,3 +1,14 @@
+---
+published: false
+title: "Security Signals UI Guide"
+tags: [security, ui, ux, prompt-injection]
+description: "Visual design spec for real-time security indicators in the prompt trail. Three states — CLEAN, WARNING, THREAT DETECTED — displayed inline without disrupting gameplay."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Security Signals UI Guide
 
 ## Overview

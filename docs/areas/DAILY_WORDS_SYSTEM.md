@@ -1,3 +1,14 @@
+---
+published: false
+title: "Daily Words Generation System"
+tags: [gameplay, backend, scheduling, words]
+description: "Seeded-RNG word generation: 60-word pool across 4 categories (nature, emotions, time, actions). Date-seeded for global consistency — all players worldwide get the same words. Words generated server-side via Cloud Scheduler."
+date: 2026-05-17
+layer: L2-System
+maturity: BUDDING
+para: Area
+---
+
 # Daily Words Generation System
 
 ## Overview

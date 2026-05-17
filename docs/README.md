@@ -67,7 +67,7 @@ Ongoing responsibilities. No end date, but a quality bar to maintain.
 - [DATA_PIPELINE.md](areas/DATA_PIPELINE.md)
 - [DAILY_WORDS_SYSTEM.md](areas/DAILY_WORDS_SYSTEM.md)
 - [CREEP_SYSTEM.md](areas/CREEP_SYSTEM.md)
-- [FIREBASE_ARCHITECTURE.md](areas/FIREBASE_ARCHITECTURE.md) — **STALE** (superseded by data-model.md)
+- [FIREBASE_ARCHITECTURE_LEGACY.md](crystallized/FIREBASE_ARCHITECTURE_LEGACY.md) — **Crystallized** (vanilla JS era schema; dead collections)
 
 **Security**
 - [SECURITY_SIGNALS_GUIDE.md](areas/SECURITY_SIGNALS_GUIDE.md)
@@ -75,7 +75,7 @@ Ongoing responsibilities. No end date, but a quality bar to maintain.
 - [PROMPT_PURIFY_README.md](areas/PROMPT_PURIFY_README.md)
 - [VIOLATION_UX_GUIDE.md](areas/VIOLATION_UX_GUIDE.md)
 - [VALIDATION.md](areas/VALIDATION.md)
-- [SECURITY_FLOW.md](areas/SECURITY_FLOW.md) — **STALE** (PromptPurify removed)
+- [SECURITY_FLOW.md](areas/SECURITY_FLOW.md)
 
 **Design & UX**
 - [DOS_THEME_GUIDELINES.md](areas/DOS_THEME_GUIDELINES.md)
@@ -84,6 +84,7 @@ Ongoing responsibilities. No end date, but a quality bar to maintain.
 - [AUTH_FLOW_DESIGN.md](areas/AUTH_FLOW_DESIGN.md)
 - [MOBILE_AUTH_UX.md](areas/MOBILE_AUTH_UX.md)
 - [FEEDBACK_SYSTEM_MAINTAINER_GUIDE.md](areas/FEEDBACK_SYSTEM_MAINTAINER_GUIDE.md)
+- [PLAYER_FEEDBACK.md](areas/PLAYER_FEEDBACK.md) — Raw player and contributor feedback from early playtesting; seeds for future-work
 
 **Analytics & SEO**
 - [ANALYTICS_STRATEGY.md](areas/ANALYTICS_STRATEGY.md)
@@ -112,6 +113,7 @@ Callable knowledge — HOWTOs and guides an agent can follow without asking.
 - [IMAGES.md](resources/IMAGES.md)
 - [ICONS.md](resources/ICONS.md)
 - [XSS_TEST_INSTRUCTIONS.md](resources/XSS_TEST_INSTRUCTIONS.md)
+- [PROJECT_STRUCTURE_TEMPLATE.md](resources/PROJECT_STRUCTURE_TEMPLATE.md) — Reusable project structure + PARA gardening guide for new projects
 
 ---
 
@@ -120,6 +122,7 @@ Callable knowledge — HOWTOs and guides an agent can follow without asking.
 Closed pipelines with learnings encoded. Read-only — static but invokable.
 
 - [MULTI_PLATFORM_MIGRATION.md](crystallized/MULTI_PLATFORM_MIGRATION.md) — What was built, key decisions, surprises, reusable patterns from the SvelteKit migration.
+- [FIREBASE_ARCHITECTURE_LEGACY.md](crystallized/FIREBASE_ARCHITECTURE_LEGACY.md) — Vanilla JS era Firestore schema; historical reference only.
 
 See [crystallized/](crystallized/) for historical deployment logs, release notes, and legacy design docs.
 

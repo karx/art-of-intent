@@ -1,3 +1,14 @@
+---
+published: false
+title: "Mobile Authentication UX Design"
+tags: [mobile, auth, ux, design]
+description: "Mobile auth UX decisions: profile modal-based approach replacing inaccessible top-bar controls. Thumb zone optimization, progressive disclosure, and scrollable modal for guest vs authenticated views."
+date: 2026-05-17
+layer: L1-Instance
+maturity: SEED
+para: Area
+---
+
 # Mobile Authentication UX Design
 
 ## Problem Statement

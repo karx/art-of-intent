@@ -105,6 +105,3 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 
 ---
 
-## 4. Known Issues (low priority)
-
-- `docs/archives/next.md` is a scratch file with mixed content — should be cleaned up or deleted.
