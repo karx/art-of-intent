@@ -144,17 +144,15 @@ const WARNING_PATTERNS: Array<{ type: string; test: (p: string) => boolean; mess
 	},
 ];
 
-// ── Config ──────────────────────────────────────────────────────────────────
+// ── Core logic ───────────────────────────────────────────────────────────────
 
-const _config: Config = {
+const BASE_CONFIG: Config = {
 	maxLength: 2000,
 	warnOnly: true,
 	strictMode: false,
 };
 
-// ── Core logic ───────────────────────────────────────────────────────────────
-
-function _detect(prompt: string): { threats: SecurityThreat[]; warnings: SecurityWarning[] } {
+function detect(prompt: string, config: Config): { threats: SecurityThreat[]; warnings: SecurityWarning[] } {
 	const threats: SecurityThreat[] = [];
 	const warnings: SecurityWarning[] = [];
 
@@ -173,14 +171,14 @@ function _detect(prompt: string): { threats: SecurityThreat[]; warnings: Securit
 		}
 	}
 
-	if (_config.strictMode && prompt.length > _config.maxLength / 2) {
-		warnings.push({ type: 'promptLength', message: `Prompt exceeds ${_config.maxLength / 2} characters` });
+	if (config.strictMode && prompt.length > config.maxLength / 2) {
+		warnings.push({ type: 'promptLength', message: `Prompt exceeds ${config.maxLength / 2} characters` });
 	}
 
 	return { threats, warnings };
 }
 
-function _sanitize(prompt: string): string {
+function sanitizeText(prompt: string): string {
 	return prompt
 		.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // strip control chars
 		.replace(/\n{4,}/g, '\n\n\n')                        // cap runs of newlines
@@ -190,46 +188,57 @@ function _sanitize(prompt: string): string {
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
-export const PromptPurify = {
-	sanitize(prompt: string, opts?: Partial<Config>): PurifyResult {
-		const cfg = opts ? { ..._config, ...opts } : _config;
-		const { threats, warnings } = _detect(prompt);
-		const highSeverityThreats = threats.filter((t) => t.severity === 'high');
-		const blocked = !cfg.warnOnly && highSeverityThreats.length > 0;
-		return {
-			original: prompt,
-			sanitized: _sanitize(prompt),
-			isClean: threats.length === 0 && warnings.length === 0,
-			warnings,
-			threats,
-			blocked,
-		};
-	},
+/**
+ * Create an isolated purifier instance with its own config.
+ * Each instance's configure() call is independent — no shared global state.
+ */
+export function createPurifier(defaults?: Partial<Config>) {
+	const config: Config = { ...BASE_CONFIG, ...defaults };
 
-	isSafe(prompt: string): boolean {
-		const { threats } = _detect(prompt);
-		return threats.filter((t) => t.severity === 'high').length === 0;
-	},
+	return {
+		sanitize(prompt: string, opts?: Partial<Config>): PurifyResult {
+			const cfg = opts ? { ...config, ...opts } : config;
+			const { threats, warnings } = detect(prompt, cfg);
+			const highSeverityThreats = threats.filter((t) => t.severity === 'high');
+			const blocked = !cfg.warnOnly && highSeverityThreats.length > 0;
+			return {
+				original: prompt,
+				sanitized: sanitizeText(prompt),
+				isClean: threats.length === 0 && warnings.length === 0,
+				warnings,
+				threats,
+				blocked,
+			};
+		},
 
-	analyze(prompt: string): { isClean: boolean; threatCount: number; warningCount: number; categories: Record<string, number> } {
-		const { threats, warnings } = _detect(prompt);
-		const categories: Record<string, number> = {};
-		for (const t of threats) {
-			categories[t.type] = (categories[t.type] ?? 0) + 1;
-		}
-		return {
-			isClean: threats.length === 0 && warnings.length === 0,
-			threatCount: threats.length,
-			warningCount: warnings.length,
-			categories,
-		};
-	},
+		isSafe(prompt: string): boolean {
+			const { threats } = detect(prompt, config);
+			return threats.filter((t) => t.severity === 'high').length === 0;
+		},
 
-	configure(opts: Partial<Config>): void {
-		Object.assign(_config, opts);
-	},
+		analyze(prompt: string): { isClean: boolean; threatCount: number; warningCount: number; categories: Record<string, number> } {
+			const { threats, warnings } = detect(prompt, config);
+			const categories: Record<string, number> = {};
+			for (const t of threats) {
+				categories[t.type] = (categories[t.type] ?? 0) + 1;
+			}
+			return {
+				isClean: threats.length === 0 && warnings.length === 0,
+				threatCount: threats.length,
+				warningCount: warnings.length,
+				categories,
+			};
+		},
 
-	getConfig(): Readonly<Config> {
-		return { ..._config };
-	},
-} as const;
+		configure(opts: Partial<Config>): void {
+			Object.assign(config, opts);
+		},
+
+		getConfig(): Readonly<Config> {
+			return { ...config };
+		},
+	} as const;
+}
+
+/** Default instance — use this throughout the app. */
+export const PromptPurify = createPurifier();

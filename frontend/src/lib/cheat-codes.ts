@@ -24,13 +24,13 @@ export interface CheatCode {
 // ── Text normalisation ────────────────────────────────────────────────────────
 
 /** Strip everything except a–z / 0–9, lowercase. */
-function normalize(str: string): string {
+export function normalize(str: string): string {
 	return str.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 // ── Levenshtein edit distance ─────────────────────────────────────────────────
 
-function levenshtein(a: string, b: string): number {
+export function levenshtein(a: string, b: string): number {
 	const m = a.length;
 	const n = b.length;
 	let prev = Array.from({ length: n + 1 }, (_, i) => i);
