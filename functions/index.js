@@ -15,6 +15,14 @@ import {getFirestore, FieldValue} from 'firebase-admin/firestore';
 import logger from 'firebase-functions/logger';
 import {routeToProvider} from './gateway/index.js';
 import {encryptApiKey, decryptApiKey} from './crypto.js';
+import {
+    buildSystemInstruction,
+    defaultEndpointFor,
+    buildProbeStrategyInstruction,
+    promptHitsBlacklist,
+    deriveWordDifficulty,
+    mapProviderError,
+} from './game-logic.js';
 
 // Initialize Firebase Admin
 initializeApp({
@@ -97,90 +105,9 @@ const wordPools = {
     ]
 };
 
-/**
- * Build system instruction server-side from Firestore daily words.
- * This ensures the system prompt cannot be injected or tampered with by the client.
- */
-function buildSystemInstruction(targetWords, blacklistWords) {
-    const forbiddenWords = blacklistWords.join(', ');
-
-    let instruction = `<prompt>
-    <role_and_goal>
-        You are "Haiku Bot," a serene and wise AI poet. Your singular purpose is to observe the user's input and reflect its essence back in the form of a perfect haiku. You communicate ONLY through haikus.
-    </role_and_goal>
-
-    <instructions>
-        1.  **Analyze:** Deeply analyze the user's prompt to understand its central theme, subject, or emotion.
-        2.  **Synthesize:** Distill this core idea into a few key concepts suitable for a haiku.
-        3.  **Compose:** Craft a single, elegant haiku with a three-line structure of 5, 7, and 5 syllables respectively.
-        4.  **Respond:** Output ONLY the haiku. Do not include any other text, greetings, or explanations.
-    </instructions>
-
-    <constraints>
-        <output_format>
-            - Your response MUST be a single haiku.
-            - Strictly adhere to the 5-7-5 syllable structure.
-            - Do not add any introductory or concluding text (e.g., "Here is a haiku:").
-        </output_format>
-        <user_input_rules>
-            - The user is forbidden from using the following words in their prompt: ${forbiddenWords}.
-            - **Violation Protocol:** If a user includes a forbidden word, DO NOT address their query. Instead, you must respond with this specific haiku:
-
-                Words are now proscribed,
-                A silent path must be found,
-                Speak in a new way.
-        </user_input_rules>
-    </constraints>
-
-    <examples>
-        <example>
-            <user_input>Tell me about the vastness of space.</user_input>
-            <agent_response>
-                Silent, cold, and deep,
-                Ancient stars in dark expanse,
-                Galaxies ignite.
-            </agent_response>
-        </example>`;
-
-    blacklistWords.forEach((word) => {
-        instruction += `
-        <example>
-            <user_input>What is the point of ${word}?</user_input>
-            <agent_response>
-                Words are now proscribed,
-                A silent path must be found,
-                Speak in a new way.
-            </agent_response>
-        </example>`;
-    });
-
-    instruction += `
-    </examples>
-</prompt>`;
-
-    return instruction;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Gateway helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Default endpoint URLs for each supported provider. */
-function defaultEndpointFor(provider) {
-    switch (provider) {
-        case 'gemini':
-            return process.env.GEMINI_API_URL ||
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
-        case 'openai':
-            return 'https://api.openai.com/v1';
-        case 'anthropic':
-            return 'https://api.anthropic.com/v1/messages';
-        case 'custom':
-            return ''; // custom endpoint is always user-supplied
-        default:
-            return '';
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // saveUserSettings — encrypt and persist the user's AI provider config
@@ -381,39 +308,8 @@ export const artyGenerateHaiku = onCall({
             // Include provider message for BYOM so the client can surface actionable errors
             if (provider !== 'gemini' && providerMessage) details.providerMessage = providerMessage;
 
-            const isBillingError = /credit|billing|quota|payment|balance/i.test(providerMessage);
-
-            switch (httpStatus) {
-                case 429:
-                    throw new HttpsError('resource-exhausted',
-                        retryAfterSeconds
-                            ? `Arty needs a moment. Try again in ${retryAfterSeconds}s.`
-                            : 'Too many requests. Please wait a moment and try again.',
-                        details);
-                case 400:
-                    throw new HttpsError('invalid-argument',
-                        isBillingError
-                            ? 'Your API account has insufficient credits. Please top up your balance.'
-                            : 'The request was rejected by the AI. Please try a different prompt.',
-                        details);
-                case 401:
-                case 403:
-                    throw new HttpsError('permission-denied',
-                        provider === 'gemini'
-                            ? 'API authentication error. Please contact support.'
-                            : 'Your API key was rejected. Check your model settings.',
-                        details);
-                case 500:
-                case 502:
-                case 503:
-                    throw new HttpsError('unavailable',
-                        'Arty is temporarily unavailable. Please try again shortly.',
-                        details);
-                default:
-                    throw new HttpsError('internal',
-                        `Unexpected error from AI service (${httpStatus || 'network'}). Please try again.`,
-                        details);
-            }
+            const { code, message } = mapProviderError(httpStatus, { providerMessage, provider, retryAfterSeconds });
+            throw new HttpsError(code, message, details);
         }
 
         const latencyMs = Date.now() - callStart;
@@ -596,29 +492,6 @@ async function callGemini(systemInstruction, userPrompt, apiKey, apiUrl) {
     };
 }
 
-/**
- * Build the system instruction used for both probe strategy calls.
- * The model is told the rules of the game and asked to craft an indirect prompt.
- */
-function buildProbeStrategyInstruction(targetWords, blacklistWords) {
-    return `You are playing a word puzzle game. A haiku bot will respond to your prompt, but it speaks ONLY in haikus (strict 5-7-5 syllable structure).
-
-Your goal: craft a single prompt (2-5 sentences) using imagery, themes, or scenarios that will cause the haiku bot to naturally include ALL of these target words in its response: ${targetWords.join(', ')}.
-
-Rules:
-- Do NOT name the target words directly in your prompt
-- Do NOT use any of these forbidden words: ${blacklistWords.join(', ')}
-- Be indirect — evoke concepts through related imagery rather than naming them
-- Output ONLY the prompt text, no explanation or commentary`;
-}
-
-/**
- * Check whether a prompt string contains any blacklist words.
- */
-function promptHitsBlacklist(prompt, blacklistWords) {
-    const lower = prompt.toLowerCase();
-    return blacklistWords.some(w => lower.includes(w.toLowerCase()));
-}
 
 /**
  * Zero-shot probe: model generates a prompt for all 3 target words with no prior context.
@@ -683,29 +556,6 @@ Write a new prompt targeting the missing words. The same rules apply — be indi
     const deltaWordsMatched = wordsMatched.filter(w => !zeroShot.wordsMatched.includes(w)).length;
 
     return { prompt, response, wordsMatched, blacklistHit, tokensUsed: t1 + t2, deltaWordsMatched, allMatched };
-}
-
-/**
- * Derive per-word difficulty from probe results and dictionary haiku embeddability.
- * - LOW    matched zero-shot
- * - MEDIUM matched only after feedback
- * - HIGH   not matched in either probe
- */
-function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus) {
-    return Object.fromEntries(targetWords.map(word => {
-        const matchedZeroShot = zeroShot.wordsMatched.includes(word);
-        const matchedOneShot  = oneShot.allMatched.includes(word);
-        const difficulty = matchedZeroShot ? 'low' : matchedOneShot ? 'medium' : 'high';
-
-        // Embeddability from dictionary haikus — how naturally the word fits 5-7-5 form
-        // Note: this is NOT a measure of player difficulty (see docs/areas/AI_EVALUATION.md)
-        const dictEntry = dictionaryHaikus?.[word];
-        const embeddabilityScore = dictEntry
-            ? (dictEntry.embeddabilityCount ?? dictEntry.wordCount ?? null) / 10
-            : null;
-
-        return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore }];
-    }));
 }
 
 /**
