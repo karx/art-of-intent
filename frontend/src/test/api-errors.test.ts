@@ -47,7 +47,7 @@ describe('mapCallableError', () => {
 
 	it('not-found → today\'s words not loaded message', () => {
 		const err = mapCallableError(makeErr('not-found'));
-		expect(err.message).toContain("words");
+		expect(err.message).toContain("aren't loaded yet");
 	});
 
 	it('permission-denied with non-gemini provider → API key rejected', () => {

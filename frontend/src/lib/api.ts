@@ -53,10 +53,6 @@ export function mapCallableError(err: any): Error {
 	}
 }
 
-/**
- * Call artyGenerateHaiku Cloud Function.
- * Maps Firebase HttpsError codes to user-facing strings via mapCallableError.
- */
 export async function callArtyAPI(userPrompt: string, sessionId: string): Promise<HaikuResponse> {
 	const artyGenerateHaiku = httpsCallable<
 		{ userPrompt: string; sessionId: string },

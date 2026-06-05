@@ -108,7 +108,8 @@ Rules:
  */
 export function promptHitsBlacklist(prompt, blacklistWords) {
     const lower = prompt.toLowerCase();
-    return blacklistWords.some(w => lower.includes(w.toLowerCase()));
+    const lowerBlacklist = blacklistWords.map(w => w.toLowerCase());
+    return lowerBlacklist.some(w => lower.includes(w));
 }
 
 /**
@@ -120,7 +121,7 @@ export function promptHitsBlacklist(prompt, blacklistWords) {
  * @param {string[]} targetWords
  * @param {{ wordsMatched: string[] }} zeroShot
  * @param {{ allMatched: string[] }} oneShot - cumulative across both probes
- * @param {Record<string, { embeddabilityCount?: number, wordCount?: number }> | null} dictionaryHaikus
+ * @param {Record<string, { embeddabilityCount?: number }> | null} dictionaryHaikus
  */
 export function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus) {
     return Object.fromEntries(targetWords.map(word => {
@@ -129,8 +130,8 @@ export function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryH
         const difficulty = matchedZeroShot ? 'low' : matchedOneShot ? 'medium' : 'high';
 
         const dictEntry = dictionaryHaikus?.[word];
-        const embeddabilityScore = dictEntry
-            ? (dictEntry.embeddabilityCount ?? dictEntry.wordCount ?? null) / 10
+        const embeddabilityScore = dictEntry?.embeddabilityCount != null
+            ? dictEntry.embeddabilityCount / 10
             : null;
 
         return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore }];
@@ -173,6 +174,7 @@ export function mapProviderError(httpStatus, { providerMessage = '', provider = 
         case 500:
         case 502:
         case 503:
+        case 504:
             return {
                 code: 'unavailable',
                 message: 'Arty is temporarily unavailable. Please try again shortly.'

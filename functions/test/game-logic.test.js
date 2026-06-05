@@ -77,16 +77,22 @@ describe('defaultEndpointFor', () => {
     it('gemini → generativelanguage.googleapis.com (env fallback)', () => {
         const saved = process.env.GEMINI_API_URL;
         delete process.env.GEMINI_API_URL;
-        const url = defaultEndpointFor('gemini');
-        assert.ok(url.includes('generativelanguage.googleapis.com'));
-        if (saved !== undefined) process.env.GEMINI_API_URL = saved;
+        try {
+            const url = defaultEndpointFor('gemini');
+            assert.ok(url.includes('generativelanguage.googleapis.com'));
+        } finally {
+            if (saved !== undefined) process.env.GEMINI_API_URL = saved;
+        }
     });
 
     it('gemini → uses GEMINI_API_URL when set', () => {
         process.env.GEMINI_API_URL = 'https://custom.example.com/gemini';
-        const url = defaultEndpointFor('gemini');
-        assert.equal(url, 'https://custom.example.com/gemini');
-        delete process.env.GEMINI_API_URL;
+        try {
+            const url = defaultEndpointFor('gemini');
+            assert.equal(url, 'https://custom.example.com/gemini');
+        } finally {
+            delete process.env.GEMINI_API_URL;
+        }
     });
 
     it('openai → api.openai.com/v1', () => {
@@ -174,12 +180,12 @@ describe('deriveWordDifficulty', () => {
         assert.equal(result.ocean.embeddabilityScore, 0.8);
     });
 
-    it('falls back to wordCount when embeddabilityCount is absent', () => {
+    it('sets embeddabilityScore to null when embeddabilityCount is absent from entry', () => {
         const zeroShot = { wordsMatched: ['ocean'] };
         const oneShot  = { allMatched: ['ocean'] };
-        const dict = { ocean: { wordCount: 6 } };
+        const dict = { ocean: {} };
         const result = deriveWordDifficulty(['ocean'], zeroShot, oneShot, dict);
-        assert.equal(result.ocean.embeddabilityScore, 0.6);
+        assert.equal(result.ocean.embeddabilityScore, null);
     });
 
     it('sets embeddabilityScore to null when no dictionary entry exists', () => {
@@ -207,7 +213,7 @@ describe('mapProviderError', () => {
     it('429 without retryAfterSeconds → generic wait message', () => {
         const r = mapProviderError(429, {});
         assert.equal(r.code, 'resource-exhausted');
-        assert.ok(r.message.includes('Too many') || r.message.includes('wait'));
+        assert.ok(r.message.includes('Too many requests'));
     });
 
     it('400 with billing keyword → billing message', () => {
@@ -225,7 +231,7 @@ describe('mapProviderError', () => {
     it('400 without billing keyword → prompt-rejected message', () => {
         const r = mapProviderError(400, { providerMessage: 'bad request format' });
         assert.equal(r.code, 'invalid-argument');
-        assert.ok(r.message.includes('rejected') || r.message.includes('prompt'));
+        assert.ok(r.message.includes('rejected by the AI'));
     });
 
     it('401 → permission-denied', () => {
@@ -245,7 +251,7 @@ describe('mapProviderError', () => {
 
     it('401 with gemini provider → auth error / contact support', () => {
         const r = mapProviderError(401, { provider: 'gemini' });
-        assert.ok(r.message.includes('authentication') || r.message.includes('support'));
+        assert.ok(r.message.includes('authentication error'));
     });
 
     it('500 → unavailable', () => {

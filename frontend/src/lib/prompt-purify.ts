@@ -188,6 +188,10 @@ function sanitizeText(prompt: string): string {
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
+function hasHighSeverity(threats: SecurityThreat[]): boolean {
+	return threats.some((t) => t.severity === 'high');
+}
+
 /**
  * Create an isolated purifier instance with its own config.
  * Each instance's configure() call is independent — no shared global state.
@@ -199,11 +203,10 @@ export function createPurifier(defaults?: Partial<Config>) {
 		sanitize(prompt: string, opts?: Partial<Config>): PurifyResult {
 			const cfg = opts ? { ...config, ...opts } : config;
 			const { threats, warnings } = detect(prompt, cfg);
-			const highSeverityThreats = threats.filter((t) => t.severity === 'high');
-			const blocked = !cfg.warnOnly && highSeverityThreats.length > 0;
+			const blocked = !cfg.warnOnly && hasHighSeverity(threats);
 			return {
 				original: prompt,
-				sanitized: sanitizeText(prompt),
+				sanitized: blocked ? prompt : sanitizeText(prompt),
 				isClean: threats.length === 0 && warnings.length === 0,
 				warnings,
 				threats,
@@ -213,7 +216,7 @@ export function createPurifier(defaults?: Partial<Config>) {
 
 		isSafe(prompt: string): boolean {
 			const { threats } = detect(prompt, config);
-			return threats.filter((t) => t.severity === 'high').length === 0;
+			return !hasHighSeverity(threats);
 		},
 
 		analyze(prompt: string): { isClean: boolean; threatCount: number; warningCount: number; categories: Record<string, number> } {

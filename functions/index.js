@@ -106,10 +106,6 @@ const wordPools = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI Gateway helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
 // saveUserSettings — encrypt and persist the user's AI provider config
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -265,8 +261,7 @@ export const artyGenerateHaiku = onCall({
             }
             provider = 'gemini';
             providerConfig = {
-                endpoint: process.env.GEMINI_API_URL ||
-                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent',
+                endpoint: defaultEndpointFor('gemini'),
                 apiKey: geminiApiKey,
             };
         }
@@ -436,8 +431,7 @@ async function generateDictionaryHaikusForWord(word, apiKey, apiUrl) {
  */
 async function generateDictionaryHaikus(targetWords, dateKey, docRef) {
     const apiKey = process.env.GEMINI_API_KEY;
-    const apiUrl = process.env.GEMINI_API_URL ||
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+    const apiUrl = defaultEndpointFor('gemini');
 
     const dictionaryHaikus = {};
 
@@ -660,8 +654,7 @@ async function generateWordsForDate(dateKey) {
     logger.info('Daily words generated successfully', { dateKey, targetWords, blacklistWords, seed });
 
     const apiKey = process.env.GEMINI_API_KEY;
-    const apiUrl = process.env.GEMINI_API_URL ||
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent';
+    const apiUrl = defaultEndpointFor('gemini');
 
     // Step 1: dictionary haikus first — embeddability scores feed into evaluation.
     let dictionaryHaikus = {};
