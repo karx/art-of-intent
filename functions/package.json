@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
+    "test": "node --test test/crypto.test.js test/gateway.test.js test/game-logic.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
