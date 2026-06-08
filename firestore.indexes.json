@@ -154,6 +154,24 @@
         }
       ]
     }
+  ,
+    {
+      "collectionGroup": "communityPosts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date",        "order": "ASCENDING" },
+        { "fieldPath": "reciteCount", "order": "DESCENDING" },
+        { "fieldPath": "score",       "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "recites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "postId",    "order": "ASCENDING" },
+        { "fieldPath": "recitedAt", "order": "DESCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
-	import { db } from '$lib/firebase';
+	import { db, increment } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
@@ -10,6 +10,7 @@
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
+	import { getFeaturedHaiku } from '$lib/community';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -534,6 +535,62 @@
 			showToast('Score copied!', 'success');
 		} catch { showToast('Could not copy', 'error'); }
 	}
+
+	// ── Puzzle rating ──────────────────────────────────────────────────────────
+	const LS_RATING_KEY = `aoi_rating_${today}`;
+	let puzzleRating  = $state(parseInt(localStorage.getItem(LS_RATING_KEY) ?? '0') || 0);
+	let hoverRating   = $state(0);
+
+	async function submitPuzzleRating(n: number) {
+		puzzleRating = n;
+		try { localStorage.setItem(LS_RATING_KEY, String(n)); } catch { /* non-fatal */ }
+		showToast('Thanks for the rating!', 'success');
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		try {
+			await setDoc(doc(db, 'puzzleFeedback', gameState.sessionId), {
+				sessionId: gameState.sessionId,
+				userId:    user.uid,
+				date:      today,
+				rating:    n,
+				createdAt: serverTimestamp(),
+			});
+		} catch { /* non-fatal */ }
+	}
+
+	// ── Publish to community gallery ───────────────────────────────────────────
+	const LS_PUBLISH_KEY = `aoi_published_${today}`;
+	let communityPublished = $state(!!localStorage.getItem(LS_PUBLISH_KEY));
+	let publishPanelOpen   = $state(false);
+	let publishCaption     = $state('');
+
+	async function confirmPublish() {
+		const user = authState.user;
+		if (!user || !gameState.sessionId) return;
+		const featuredHaiku = getFeaturedHaiku(trail);
+		const caption = publishCaption.slice(0, 140);
+		const efficiencyScore = gameState.cheated ? null
+			: (gameState.wonGame ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
+		try {
+			await setDoc(doc(db, 'communityPosts', gameState.sessionId), {
+				sessionId:   gameState.sessionId,
+				userId:      user.uid,
+				displayName: user.displayName ?? user.email ?? 'Anonymous',
+				date:        today,
+				featuredHaiku,
+				caption,
+				score:       efficiencyScore,
+				attempts:    gameState.attempts,
+				reciteCount: 0,
+				createdAt:   serverTimestamp(),
+			});
+			communityPublished = true;
+			publishPanelOpen   = false;
+			publishCaption     = '';
+			try { localStorage.setItem(LS_PUBLISH_KEY, '1'); } catch { /* non-fatal */ }
+			showToast("In today's gallery — nice one!", 'success');
+		} catch { showToast('Could not publish. Try again.', 'error'); }
+	}
 </script>
 
 <svelte:head>
@@ -791,7 +848,51 @@
 					{'share' in navigator ? 'Share Card' : 'Save Card'}
 				</button>
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
+				{#if !communityPublished}
+					<button class="btn-secondary" onclick={() => publishPanelOpen = !publishPanelOpen}>
+						Publish ↗
+					</button>
+				{:else}
+					<span class="gallery-published">✦ In Gallery</span>
+				{/if}
 			</div>
+
+			<!-- Publish panel -->
+			{#if publishPanelOpen && !communityPublished}
+				<div class="publish-panel">
+					<div class="publish-haiku-preview">{getFeaturedHaiku(trail)}</div>
+					<textarea
+						class="publish-caption"
+						placeholder="Add a note (optional) — max 140 chars"
+						maxlength="140"
+						rows="2"
+						bind:value={publishCaption}
+					></textarea>
+					<div class="publish-actions">
+						<button class="btn-primary" onclick={confirmPublish}>Confirm Publish</button>
+						<button class="btn-ghost" onclick={() => { publishPanelOpen = false; publishCaption = ''; }}>Cancel</button>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Puzzle rating -->
+			{#if !puzzleRating}
+				<div class="puzzle-rating">
+					<span class="puzzle-rating__label">Rate today's puzzle</span>
+					{#each [1, 2, 3, 4, 5] as n}
+						<button
+							class="rating-star"
+							onmouseenter={() => hoverRating = n}
+							onmouseleave={() => hoverRating = 0}
+							onclick={() => submitPuzzleRating(n)}
+							aria-label="Rate {n} out of 5"
+						>{n <= (hoverRating || 0) ? '★' : '☆'}</button>
+					{/each}
+				</div>
+			{:else}
+				<div class="puzzle-rating puzzle-rating--done">✦ Rated {puzzleRating}/5 — thanks</div>
+			{/if}
+
 			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
 		</div>
 	{/if}
@@ -1118,4 +1219,92 @@
 		color: var(--text-dim);
 		letter-spacing: 0.3px;
 	}
+
+	/* ── Puzzle rating widget ────────────────────────────────────────────── */
+	.puzzle-rating {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: var(--spacing-sm) 0;
+		font-size: 12px;
+	}
+	.puzzle-rating__label {
+		color: var(--text-dim);
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		font-size: 11px;
+		margin-right: 4px;
+	}
+	.rating-star {
+		background: none;
+		border: none;
+		color: var(--text-dim);
+		font-size: 18px;
+		cursor: pointer;
+		padding: 0 1px;
+		line-height: 1;
+		transition: color 0.1s;
+	}
+	.rating-star:hover { color: var(--warning-color); }
+	.puzzle-rating--done {
+		font-size: 11px;
+		color: var(--text-dim);
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		margin: var(--spacing-sm) 0;
+	}
+
+	/* ── Publish panel ───────────────────────────────────────────────────── */
+	.gallery-published {
+		font-size: 11px;
+		color: var(--success-color);
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		align-self: center;
+	}
+	.publish-panel {
+		margin: var(--spacing-sm) 0;
+		padding: var(--spacing-sm) var(--spacing-md);
+		border: 1px solid var(--border-color);
+		background: var(--bg-primary);
+	}
+	.publish-haiku-preview {
+		font-size: 13px;
+		color: var(--text-dim);
+		white-space: pre-wrap;
+		font-style: italic;
+		margin-bottom: var(--spacing-sm);
+		border-left: 2px solid var(--border-color);
+		padding-left: var(--spacing-sm);
+	}
+	.publish-caption {
+		width: 100%;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: 13px;
+		padding: var(--spacing-sm);
+		resize: none;
+		box-sizing: border-box;
+		font-size: 16px; /* prevent iOS zoom */
+	}
+	.publish-caption:focus { outline: 1px solid var(--info-color); }
+	.publish-actions {
+		display: flex;
+		gap: var(--spacing-sm);
+		margin-top: var(--spacing-sm);
+	}
+	.btn-ghost {
+		background: none;
+		border: none;
+		color: var(--text-dim);
+		font-family: inherit;
+		font-size: 12px;
+		cursor: pointer;
+		padding: 4px 8px;
+		text-transform: lowercase;
+		letter-spacing: 0.5px;
+	}
+	.btn-ghost:hover { color: var(--text-primary); }
 </style>
