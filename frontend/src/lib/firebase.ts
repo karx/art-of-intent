@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, increment } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
@@ -18,4 +18,4 @@ export const auth = getAuth(app);
 export const db = getFirestore(app, 'alpha');
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
-export { httpsCallable };
+export { httpsCallable, increment };

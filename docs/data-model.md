@@ -142,6 +142,67 @@ Partial / in-progress games are **not** saved. Only authenticated users are save
 
 ---
 
+### `puzzleFeedback/{sessionId}`
+
+**Written by:** `submitPuzzleRating()` in `+page.svelte` — fires when a player clicks a star rating after game-over. One document per session (session ID as key, so one rating per player per day).
+
+| Field | Type | Notes |
+|---|---|---|
+| `sessionId` | string | Link to the session |
+| `userId` | string | Firebase Auth UID |
+| `date` | string | YYYY-MM-DD |
+| `rating` | number | 1–5 |
+| `createdAt` | timestamp | |
+
+**Read by:** `insights/+page.svelte` (planned) — aggregate rating per date for word quality signal.
+
+**Access:** Authenticated create/update (userId must match auth UID); public read.
+
+---
+
+### `communityPosts/{sessionId}`
+
+**Written by:** `confirmPublish()` in `+page.svelte` — fires when a player explicitly publishes their game to the gallery. Session ID used as document key (one post per session).
+
+| Field | Type | Notes |
+|---|---|---|
+| `sessionId` | string | |
+| `userId` | string | Firebase Auth UID |
+| `displayName` | string | |
+| `date` | string | YYYY-MM-DD — primary query dimension |
+| `featuredHaiku` | string | Last haiku from trail (victory/success type) |
+| `caption` | string | Optional player note, max 140 chars |
+| `score` | number \| null | `efficiencyScore`; null for defeats/cheat sessions |
+| `attempts` | number | |
+| `reciteCount` | number | Denormalized; incremented via `increment()` on each recite |
+| `createdAt` | timestamp | |
+
+**Read by:** `community/+page.svelte` — today's gallery, ordered by `reciteCount desc` + `score asc`.
+
+**Access:** Owner create; any authenticated user can update (reciteCount increment); public read.
+
+---
+
+### `recites/{sessionId}_{userId}`
+
+**Written by:** `confirmRecite()` in `community/+page.svelte` — fires when a player recites another player's community post. Composite document ID `{sessionId}_{userId}` enforces one recite per player per post (Firestore-level deduplication, same pattern as Reddit's votes table).
+
+| Field | Type | Notes |
+|---|---|---|
+| `postId` | string | sessionId of the parent communityPost |
+| `userId` | string | Firebase Auth UID of the reciter |
+| `displayName` | string | |
+| `note` | string | Optional annotation, max 140 chars |
+| `recitedAt` | timestamp | |
+
+**Read by:** `community/+page.svelte` — loads up to 5 noted recites per post for the notes thread. Client also caches `localStorage.getItem('aoi_recited_{sessionId}')` for instant UI state.
+
+**Access:** Owner create only (no edits — one recite stands); public read.
+
+**Index needed:** `postId asc + recitedAt desc` on `recites` collection.
+
+---
+
 ### `leaderboard/` and `leaderboards/`
 
 **Written by:** Unknown — rules permit authenticated writes to `leaderboard/` and Cloud Function writes to `leaderboards/`, but nothing in the current Svelte frontend writes to either.

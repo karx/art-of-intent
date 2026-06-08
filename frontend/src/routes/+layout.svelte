@@ -37,6 +37,7 @@
 	// Current section label for top-bar breadcrumb
 	const section = $derived(
 		$page.url.pathname === '/leaderboard' ? 'scores' :
+		$page.url.pathname === '/community'   ? 'community' :
 		$page.url.pathname === '/settings'    ? 'settings' :
 		$page.url.pathname === '/about'       ? 'about' :
 		$page.url.pathname === '/help'        ? 'help' :
@@ -96,6 +97,10 @@
 	<a href="/leaderboard" class="nav-item" class:active={$page.url.pathname === '/leaderboard'} title="Scores">
 		<span class="nav-icon">≡</span>
 		<span class="nav-label">Scores</span>
+	</a>
+	<a href="/community"  class="nav-item" class:active={$page.url.pathname === '/community'}  title="Community">
+		<span class="nav-icon">◎</span>
+		<span class="nav-label">Gallery</span>
 	</a>
 	<a href="/settings"    class="nav-item" class:active={$page.url.pathname === '/settings'}    title="Settings">
 		<span class="nav-icon">⚙</span>
