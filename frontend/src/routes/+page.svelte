@@ -12,6 +12,7 @@
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 	import { buildResultPayload, decodeResult, generateResultUrl, type ResultPayload } from '$lib/result-url';
 	import { buildShareText as composeShareText } from '$lib/share-text';
+	import { recordPlayedToday, currentStreak } from '$lib/stores/streak.svelte';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
@@ -147,6 +148,11 @@
 			return true;
 		} catch { return false; }
 	}
+
+	// ── Streak — count today once the game completes (idempotent) ────────────
+	$effect(() => {
+		if (gameState.gameOver && gameState.attempts > 0) recordPlayedToday(today);
+	});
 
 	// ── Scroll new trail items into view ──────────────────────────────────────
 	$effect(() => {
@@ -862,7 +868,11 @@
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
 				<button class="btn-secondary" onclick={copyResultLink}>Copy Link</button>
 			</div>
-			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
+			<div class="game-over-cta">
+				{#if currentStreak(today) > 1}Day {currentStreak(today)} 🔥 — come back tomorrow to keep the streak alive.
+				{:else}Come back tomorrow for a new challenge — and start a streak. 🔥
+				{/if}
+			</div>
 		</div>
 	{/if}
 

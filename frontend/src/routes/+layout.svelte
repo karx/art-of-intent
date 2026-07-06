@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { authState, signInGoogle, signInAnon, signOutUser } from '$lib/stores/auth.svelte';
+	import { initStreak, currentStreak } from '$lib/stores/streak.svelte';
 	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	const today = new Date().toISOString().split('T')[0];
+	const streak = $derived(currentStreak(today));
 
 	let splashDismissed = $state(false);
 	let splashReady     = $state(false); // "READY." line appears
 
 	onMount(() => {
+		initStreak();
 		document.body.classList.add('scrolled-top');
 
 		// Reveal the "READY." line after the boot lines animate in (~2.4s)
@@ -124,6 +129,9 @@
 	</div>
 
 	<div class="top-bar-right">
+		{#if streak > 0}
+			<span class="top-bar-streak" title="Daily streak — play every day to keep it">Day {streak} 🔥</span>
+		{/if}
 		{#if authState.user}
 			<span class="top-bar-user">{authState.user.displayName ?? 'guest'}</span>
 			<button class="top-bar-signout" onclick={signOutUser} title="Sign out">[ sign out ]</button>
@@ -141,6 +149,15 @@
 
 <style>
 	main { margin: 0; padding: 0; }
+
+	/* ── Streak counter ───────────────────────────────────────────────── */
+	.top-bar-streak {
+		font-size: 11px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--warning-color);
+		white-space: nowrap;
+	}
 
 	/* ── Top bar title ────────────────────────────────────────────────── */
 	.top-bar-title {
