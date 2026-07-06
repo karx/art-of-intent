@@ -11,6 +11,7 @@
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
 	import { buildResultPayload, decodeResult, generateResultUrl, type ResultPayload } from '$lib/result-url';
+	import { buildShareText as composeShareText } from '$lib/share-text';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
@@ -510,14 +511,14 @@
 	}
 
 	function buildShareText(): string {
-		const best = trail
-			.filter(e => !e.violation && e.newMatches.length > 0)
-			.sort((a, b) => b.newMatches.length - a.newMatches.length)[0];
-		const hint = best?.haiku?.trim().split('\n')[0];
-		const haikuHint = hint ? `\n"${hint}…"` : '';
-		if (gameState.wonGame)
-			return `🎯 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words in ${gameState.attempts} attempts${haikuHint}\n\nCan you beat it? → https://art-of-intent.netlify.app`;
-		return `🎮 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words. This haiku bot is tricky!${haikuHint}\n\nTry today's puzzle → https://art-of-intent.netlify.app`;
+		return composeShareText({
+			won:      gameState.wonGame,
+			matched:  gameState.matchedWords.size,
+			total:    gameState.targetWords.length,
+			attempts: gameState.attempts,
+			trail,
+			resultUrl: gameState.gameOver ? buildResultUrl() : undefined,
+		});
 	}
 
 	async function handlePreview() {
@@ -552,8 +553,8 @@
 		sharedResult = null;
 	}
 
-	async function copyResultLink() {
-		const url = generateResultUrl(buildResultPayload({
+	function buildResultUrl(): string {
+		return generateResultUrl(buildResultPayload({
 			date:         today,
 			targetWords:  gameState.targetWords,
 			matchedWords: gameState.matchedWords,
@@ -562,8 +563,11 @@
 			won:          gameState.wonGame,
 			cheated:      gameState.cheated,
 		}));
+	}
+
+	async function copyResultLink() {
 		try {
-			await navigator.clipboard.writeText(url);
+			await navigator.clipboard.writeText(buildResultUrl());
 			showToast('Result link copied!', 'success');
 			logEvent('share', { outcome: 'link-copied' });
 		} catch { showToast('Could not copy link', 'error'); }
