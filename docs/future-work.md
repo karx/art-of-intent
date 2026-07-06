@@ -17,11 +17,16 @@ Items documented here are scoped, ready to implement, and ordered by priority.
 
 ---
 
-## 1. Share Card Copy Improvements
+## 1. Share Card Copy Improvements — ✅ SHIPPED (verified 2026-07-07)
+
+> **Status:** Already implemented in `share-card.ts` — the card features the best-matching
+> haiku in a quote box, shows `★ N/M WORDS FOUND` with per-word badges, and closes with
+> "Can you guide Arty better?". The share *text* also quotes the winning haiku and links
+> to a `#r=` result URL (see §2). Section kept for the original rationale.
 
 **Goal:** Make the end-game share image compelling enough that non-players want to click through.
 
-**Current state:** The share card shows score, attempts, tokens, and a "Play at: …" link. It reads like a stats dump — no emotional hook for someone seeing it cold.
+**Current state (stale):** The share card shows score, attempts, tokens, and a "Play at: …" link. It reads like a stats dump — no emotional hook for someone seeing it cold.
 
 **What to change:**
 
@@ -57,7 +62,11 @@ Items documented here are scoped, ready to implement, and ordered by priority.
 
 ---
 
-## 2. Result URL / Shareable Link
+## 2. Result URL / Shareable Link — ✅ BUILT on `kaaro/fable-loop` (2026-07-07, pending merge)
+
+> **Status:** Implemented per this spec — see `docs/projects/RESULT_URL.md`.
+> Codec in `frontend/src/lib/result-url.ts` (TDD), read-only `#r=` view + Copy Link
+> button in `+page.svelte`, and share text links to the result URL. QR code remains phase 2.
 
 **Goal:** Let a result link reconstruct a read-only view of someone's game without requiring a Firestore lookup.
 

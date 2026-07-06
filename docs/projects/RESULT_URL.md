@@ -50,5 +50,6 @@ para: Pipeline
 - [x] result-url codec (TDD) — 18 new tests, suite at 124 green
 - [x] UI integration (#r= view + copy-link button) — reuses game-over-panel styling per kaaro Register B
 - [x] Sandbox verification — production build clean; preview server 200; shared-result view confirmed in compiled bundle. Manual click-through of a #r= link pending human eyes.
+- [x] Share-flow composition — `buildShareText` extracted to `lib/share-text.ts` (TDD); shared text now carries the `#r=` link, so every share is a click-through to the result card. future-work §1 found already shipped in `share-card.ts`; backlog corrected.
 - [ ] Merge to main (PR from kaaro/fable-loop)
 - [ ] Crystallization note on close
