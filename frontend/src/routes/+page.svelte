@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
@@ -9,6 +10,7 @@
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
+	import { buildResultPayload, decodeResult, generateResultUrl, type ResultPayload } from '$lib/result-url';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
@@ -537,6 +539,35 @@
 			showToast('Score copied!', 'success');
 		} catch { showToast('Could not copy', 'error'); }
 	}
+
+	// ── Result URL (#r= hash) ─────────────────────────────────────────────────
+	let sharedResult = $state<ResultPayload | null>(null);
+	if (browser) {
+		const hashToken = location.hash.match(/^#r=(.+)$/);
+		if (hashToken) sharedResult = decodeResult(hashToken[1]);
+	}
+
+	function dismissSharedResult() {
+		history.replaceState(null, '', location.pathname + location.search);
+		sharedResult = null;
+	}
+
+	async function copyResultLink() {
+		const url = generateResultUrl(buildResultPayload({
+			date:         today,
+			targetWords:  gameState.targetWords,
+			matchedWords: gameState.matchedWords,
+			attempts:     gameState.attempts,
+			totalTokens:  gameState.totalTokens,
+			won:          gameState.wonGame,
+			cheated:      gameState.cheated,
+		}));
+		try {
+			await navigator.clipboard.writeText(url);
+			showToast('Result link copied!', 'success');
+			logEvent('share', { outcome: 'link-copied' });
+		} catch { showToast('Could not copy link', 'error'); }
+	}
 </script>
 
 <svelte:head>
@@ -551,6 +582,37 @@
 </svelte:head>
 
 <div class="container main-content">
+
+{#if sharedResult}
+	<!-- ── Read-only shared result (#r= hash) ────────────────────────────── -->
+	<section class="shared-result" aria-label="Shared result">
+		<div class="game-over-panel {sharedResult.r === 'W' ? 'game-over-panel--win' : 'game-over-panel--loss'}">
+			<div class="shared-result-date">SHARED RESULT · {sharedResult.d}</div>
+			<div class="game-over-title">
+				{sharedResult.c ? '✦ CHEAT RUN' : sharedResult.r === 'W' ? '✦ VICTORY' : '✦ DARKNESS WINS'}
+			</div>
+			<div class="shared-result-words">
+				{#each sharedResult.w as bit}
+					<span class={bit ? 'text-success' : 'text-dim'}>{bit ? '★' : '☆'}</span>
+				{/each}
+				<span class="shared-result-count">{sharedResult.m}/{sharedResult.n} words</span>
+			</div>
+			<div class="game-over-stats">
+				<span>{sharedResult.a} att</span>
+				<span>·</span>
+				<span>{sharedResult.t} tok</span>
+				{#if sharedResult.s !== null}
+					<span>·</span>
+					<span>score {sharedResult.s}</span>
+				{/if}
+			</div>
+			<div class="game-over-actions">
+				<button class="btn-primary" onclick={dismissSharedResult}>Play Today's Puzzle</button>
+			</div>
+			<div class="game-over-cta">Someone sent you their result. Think you can do better?</div>
+		</div>
+	</section>
+{:else}
 
 	<!-- ── Word display (sticky) ─────────────────────────────────────────── -->
 	<section class="game-words-section" aria-label="Today's words">
@@ -794,6 +856,7 @@
 					{'share' in navigator ? 'Share Card' : 'Save Card'}
 				</button>
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
+				<button class="btn-secondary" onclick={copyResultLink}>Copy Link</button>
 			</div>
 			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
 		</div>
@@ -841,6 +904,8 @@
 		</div>
 	{/if}
 
+{/if}
+
 </div>
 
 <!-- Toast notification -->
@@ -850,6 +915,24 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Shared result (#r=) read-only view ─────────────────────────────── */
+	.shared-result-date {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-dim);
+	}
+	.shared-result-words {
+		font-size: 18px;
+		letter-spacing: 0.15em;
+	}
+	.shared-result-count {
+		font-size: 12px;
+		letter-spacing: normal;
+		color: var(--text-primary);
+		margin-left: var(--spacing-sm, 8px);
+	}
 
 	/* ── Cheat code trail item ───────────────────────────────────────────── */
 	:global(.trail-item--cheat) {
