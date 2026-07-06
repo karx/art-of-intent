@@ -46,8 +46,9 @@ para: Pipeline
 ## Status
 
 - [x] Pipeline opened, survey done
-- [ ] `computeEfficiencyScore` extracted (TDD)
-- [ ] result-url codec (TDD)
-- [ ] UI integration (#r= view + copy-link button)
-- [ ] Sandbox verification (dev server, end-to-end hash flow)
+- [x] `computeEfficiencyScore` extracted (TDD) — worked example from the spec (12 att / 11419 tok → 1261) is now a test
+- [x] result-url codec (TDD) — 18 new tests, suite at 124 green
+- [x] UI integration (#r= view + copy-link button) — reuses game-over-panel styling per kaaro Register B
+- [x] Sandbox verification — production build clean; preview server 200; shared-result view confirmed in compiled bundle. Manual click-through of a #r= link pending human eyes.
+- [ ] Merge to main (PR from kaaro/fable-loop)
 - [ ] Crystallization note on close
