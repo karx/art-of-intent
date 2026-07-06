@@ -4,7 +4,7 @@
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
-	import { getRating, calculateEfficiency } from '$lib/scoring';
+	import { getRating, calculateEfficiency, computeEfficiencyScore } from '$lib/scoring';
 	import { generateShareCardSVG, shareCard, downloadCard, previewCard, type ShareCardData } from '$lib/share-card';
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
@@ -425,9 +425,12 @@
 		if (!user || !gameState.sessionId) return;
 
 		const isVictory = gameState.wonGame;
-		const efficiencyScore = gameState.cheated
-			? null
-			: (isVictory ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
+		const efficiencyScore = computeEfficiencyScore({
+			won: isVictory,
+			cheated: gameState.cheated,
+			attempts: gameState.attempts,
+			totalTokens: gameState.totalTokens,
+		});
 
 		const attemptsData = trail.map(e => ({
 				attemptNumber: e.number,
