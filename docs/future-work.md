@@ -109,7 +109,7 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 
 - **Streak counter** — ✅ BUILT on `kaaro/fable-loop` (2026-07-07), see `docs/projects/STREAK_COUNTER.md`.
 - **Word hint** — ✅ BUILT on `kaaro/fable-loop` (2026-07-07). Category reveals after 3 attempts; needs `firebase deploy --only functions` for `targetCategories` to appear in new dailyWords docs. Decision note in `docs/areas/DAILY_WORDS_SYSTEM.md`.
-- **Creep animation** — flash counter red on increase; shake game area at 75+.
+- **Creep animation** — ✅ BUILT on `kaaro/fable-loop` (2026-07-07). Counter flashes on any rise, words section shakes when an increase lands at 75+; `prefers-reduced-motion` disables both. Thresholds live in `frontend/src/lib/creep.ts`.
 - **Practice mode** — random words, no leaderboard, unlimited attempts.
 
 ---
