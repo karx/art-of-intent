@@ -27,7 +27,7 @@ para: Pipeline
 - This pipeline (branch `kaaro/fable-loop`).
 - future-work §1 (share card copy: winning haiku on the card) — not started.
 - future-work §3 backlog: streak counter, word hints, creep animation, practice mode — not started.
-- Known debt from security review: `sessionEvents` and `leaderboard` Firestore rules lack ownership checks; no CI on PRs.
+- Known debt from security review: `sessionEvents` and `leaderboard` Firestore rules lack ownership checks (since fixed on `kaaro/fix/firestore-rules`). ~~No CI on PRs~~ — correction 2026-07-07: `.github/workflows/web.yml` already runs svelte-check + vitest + functions tests + build on PRs, and deploys Netlify on main push. Both open branches verified against it locally (svelte-check 0 errors, 151 + 21 tests green).
 
 ## Design decisions
 
