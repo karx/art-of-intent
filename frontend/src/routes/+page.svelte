@@ -13,6 +13,7 @@
 	import { buildResultPayload, decodeResult, generateResultUrl, type ResultPayload } from '$lib/result-url';
 	import { buildShareText as composeShareText } from '$lib/share-text';
 	import { recordPlayedToday, currentStreak } from '$lib/stores/streak.svelte';
+	import { revealedHints } from '$lib/hints';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
@@ -97,6 +98,12 @@
 
 	// ── Derived ───────────────────────────────────────────────────────────────
 	const efficiency = $derived(calculateEfficiency(gameState.totalTokens, gameState.attempts));
+	const hints = $derived(revealedHints({
+		attempts:     gameState.attempts,
+		targetWords:  gameState.targetWords,
+		matchedWords: gameState.matchedWords,
+		categories:   gameState.targetCategories,
+	}));
 	const rating     = $derived(getRating(efficiency));
 	const today      = new Date().toISOString().split('T')[0];
 	const creepClass = $derived(
@@ -120,6 +127,7 @@
 				cheated:       gameState.cheated,
 				sessionId:     gameState.sessionId,
 				targetWords:   gameState.targetWords,
+				targetCategories: gameState.targetCategories,
 				blacklistWords:gameState.blacklistWords,
 				currentDate:   gameState.currentDate,
 				trail,
@@ -141,8 +149,9 @@
 			gameState.wonGame        = saved.wonGame       ?? false;
 			gameState.cheated        = saved.cheated       ?? false;
 			gameState.sessionId      = saved.sessionId     ?? null;
-			gameState.targetWords    = saved.targetWords   ?? [];
-			gameState.blacklistWords = saved.blacklistWords ?? [];
+			gameState.targetWords      = saved.targetWords      ?? [];
+			gameState.targetCategories = saved.targetCategories ?? [];
+			gameState.blacklistWords   = saved.blacklistWords   ?? [];
 			gameState.currentDate    = saved.currentDate   ?? today;
 			trail                    = saved.trail         ?? [];
 			return true;
@@ -182,8 +191,9 @@
 			const snap = await getDoc(doc(db, 'dailyWords', today));
 			if (!snap.exists()) { error = "Today's words aren't ready yet. Try refreshing."; return; }
 			const data = snap.data();
-			gameState.targetWords    = data.targetWords    ?? [];
-			gameState.blacklistWords = data.blacklistWords ?? [];
+			gameState.targetWords      = data.targetWords      ?? [];
+			gameState.targetCategories = data.targetCategories ?? [];
+			gameState.blacklistWords   = data.blacklistWords   ?? [];
 			gameState.currentDate    = today;
 			gameState.sessionId      = crypto.randomUUID();
 			error = '';
@@ -631,9 +641,9 @@
 			<div class="words-group target-group">
 				<h3>TARGET</h3>
 				<div class="word-list">
-					{#each gameState.targetWords as word}
+					{#each gameState.targetWords as word, i}
 						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''}">
-							{word}
+							{word}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}
 						</span>
 					{/each}
 				</div>
@@ -929,6 +939,13 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Word hint (category reveal) ─────────────────────────────────────── */
+	.word-hint {
+		font-size: 10px;
+		letter-spacing: 0.08em;
+		color: var(--warning-color);
+	}
 
 	/* ── Shared result (#r=) read-only view ─────────────────────────────── */
 	.shared-result-date {

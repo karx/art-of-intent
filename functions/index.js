@@ -645,6 +645,7 @@ async function generateWordsForDate(dateKey) {
         date: dateKey,
         seed,
         targetWords,
+        targetCategories: selectedCategories,
         blacklistWords,
         createdAt: FieldValue.serverTimestamp(),
         version: '1.0',

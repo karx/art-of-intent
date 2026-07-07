@@ -1,5 +1,6 @@
 export interface GameState {
 	targetWords: string[];
+	targetCategories: string[]; // parallel to targetWords; empty for pre-rollout days
 	blacklistWords: string[];
 	attempts: number;
 	totalTokens: number;
@@ -23,6 +24,7 @@ export interface AttemptResult {
 export function createGameState(): GameState {
 	return {
 		targetWords: [],
+		targetCategories: [],
 		blacklistWords: [],
 		attempts: 0,
 		totalTokens: 0,
