@@ -108,7 +108,7 @@ Encode with `btoa(JSON.stringify(payload))` → ~80 chars. Stays under URL limit
 ## 3. Playability (backlog)
 
 - **Streak counter** — ✅ BUILT on `kaaro/fable-loop` (2026-07-07), see `docs/projects/STREAK_COUNTER.md`.
-- **Word hint** — show category (e.g. `[nature]`) after 3 failed attempts on a word.
+- **Word hint** — ✅ BUILT on `kaaro/fable-loop` (2026-07-07). Category reveals after 3 attempts; needs `firebase deploy --only functions` for `targetCategories` to appear in new dailyWords docs. Decision note in `docs/areas/DAILY_WORDS_SYSTEM.md`.
 - **Creep animation** — flash counter red on increase; shake game area at 75+.
 - **Practice mode** — random words, no leaderboard, unlimited attempts.
 
