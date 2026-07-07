@@ -19,6 +19,9 @@ export function initStreak() {
 
 /** Call when today's game completes. Idempotent per day. */
 export function recordPlayedToday(today: string) {
+	// Self-load so callers don't depend on initStreak() having run first —
+	// advancing from an unloaded null would clobber a live streak.
+	if (streakState.record === null) streakState.record = load();
 	const next = advanceStreak(streakState.record, today);
 	streakState.record = next;
 	try {

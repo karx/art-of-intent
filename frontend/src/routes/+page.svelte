@@ -583,7 +583,7 @@
 
 	function buildResultUrl(): string {
 		return generateResultUrl(buildResultPayload({
-			date:         today,
+			date:         gameState.currentDate ?? today, // game date, not wall clock — tabs cross midnight
 			targetWords:  gameState.targetWords,
 			matchedWords: gameState.matchedWords,
 			attempts:     gameState.attempts,
