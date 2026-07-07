@@ -14,6 +14,7 @@
 	import { buildShareText as composeShareText } from '$lib/share-text';
 	import { recordPlayedToday, currentStreak } from '$lib/stores/streak.svelte';
 	import { revealedHints } from '$lib/hints';
+	import { creepSeverity, creepFeedback } from '$lib/creep';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
@@ -106,11 +107,19 @@
 	}));
 	const rating     = $derived(getRating(efficiency));
 	const today      = new Date().toISOString().split('T')[0];
-	const creepClass = $derived(
-		gameState.creepLevel >= 75 ? 'creep-critical' :
-		gameState.creepLevel >= 50 ? 'creep-high'     :
-		gameState.creepLevel >= 25 ? 'creep-medium'   : 'creep-low'
-	);
+	const creepClass = $derived(`creep-${creepSeverity(gameState.creepLevel)}`);
+
+	// Transient animation cue when creep rises (flash) or goes critical (shake)
+	let creepAnim = $state<'flash' | 'shake' | null>(null);
+	let creepAnimTimer: ReturnType<typeof setTimeout> | null = null;
+	function triggerCreepFeedback(prev: number, next: number) {
+		const cue = creepFeedback(prev, next);
+		if (!cue) return;
+		creepAnim = null; // restart the CSS animation if one is mid-flight
+		if (creepAnimTimer) clearTimeout(creepAnimTimer);
+		requestAnimationFrame(() => { creepAnim = cue; });
+		creepAnimTimer = setTimeout(() => { creepAnim = null; }, 600);
+	}
 
 	// ── localStorage persistence ───────────────────────────────────────────────
 	const LS_KEY = `aoi_game_${today}`;
@@ -295,6 +304,7 @@
 
 			gameState.attempts++;
 			gameState.creepLevel = newCreep;
+			triggerCreepFeedback(prevCreep, newCreep);
 			if (creepMaxed) { gameState.gameOver = true; gameState.wonGame = false; sound.playDefeat(); }
 			trail  = [...trail, entry];
 			prompt = '';
@@ -325,9 +335,11 @@
 			const creepIncrease = blacklistHits.length * gameState.creepPerViolation;
 			const newCreep      = Math.min(gameState.creepLevel + creepIncrease, gameState.creepThreshold);
 
+			const prevCreepLevel = gameState.creepLevel;
 			const next = applyAttemptResult(gameState, { tokens, newMatches, blacklistViolations: blacklistHits.length });
 			Object.assign(gameState, next);
 			gameState.matchedWords = next.matchedWords;
+			triggerCreepFeedback(prevCreepLevel, next.creepLevel);
 
 			// Audio feedback
 			if (next.wonGame)          sound.playVictory();
@@ -635,7 +647,7 @@
 {:else}
 
 	<!-- ── Word display (sticky) ─────────────────────────────────────────── -->
-	<section class="game-words-section" aria-label="Today's words">
+	<section class="game-words-section" class:creep-shake={creepAnim === 'shake'} aria-label="Today's words">
 		<div class="words-container">
 
 			<div class="words-group target-group">
@@ -666,7 +678,7 @@
 			<span>ATT <strong>{gameState.attempts}</strong>/10</span>
 			<span>TOK <strong>{gameState.totalTokens}</strong></span>
 			<span>MAT <strong>{gameState.matchedWords.size}/{gameState.targetWords.length}</strong></span>
-			<span>CREEP <strong class="creep-indicator {creepClass}">{gameState.creepLevel}</strong>/100</span>
+			<span>CREEP <strong class="creep-indicator {creepClass}" class:creep-flash={creepAnim !== null}>{gameState.creepLevel}</strong>/100</span>
 			{#if gameState.attempts > 0}
 				<span class="text-{rating.color}">{efficiency} tok/att {rating.stars}</span>
 			{/if}
@@ -939,6 +951,28 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Creep feedback animations ───────────────────────────────────────── */
+	@keyframes creep-flash-kf {
+		0%, 100% { color: inherit; text-shadow: none; }
+		50%      { color: var(--error-color); text-shadow: 0 0 6px var(--error-color); }
+	}
+	.creep-flash {
+		animation: creep-flash-kf 240ms ease 2;
+	}
+	@keyframes creep-shake-kf {
+		0%, 100% { transform: translateX(0); }
+		20%      { transform: translateX(-4px); }
+		40%      { transform: translateX(4px); }
+		60%      { transform: translateX(-3px); }
+		80%      { transform: translateX(3px); }
+	}
+	.creep-shake {
+		animation: creep-shake-kf 240ms ease;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.creep-flash, .creep-shake { animation: none; }
+	}
 
 	/* ── Word hint (category reveal) ─────────────────────────────────────── */
 	.word-hint {
