@@ -655,7 +655,7 @@
 				<div class="word-list">
 					{#each gameState.targetWords as word, i}
 						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''}">
-							{word}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}
+							{word}{#if gameState.matchedWords.has(word)}<span class="sr-only"> (found)</span>{/if}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}
 						</span>
 					{/each}
 				</div>
@@ -687,7 +687,7 @@
 
 	<!-- ── Response trail ────────────────────────────────────────────────── -->
 	<section class="response-trail" aria-label="Response trail">
-		<div class="trail-container">
+		<div class="trail-container" role="log" aria-live="polite" aria-relevant="additions">
 
 			{#if trail.length === 0 && !thinking}
 				{#if !authState.ready}
@@ -845,7 +845,7 @@
 
 			<!-- Arty thinking -->
 			{#if thinking}
-				<div class="trail-item trail-item--thinking">
+				<div class="trail-item trail-item--thinking" aria-hidden="true">
 					<div class="thinking-header">
 						<span class="thinking-label">ARTY</span>
 						<span class="loading" aria-hidden="true"></span>
@@ -856,7 +856,7 @@
 
 			<!-- Error -->
 			{#if error}
-				<div class="trail-error-inline">
+				<div class="trail-error-inline" role="alert">
 					<span>⚠</span> {error}
 				</div>
 			{/if}
@@ -869,7 +869,7 @@
 
 	<!-- ── Game-over panel ───────────────────────────────────────────────── -->
 	{#if gameState.gameOver}
-		<div class="game-over-panel {gameState.wonGame ? 'game-over-panel--win' : 'game-over-panel--loss'}">
+		<div class="game-over-panel {gameState.wonGame ? 'game-over-panel--win' : 'game-over-panel--loss'}" role="status">
 			<div class="game-over-title">
 				{gameState.wonGame ? '✦ VICTORY' : '✦ DARKNESS WINS'}
 			</div>
@@ -951,6 +951,19 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Screen-reader-only text ─────────────────────────────────────────── */
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
 
 	/* ── Creep feedback animations ───────────────────────────────────────── */
 	@keyframes creep-flash-kf {
