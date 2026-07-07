@@ -32,5 +32,7 @@ para: Pipeline
 ## Status
 
 - [x] TDD module + store + UI (2026-07-07, branch `kaaro/fable-loop`)
-- [ ] Merge to main
+- [x] Hardened: `recordPlayedToday` self-loads so init ordering can't clobber a live streak
+- [x] Crystallized in `docs/crystallized/FABLE_LOOP_SPRINT.md`
+- [ ] Merge to main (maintainer's call)
 - [ ] Consider: streak in share text / result URL payload (v2 token field)
