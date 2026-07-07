@@ -60,37 +60,39 @@ service cloud.firestore {
         && isValidSession(request.resource.data)
         && request.resource.data.userId == request.auth.uid;
       
-      // Users can update their own sessions
-      // Allow update if: user is authenticated AND (existing doc has no userId OR userId matches)
+      // Users can update their own sessions. Every write path
+      // (saveSessionStart, saveSessionToFirestore) stamps userId at create,
+      // so the old "claim a userId-less doc" branch is gone — it let anyone
+      // hijack such a session.
       allow update: if isAuthenticated()
-        && (!resource.data.keys().hasAny(['userId']) || resource.data.userId == request.auth.uid)
+        && resource.data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid;
       
       // No deletes allowed
       allow delete: if false;
     }
     
-    // Session events (detailed logs)
+    // Session events (detailed logs) — docs always carry userId (logEvent)
     match /sessionEvents/{sessionId} {
-      // Users can read their own session events
-      allow read: if isAuthenticated();
-      
-      // Users can create/update their own events
-      allow create, update: if isAuthenticated();
-      
+      // Owners read their own session events
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Create must stamp the caller's uid; update must keep it
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
       // No deletes allowed
       allow delete: if false;
     }
-    
-    // Leaderboard (singular - for daily rankings)
+
+    // Leaderboard (singular) — legacy: nothing writes it anymore; rankings
+    // are computed from public sessions. Locked to prevent score spoofing.
     match /leaderboard/{document=**} {
-      // Anyone can read leaderboard
       allow read: if true;
-      
-      // Only authenticated users can write their scores
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
+      allow write: if false;
     }
     
     // Leaderboards (plural - for historical data)
