@@ -121,8 +121,18 @@
 		creepAnimTimer = setTimeout(() => { creepAnim = null; }, 600);
 	}
 
+	// ── Practice mode (?practice) — replay a random archived puzzle ───────────
+	// The server validates the date and loads that day's words itself; the
+	// client never supplies words. No sessions, streaks, or leaderboard.
+	const practiceMode = browser && new URLSearchParams(location.search).has('practice');
+	function randomArchiveDate(): string {
+		const d = new Date();
+		d.setUTCDate(d.getUTCDate() - (1 + Math.floor(Math.random() * 60)));
+		return d.toISOString().split('T')[0];
+	}
+
 	// ── localStorage persistence ───────────────────────────────────────────────
-	const LS_KEY = `aoi_game_${today}`;
+	const LS_KEY = practiceMode ? 'aoi_practice' : `aoi_game_${today}`;
 
 	function saveToStorage() {
 		try {
@@ -168,8 +178,9 @@
 	}
 
 	// ── Streak — count today once the game completes (idempotent) ────────────
+	// Practice games don't count: the streak rewards the daily ritual.
 	$effect(() => {
-		if (gameState.gameOver && gameState.attempts > 0) recordPlayedToday(today);
+		if (!practiceMode && gameState.gameOver && gameState.attempts > 0) recordPlayedToday(today);
 	});
 
 	// ── Scroll new trail items into view ──────────────────────────────────────
@@ -191,19 +202,26 @@
 	});
 
 	async function initGame() {
-		if (loadFromStorage() && gameState.targetWords.length > 0) { error = ''; return; }
+		// Practice always starts fresh — never restore a saved game
+		if (!practiceMode && loadFromStorage() && gameState.targetWords.length > 0) { error = ''; return; }
 		await loadDailyWords();
 	}
 
 	async function loadDailyWords() {
 		try {
-			const snap = await getDoc(doc(db, 'dailyWords', today));
+			let date = practiceMode ? randomArchiveDate() : today;
+			let snap = await getDoc(doc(db, 'dailyWords', date));
+			// Archive gaps happen (scheduler misses) — re-roll a few times
+			for (let i = 0; practiceMode && !snap.exists() && i < 4; i++) {
+				date = randomArchiveDate();
+				snap = await getDoc(doc(db, 'dailyWords', date));
+			}
 			if (!snap.exists()) { error = "Today's words aren't ready yet. Try refreshing."; return; }
 			const data = snap.data();
 			gameState.targetWords      = data.targetWords      ?? [];
 			gameState.targetCategories = data.targetCategories ?? [];
 			gameState.blacklistWords   = data.blacklistWords   ?? [];
-			gameState.currentDate    = today;
+			gameState.currentDate    = date;
 			gameState.sessionId      = crypto.randomUUID();
 			error = '';
 			saveToStorage();
@@ -320,7 +338,11 @@
 		startThinking();
 
 		try {
-			const resp         = await callArtyAPI(text, gameState.sessionId ?? '');
+			const resp         = await callArtyAPI(
+				text,
+				gameState.sessionId ?? '',
+				practiceMode ? gameState.currentDate ?? undefined : undefined,
+			);
 			stopThinking();
 			const responseText = resp.responseText;
 			const respLower    = responseText.toLowerCase();
@@ -407,6 +429,7 @@
 
 	/** Gap 2 — record a session as in_progress at game start so abandoned games are visible. */
 	async function saveSessionStart() {
+		if (practiceMode) return; // practice is ephemeral — no Firestore footprint
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 		try {
@@ -434,6 +457,7 @@
 
 	/** Gap 3 — lightweight event log for errors and key player actions. */
 	async function logEvent(type: string, data: Record<string, unknown> = {}) {
+		if (practiceMode) return;
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 		const event = { type, ts: new Date().toISOString(), ...data };
@@ -452,6 +476,7 @@
 
 	// ── Firestore session save ────────────────────────────────────────────────
 	async function saveSessionToFirestore() {
+		if (practiceMode) return; // practice never touches sessions or the leaderboard
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 
@@ -675,6 +700,9 @@
 		</div>
 
 		<div class="score-compact">
+			{#if practiceMode}
+				<span class="practice-badge" title="Practice — an archived puzzle; no leaderboard, no streak">PRACTICE{#if gameState.currentDate}&nbsp;· {gameState.currentDate}{/if}</span>
+			{/if}
 			<span>ATT <strong>{gameState.attempts}</strong>/10</span>
 			<span>TOK <strong>{gameState.totalTokens}</strong></span>
 			<span>MAT <strong>{gameState.matchedWords.size}/{gameState.targetWords.length}</strong></span>
@@ -889,9 +917,15 @@
 				</button>
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
 				<button class="btn-secondary" onclick={copyResultLink}>Copy Link</button>
+				{#if practiceMode}
+					<button class="btn-primary" onclick={() => location.reload()}>New Practice Puzzle</button>
+				{:else}
+					<button class="btn-secondary" onclick={() => location.assign('/?practice=1')}>Practice</button>
+				{/if}
 			</div>
 			<div class="game-over-cta">
-				{#if currentStreak(today) > 1}Day {currentStreak(today)} 🔥 — come back tomorrow to keep the streak alive.
+				{#if practiceMode}Practice round — nothing was ranked or recorded. The daily puzzle awaits.
+				{:else if currentStreak(today) > 1}Day {currentStreak(today)} 🔥 — come back tomorrow to keep the streak alive.
 				{:else}Come back tomorrow for a new challenge — and start a streak. 🔥
 				{/if}
 			</div>
@@ -985,6 +1019,17 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.creep-flash, .creep-shake { animation: none; }
+	}
+
+	/* ── Practice badge ──────────────────────────────────────────────────── */
+	.practice-badge {
+		font-size: 10px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--warning-color);
+		border: 1px solid var(--warning-color);
+		padding: 1px 6px;
+		white-space: nowrap;
 	}
 
 	/* ── Word hint (category reveal) ─────────────────────────────────────── */
