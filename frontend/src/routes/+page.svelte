@@ -928,6 +928,7 @@
 				{:else if currentStreak(today) > 1}Day {currentStreak(today)} 🔥 — come back tomorrow to keep the streak alive.
 				{:else}Come back tomorrow for a new challenge — and start a streak. 🔥
 				{/if}
+				{#if !practiceMode}<a class="wall-link" href="/wall">See today's haiku wall →</a>{/if}
 			</div>
 		</div>
 	{/if}
@@ -1020,6 +1021,15 @@
 	@media (prefers-reduced-motion: reduce) {
 		.creep-flash, .creep-shake { animation: none; }
 	}
+
+	/* ── Wall link in game-over CTA ──────────────────────────────────────── */
+	.wall-link {
+		display: block;
+		margin-top: var(--spacing-sm, 8px);
+		color: var(--info-color);
+		text-decoration: none;
+	}
+	.wall-link:hover { text-decoration: underline; }
 
 	/* ── Practice badge ──────────────────────────────────────────────────── */
 	.practice-badge {
