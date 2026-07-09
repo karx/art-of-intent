@@ -12,6 +12,7 @@ import {
     deriveWordDifficulty,
     promptHitsBlacklist,
     mapProviderError,
+    isValidArchiveDate,
 } from '../game-logic.js';
 
 // ─── buildSystemInstruction ───────────────────────────────────────────────────
@@ -286,5 +287,34 @@ describe('mapProviderError', () => {
 
     it('works with no options argument (default opts)', () => {
         assert.doesNotThrow(() => mapProviderError(429));
+    });
+});
+
+// ─── isValidArchiveDate ───────────────────────────────────────────────────────
+
+describe('isValidArchiveDate', () => {
+    const today = '2026-07-07';
+
+    it('accepts a well-formed past date', () => {
+        assert.equal(isValidArchiveDate('2026-07-06', today), true);
+        assert.equal(isValidArchiveDate('2025-12-31', today), true);
+    });
+
+    it('rejects today and future dates — practice is archive-only', () => {
+        assert.equal(isValidArchiveDate('2026-07-07', today), false);
+        assert.equal(isValidArchiveDate('2026-07-08', today), false);
+    });
+
+    it('rejects malformed strings and non-strings', () => {
+        assert.equal(isValidArchiveDate('07/06/2026', today), false);
+        assert.equal(isValidArchiveDate('2026-7-6', today), false);
+        assert.equal(isValidArchiveDate('', today), false);
+        assert.equal(isValidArchiveDate(null, today), false);
+        assert.equal(isValidArchiveDate(42, today), false);
+    });
+
+    it('rejects impossible calendar dates that match the pattern', () => {
+        assert.equal(isValidArchiveDate('2026-02-30', today), false);
+        assert.equal(isValidArchiveDate('2026-13-01', today), false);
     });
 });

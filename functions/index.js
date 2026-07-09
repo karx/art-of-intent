@@ -22,6 +22,7 @@ import {
     promptHitsBlacklist,
     deriveWordDifficulty,
     mapProviderError,
+    isValidArchiveDate,
 } from './game-logic.js';
 
 // Initialize Firebase Admin
@@ -196,7 +197,7 @@ export const artyGenerateHaiku = onCall({
     memory: '256MiB',
     cors: true
 }, async (request) => {
-    const {userPrompt, sessionId} = request.data;
+    const {userPrompt, sessionId, gameDate} = request.data;
 
     // Validate authentication
     if (!request.auth) {
@@ -212,9 +213,16 @@ export const artyGenerateHaiku = onCall({
         throw new HttpsError('invalid-argument', 'userPrompt must be 500 characters or less');
     }
 
+    // Practice mode: replay an archived day. The client only selects which
+    // past date — words and system prompt still load server-side below.
+    const todayKey = new Date().toISOString().split('T')[0];
+    if (gameDate !== undefined && !isValidArchiveDate(gameDate, todayKey)) {
+        throw new HttpsError('invalid-argument', 'gameDate must be a past date in YYYY-MM-DD format');
+    }
+
     try {
-        // ── Load today's daily words from Firestore (server-side, tamper-proof) ──
-        const dateKey = new Date().toISOString().split('T')[0];
+        // ── Load the day's words from Firestore (server-side, tamper-proof) ──
+        const dateKey = gameDate ?? todayKey;
         const dailyDoc = await db.collection('dailyWords').doc(dateKey).get();
         if (!dailyDoc.exists) {
             logger.error('Daily words not found for date', {dateKey});
