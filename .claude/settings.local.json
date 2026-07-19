@@ -9,7 +9,14 @@
       "Bash(npm run:*)",
       "Bash(wc -l D:/src/art-of-intent/src/js/*.js)",
       "Bash(npx svelte-check:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm test *)",
+      "Bash(Get-ChildItem -Path \"D:/src\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "PowerShell(git *)",
+      "PowerShell(npx vitest run 2>&1 | Select-Object -Last 6)",
+      "PowerShell(npm run *)",
+      "PowerShell(npx vitest run src/test/streak.test.ts 2>&1 | Select-Object -Last 3)"
     ]
   }
 }

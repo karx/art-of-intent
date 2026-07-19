@@ -1,4 +1,4 @@
-/**
+﻿/**
  * game-logic.js unit tests
  * Run: node --test test/game-logic.test.js
  */
@@ -15,7 +15,7 @@ import {
     isValidArchiveDate,
 } from '../game-logic.js';
 
-// ─── buildSystemInstruction ───────────────────────────────────────────────────
+// â”€â”€â”€ buildSystemInstruction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('buildSystemInstruction', () => {
     it('includes blacklist words in the forbidden-words sentence', () => {
@@ -40,7 +40,7 @@ describe('buildSystemInstruction', () => {
         assert.equal(matches.length, 1);
     });
 
-    it('wraps output in <prompt> … </prompt>', () => {
+    it('wraps output in <prompt> â€¦ </prompt>', () => {
         const instruction = buildSystemInstruction([], []);
         assert.ok(instruction.includes('<prompt>'));
         assert.ok(instruction.includes('</prompt>'));
@@ -53,7 +53,7 @@ describe('buildSystemInstruction', () => {
     });
 });
 
-// ─── buildProbeStrategyInstruction ───────────────────────────────────────────
+// â”€â”€â”€ buildProbeStrategyInstruction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('buildProbeStrategyInstruction', () => {
     it('lists target words in the instruction', () => {
@@ -72,10 +72,10 @@ describe('buildProbeStrategyInstruction', () => {
     });
 });
 
-// ─── defaultEndpointFor ───────────────────────────────────────────────────────
+// â”€â”€â”€ defaultEndpointFor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('defaultEndpointFor', () => {
-    it('gemini → generativelanguage.googleapis.com (env fallback)', () => {
+    it('gemini â†’ generativelanguage.googleapis.com (env fallback)', () => {
         const saved = process.env.GEMINI_API_URL;
         delete process.env.GEMINI_API_URL;
         try {
@@ -86,7 +86,7 @@ describe('defaultEndpointFor', () => {
         }
     });
 
-    it('gemini → uses GEMINI_API_URL when set', () => {
+    it('gemini â†’ uses GEMINI_API_URL when set', () => {
         process.env.GEMINI_API_URL = 'https://custom.example.com/gemini';
         try {
             const url = defaultEndpointFor('gemini');
@@ -96,24 +96,24 @@ describe('defaultEndpointFor', () => {
         }
     });
 
-    it('openai → api.openai.com/v1', () => {
+    it('openai â†’ api.openai.com/v1', () => {
         assert.equal(defaultEndpointFor('openai'), 'https://api.openai.com/v1');
     });
 
-    it('anthropic → api.anthropic.com/v1/messages', () => {
+    it('anthropic â†’ api.anthropic.com/v1/messages', () => {
         assert.equal(defaultEndpointFor('anthropic'), 'https://api.anthropic.com/v1/messages');
     });
 
-    it('custom → empty string (user always supplies endpoint)', () => {
+    it('custom â†’ empty string (user always supplies endpoint)', () => {
         assert.equal(defaultEndpointFor('custom'), '');
     });
 
-    it('unknown provider → empty string', () => {
+    it('unknown provider â†’ empty string', () => {
         assert.equal(defaultEndpointFor('unknown_provider'), '');
     });
 });
 
-// ─── promptHitsBlacklist ─────────────────────────────────────────────────────
+// â”€â”€â”€ promptHitsBlacklist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('promptHitsBlacklist', () => {
     it('returns true when the prompt contains a blacklist word', () => {
@@ -136,12 +136,12 @@ describe('promptHitsBlacklist', () => {
         assert.equal(promptHitsBlacklist('', ['water']), false);
     });
 
-    it('matches substrings (current behavior — "waterfall" contains "water")', () => {
+    it('matches substrings (current behavior â€” "waterfall" contains "water")', () => {
         assert.equal(promptHitsBlacklist('the waterfall is beautiful', ['water']), true);
     });
 });
 
-// ─── deriveWordDifficulty ─────────────────────────────────────────────────────
+// â”€â”€â”€ deriveWordDifficulty â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('deriveWordDifficulty', () => {
     const TARGET = ['ocean', 'dawn', 'stone'];
@@ -202,78 +202,78 @@ describe('deriveWordDifficulty', () => {
     });
 });
 
-// ─── mapProviderError ─────────────────────────────────────────────────────────
+// â”€â”€â”€ mapProviderError â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('mapProviderError', () => {
-    it('429 with retryAfterSeconds → resource-exhausted with seconds in message', () => {
+    it('429 with retryAfterSeconds â†’ resource-exhausted with seconds in message', () => {
         const r = mapProviderError(429, { retryAfterSeconds: 3 });
         assert.equal(r.code, 'resource-exhausted');
         assert.ok(r.message.includes('3s'));
     });
 
-    it('429 without retryAfterSeconds → generic wait message', () => {
+    it('429 without retryAfterSeconds â†’ generic wait message', () => {
         const r = mapProviderError(429, {});
         assert.equal(r.code, 'resource-exhausted');
         assert.ok(r.message.includes('Too many requests'));
     });
 
-    it('400 with billing keyword → billing message', () => {
+    it('400 with billing keyword â†’ billing message', () => {
         const r = mapProviderError(400, { providerMessage: 'insufficient credits in your account' });
         assert.equal(r.code, 'invalid-argument');
         assert.ok(/credit|balance|insufficient/i.test(r.message));
     });
 
-    it('400 with "billing" keyword → billing message', () => {
+    it('400 with "billing" keyword â†’ billing message', () => {
         const r = mapProviderError(400, { providerMessage: 'billing account suspended' });
         assert.equal(r.code, 'invalid-argument');
         assert.ok(/credit|balance|insufficient/i.test(r.message));
     });
 
-    it('400 without billing keyword → prompt-rejected message', () => {
+    it('400 without billing keyword â†’ prompt-rejected message', () => {
         const r = mapProviderError(400, { providerMessage: 'bad request format' });
         assert.equal(r.code, 'invalid-argument');
         assert.ok(r.message.includes('rejected by the AI'));
     });
 
-    it('401 → permission-denied', () => {
+    it('401 â†’ permission-denied', () => {
         const r = mapProviderError(401, {});
         assert.equal(r.code, 'permission-denied');
     });
 
-    it('403 → permission-denied', () => {
+    it('403 â†’ permission-denied', () => {
         const r = mapProviderError(403, {});
         assert.equal(r.code, 'permission-denied');
     });
 
-    it('401 with non-gemini provider → API key rejected message', () => {
+    it('401 with non-gemini provider â†’ API key rejected message', () => {
         const r = mapProviderError(401, { provider: 'openai' });
         assert.ok(r.message.toLowerCase().includes('api key'));
     });
 
-    it('401 with gemini provider → auth error / contact support', () => {
+    it('401 with gemini provider â†’ auth error / contact support', () => {
         const r = mapProviderError(401, { provider: 'gemini' });
         assert.ok(r.message.includes('authentication error'));
     });
 
-    it('500 → unavailable', () => {
+    it('500 â†’ unavailable', () => {
         assert.equal(mapProviderError(500, {}).code, 'unavailable');
     });
 
-    it('502 → unavailable', () => {
+    it('502 â†’ unavailable', () => {
         assert.equal(mapProviderError(502, {}).code, 'unavailable');
     });
 
-    it('503 → unavailable', () => {
+    it('503 â†’ unavailable', () => {
         assert.equal(mapProviderError(503, {}).code, 'unavailable');
     });
 
-    it('0 (network error) → internal with "network" in message', () => {
+    it('0 (network error) â†’ internal with "network" in message', () => {
         const r = mapProviderError(0, {});
         assert.equal(r.code, 'internal');
         assert.ok(r.message.includes('network'));
     });
 
-    it('unknown status → internal with status code in message', () => {
+    it('unknown status â†’ internal with status code in message', () => {
         const r = mapProviderError(418, {});
         assert.equal(r.code, 'internal');
         assert.ok(r.message.includes('418'));
@@ -290,7 +290,7 @@ describe('mapProviderError', () => {
     });
 });
 
-// ─── isValidArchiveDate ───────────────────────────────────────────────────────
+// â”€â”€â”€ isValidArchiveDate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('isValidArchiveDate', () => {
     const today = '2026-07-07';
@@ -300,7 +300,7 @@ describe('isValidArchiveDate', () => {
         assert.equal(isValidArchiveDate('2025-12-31', today), true);
     });
 
-    it('rejects today and future dates — practice is archive-only', () => {
+    it('rejects today and future dates â€” practice is archive-only', () => {
         assert.equal(isValidArchiveDate('2026-07-07', today), false);
         assert.equal(isValidArchiveDate('2026-07-08', today), false);
     });
@@ -318,3 +318,62 @@ describe('isValidArchiveDate', () => {
         assert.equal(isValidArchiveDate('2026-13-01', today), false);
     });
 });
+
+// â”€â”€â”€ auditSession â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+describe('auditSession', () => {
+    const legitWin = () => ({
+        status: 'completed',
+        cheated: false,
+        targetWords: ['moon', 'river', 'stone'],
+        matchedWords: ['moon', 'river', 'stone'],
+        matchedWordsCount: 3,
+        isWin: true,
+        result: 'victory',
+        attempts: 3,
+        totalTokens: 300,
+        efficiencyScore: 3 * 10 + 30,
+        attemptsData: [
+            { totalTokens: 100 }, { totalTokens: 100 }, { totalTokens: 100 },
+        ],
+    });
+
+    it('legit victory produces no corrections (no write loop)', () => {
+        assert.deepEqual(auditSession(legitWin()), { corrections: null, reasons: [] });
+    });
+
+    it('skips in-progress docs and docs without attemptsData', () => {
+        assert.equal(auditSession({ ...legitWin(), status: 'in_progress' }).corrections, null);
+        assert.equal(auditSession({ ...legitWin(), attemptsData: undefined }).corrections, null);
+        assert.equal(auditSession(null).corrections, null);
+    });
+
+    it('recomputes a tampered efficiencyScore', () => {
+        const { corrections, reasons } = auditSession({ ...legitWin(), efficiencyScore: 1 });
+        assert.equal(corrections.efficiencyScore, 60);
+        assert.ok(reasons.includes('efficiencyScore'));
+        assert.equal(corrections.scoreAudited, true);
+    });
+
+    it('rebuilds attempts and totalTokens from attemptsData', () => {
+        const { corrections } = auditSession({ ...legitWin(), attempts: 1, totalTokens: 5, efficiencyScore: 10 });
+        assert.equal(corrections.attempts, 3);
+        assert.equal(corrections.totalTokens, 300);
+        assert.equal(corrections.efficiencyScore, 60);
+    });
+
+    it('nulls the score on cheated and non-win sessions', () => {
+        const cheat = auditSession({ ...legitWin(), cheated: true });
+        assert.equal(cheat.corrections.efficiencyScore, null);
+        const loss = auditSession({ ...legitWin(), matchedWords: ['moon'], matchedWordsCount: 1, isWin: false, result: 'defeat', efficiencyScore: 60 });
+        assert.equal(loss.corrections.efficiencyScore, null);
+    });
+
+    it('corrects an isWin flag that contradicts the matched words', () => {
+        const { corrections } = auditSession({ ...legitWin(), isWin: false, result: 'defeat', efficiencyScore: null });
+        assert.equal(corrections.isWin, true);
+        assert.equal(corrections.result, 'victory');
+        assert.equal(corrections.efficiencyScore, 60);
+    });
+});
+
