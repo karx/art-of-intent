@@ -16,6 +16,7 @@
 	import { revealedHints } from '$lib/hints';
 	import { creepSeverity, creepFeedback } from '$lib/creep';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
+	import { buildTrainingLog, buildYouVsArtyLine, type AIEvaluation } from '$lib/training-log';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -43,6 +44,10 @@
 	let error        = $state('');
 	let trail        = $state<TrailEntry[]>([]);
 	let thinking     = $state(false);
+	/** From dailyWords.aiEvaluation — powers the post-game Training Log. */
+	let aiEvaluation = $state<AIEvaluation | null>(null);
+	/** Post-game trail panel tab: player's trail vs Arty's training log. */
+	let postGameTab  = $state<'trail' | 'training'>('trail');
 	let thinkingRemark = $state('contemplating...');
 	let trailEnd: HTMLElement | undefined;  // scroll anchor
 
@@ -108,6 +113,22 @@
 	const rating     = $derived(getRating(efficiency));
 	const today      = new Date().toISOString().split('T')[0];
 	const creepClass = $derived(`creep-${creepSeverity(gameState.creepLevel)}`);
+	const trainingLog = $derived(buildTrainingLog({
+		date:           gameState.currentDate ?? today,
+		aiEvaluation,
+		humanAttempts:  gameState.attempts,
+		humanTokens:    gameState.totalTokens,
+		targetWords:    gameState.targetWords,
+	}));
+	const difficultyByWord = $derived(
+		Object.fromEntries((trainingLog?.difficultyBadges ?? []).map((b) => [b.word, b])) as
+			Record<string, { word: string; difficulty: string; label: string }>
+	);
+	const youVsArtyLine = $derived(buildYouVsArtyLine({
+		humanAttempts: gameState.attempts,
+		humanTokens:   gameState.totalTokens,
+		summary:       aiEvaluation?.summary,
+	}));
 
 	// Transient animation cue when creep rises (flash) or goes critical (shake)
 	let creepAnim = $state<'flash' | 'shake' | null>(null);
@@ -150,6 +171,7 @@
 				blacklistWords:gameState.blacklistWords,
 				currentDate:   gameState.currentDate,
 				trail,
+				aiEvaluation,
 			}));
 		} catch { /* storage full — non-fatal */ }
 	}
@@ -173,6 +195,7 @@
 			gameState.blacklistWords   = saved.blacklistWords   ?? [];
 			gameState.currentDate    = saved.currentDate   ?? today;
 			trail                    = saved.trail         ?? [];
+			aiEvaluation             = saved.aiEvaluation  ?? null;
 			return true;
 		} catch { return false; }
 	}
@@ -203,7 +226,20 @@
 
 	async function initGame() {
 		// Practice always starts fresh — never restore a saved game
-		if (!practiceMode && loadFromStorage() && gameState.targetWords.length > 0) { error = ''; return; }
+		if (!practiceMode && loadFromStorage() && gameState.targetWords.length > 0) {
+			error = '';
+			// Older local saves lack aiEvaluation — backfill without resetting the game
+			if (!aiEvaluation && gameState.currentDate) {
+				try {
+					const snap = await getDoc(doc(db, 'dailyWords', gameState.currentDate));
+					if (snap.exists()) {
+						aiEvaluation = (snap.data().aiEvaluation as AIEvaluation | undefined) ?? null;
+						saveToStorage();
+					}
+				} catch { /* non-fatal */ }
+			}
+			return;
+		}
 		await loadDailyWords();
 	}
 
@@ -223,6 +259,7 @@
 			gameState.blacklistWords   = data.blacklistWords   ?? [];
 			gameState.currentDate    = date;
 			gameState.sessionId      = crypto.randomUUID();
+			aiEvaluation             = (data.aiEvaluation as AIEvaluation | undefined) ?? null;
 			error = '';
 			saveToStorage();
 			saveSessionStart();
@@ -550,6 +587,7 @@
 			creepThreshold: gameState.creepThreshold,
 			cheated:        gameState.cheated,
 			efficiencyScore: gameState.cheated ? null : efficiency,
+			youVsArty:      youVsArtyLine,
 			responseTrail: trail
 				.filter(e => !e.violation)
 				.map(e => ({
@@ -571,6 +609,7 @@
 			attempts: gameState.attempts,
 			trail,
 			resultUrl: gameState.gameOver ? buildResultUrl() : undefined,
+			youVsArty: youVsArtyLine,
 		});
 	}
 
@@ -679,8 +718,9 @@
 				<h3>TARGET</h3>
 				<div class="word-list">
 					{#each gameState.targetWords as word, i}
-						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''}">
-							{word}{#if gameState.matchedWords.has(word)}<span class="sr-only"> (found)</span>{/if}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}
+						{@const diff = gameState.gameOver ? difficultyByWord[word] : null}
+						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''} {diff ? `diff-${diff.difficulty}` : ''}">
+							{word}{#if gameState.matchedWords.has(word)}<span class="sr-only"> (found)</span>{/if}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}{#if diff}<span class="diff-badge" title="Arty's probe difficulty">{diff.label}</span>{/if}
 						</span>
 					{/each}
 				</div>
@@ -713,8 +753,91 @@
 		</div>
 	</section>
 
-	<!-- ── Response trail ────────────────────────────────────────────────── -->
+	<!-- ── Response trail / Training Log ─────────────────────────────────── -->
 	<section class="response-trail" aria-label="Response trail">
+		{#if gameState.gameOver && trainingLog}
+			<div class="trail-tabs" role="tablist" aria-label="Post-game panels">
+				<button
+					type="button"
+					role="tab"
+					class="trail-tab"
+					class:trail-tab--active={postGameTab === 'trail'}
+					aria-selected={postGameTab === 'trail'}
+					onclick={() => (postGameTab = 'trail')}
+				>TRAIL</button>
+				<button
+					type="button"
+					role="tab"
+					class="trail-tab"
+					class:trail-tab--active={postGameTab === 'training'}
+					aria-selected={postGameTab === 'training'}
+					onclick={() => (postGameTab = 'training')}
+				>ARTY LEARNS</button>
+			</div>
+		{/if}
+
+		{#if gameState.gameOver && trainingLog && postGameTab === 'training'}
+			<div class="training-log" role="tabpanel" aria-label="Arty training log">
+				<div class="training-log-header">
+					ARTY LEARNS // {trainingLog.date}
+				</div>
+				<div class="training-log-compare">
+					<div class="tl-row">
+						<span class="tl-label">HUMAN</span>
+						<span>{trainingLog.human.attempts} attempts · {trainingLog.human.tokens} tokens</span>
+					</div>
+					<div class="tl-row">
+						<span class="tl-label">AI</span>
+						<span>{trainingLog.ai.probes} probes · {trainingLog.ai.tokens} tokens · {trainingLog.ai.statusLabel}</span>
+					</div>
+				</div>
+
+				{#each trainingLog.steps as step}
+					<div class="trail-item trail-item--training">
+						<div class="trail-header">
+							<span>{step.label}</span>
+							<span>{step.tokensUsed} tok</span>
+						</div>
+						<div class="tl-subtitle">{step.subtitle}</div>
+						<div class="trail-prompt">{step.prompt}</div>
+						<div class="trail-response">{step.response}</div>
+						<div class="tl-reward">
+							<span class="tl-reward-icon">◈</span>
+							<span class="tl-reward-label">REWARD</span>
+							{#if step.wordsMatched.length > 0}
+								{#each step.wordsMatched as w}
+									<span class="match-word found">+{w}</span>
+								{/each}
+							{:else}
+								<span class="text-dim">none</span>
+							{/if}
+							<span class="tl-score">({step.scoreAfter} of {step.targetCount})</span>
+						</div>
+						{#if step.blacklistHit}
+							<div class="violation-warning">
+								<div class="violation-header">blacklist hit on probe prompt</div>
+							</div>
+						{/if}
+					</div>
+				{/each}
+
+				<div class="training-log-summary">
+					<div class="tl-row">
+						<span class="tl-label">LEARNING SIGNAL</span>
+						<span class="tl-signal">{trainingLog.learningSignal}</span>
+					</div>
+					<div class="tl-row">
+						<span class="tl-label">HARDEST WORD</span>
+						<span>{trainingLog.hardestWordNote}</span>
+					</div>
+				</div>
+
+				<div class="training-log-explainer">
+					<div class="tl-explainer-title">WHAT HAPPENED?</div>
+					<p>{trainingLog.explainer}</p>
+				</div>
+			</div>
+		{:else}
 		<div class="trail-container" role="log" aria-live="polite" aria-relevant="additions">
 
 			{#if trail.length === 0 && !thinking}
@@ -893,6 +1016,7 @@
 			<div bind:this={trailEnd}></div>
 
 		</div>
+		{/if}
 	</section>
 
 	<!-- ── Game-over panel ───────────────────────────────────────────────── -->
@@ -1337,4 +1461,119 @@
 		color: var(--text-dim);
 		letter-spacing: 0.3px;
 	}
+
+	/* ── Post-game tabs (TRAIL | ARTY LEARNS) ─────────────────────────────── */
+	.trail-tabs {
+		display: flex;
+		gap: 0;
+		border-bottom: 1px solid var(--border-color);
+		margin-bottom: var(--spacing-sm, 8px);
+	}
+	.trail-tab {
+		flex: 1;
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		color: var(--text-dim);
+		font-family: inherit;
+		font-size: 11px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		padding: 8px 12px;
+		cursor: pointer;
+		transition: color 0.15s ease, border-color 0.15s ease;
+	}
+	.trail-tab:hover { color: var(--text-primary); }
+	.trail-tab--active {
+		color: var(--info-color);
+		border-bottom-color: var(--info-color);
+	}
+
+	/* ── Training Log ────────────────────────────────────────────────────── */
+	.training-log {
+		padding: var(--spacing-sm, 8px) 0 var(--spacing-md, 16px);
+	}
+	.training-log-header {
+		font-size: 12px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--info-color);
+		margin-bottom: var(--spacing-sm, 8px);
+		padding-bottom: 6px;
+		border-bottom: 1px solid var(--border-color);
+	}
+	.training-log-compare,
+	.training-log-summary {
+		font-size: 12px;
+		margin-bottom: var(--spacing-md, 16px);
+	}
+	.tl-row {
+		display: flex;
+		gap: var(--spacing-sm, 8px);
+		padding: 3px 0;
+		flex-wrap: wrap;
+	}
+	.tl-label {
+		min-width: 9.5em;
+		color: var(--warning-color);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		font-size: 11px;
+	}
+	.tl-signal {
+		color: var(--success-color);
+	}
+	.tl-subtitle {
+		font-size: 11px;
+		color: var(--text-dim);
+		margin: 2px 0 6px;
+	}
+	.tl-reward {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 6px;
+		font-size: 12px;
+	}
+	.tl-reward-icon { color: var(--info-color); }
+	.tl-reward-label {
+		color: var(--text-dim);
+		letter-spacing: 0.08em;
+		font-size: 11px;
+	}
+	.tl-score { color: var(--text-dim); font-size: 11px; }
+	:global(.trail-item--training) {
+		border-left-color: var(--info-color);
+	}
+	.training-log-explainer {
+		margin-top: var(--spacing-md, 16px);
+		padding: var(--spacing-sm, 8px);
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+	}
+	.tl-explainer-title {
+		font-size: 10px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--warning-color);
+		margin-bottom: 6px;
+	}
+	.training-log-explainer p {
+		margin: 0;
+		font-size: 12px;
+		line-height: 1.55;
+		color: var(--text-primary);
+	}
+
+	/* Difficulty badges on target words (post-game only) */
+	.diff-badge {
+		font-size: 9px;
+		letter-spacing: 0.06em;
+		margin-left: 2px;
+		opacity: 0.85;
+	}
+	.word-badge.diff-low .diff-badge    { color: var(--success-color); }
+	.word-badge.diff-medium .diff-badge { color: var(--warning-color); }
+	.word-badge.diff-high .diff-badge   { color: var(--error-color); }
 </style>

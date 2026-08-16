@@ -61,4 +61,18 @@ describe('buildShareText', () => {
 		expect(text).toContain('1/3 words');
 		expect(text).toContain('Try today');
 	});
+
+	it('appends You-vs-Arty line when provided', () => {
+		const text = buildShareText({
+			...winInput,
+			youVsArty: 'You 3 att · 847 tok  vs  Arty 2 probes · 262 tok (partial)',
+		});
+		expect(text).toContain('You 3 att · 847 tok');
+		expect(text).toContain('Arty 2 probes');
+	});
+
+	it('omits You-vs-Arty when null or absent', () => {
+		expect(buildShareText(winInput)).not.toContain('vs  Arty');
+		expect(buildShareText({ ...winInput, youVsArty: null })).not.toContain('vs  Arty');
+	});
 });

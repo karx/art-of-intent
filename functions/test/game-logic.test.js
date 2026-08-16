@@ -13,6 +13,9 @@ import {
     promptHitsBlacklist,
     mapProviderError,
     isValidArchiveDate,
+    auditSession,
+    buildEvocabilityInstruction,
+    countEvocabilityHits,
 } from '../game-logic.js';
 
 // â”€â”€â”€ buildSystemInstruction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -199,6 +202,53 @@ describe('deriveWordDifficulty', () => {
     it('returns an empty object for empty target words', () => {
         const result = deriveWordDifficulty([], { wordsMatched: [] }, { allMatched: [] }, {});
         assert.deepEqual(result, {});
+    });
+
+    it('computes evocabilityScore as evocabilityCount / 10 when provided', () => {
+        const zeroShot = { wordsMatched: [] };
+        const oneShot  = { allMatched: [] };
+        const evo = { ocean: { evocabilityCount: 3 } };
+        const result = deriveWordDifficulty(['ocean'], zeroShot, oneShot, {}, evo);
+        assert.equal(result.ocean.evocabilityScore, 0.3);
+    });
+
+    it('sets evocabilityScore to null when evocability data is absent', () => {
+        const result = deriveWordDifficulty(
+            ['ocean'],
+            { wordsMatched: [] },
+            { allMatched: [] },
+            {}
+        );
+        assert.equal(result.ocean.evocabilityScore, null);
+    });
+});
+
+// â”€â”€â”€ evocability helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+describe('buildEvocabilityInstruction', () => {
+    it('names the category theme and bans the target word', () => {
+        const text = buildEvocabilityInstruction('copper', 'materials');
+        assert.ok(text.includes('materials'));
+        assert.ok(text.includes('copper'));
+        assert.ok(/do not use/i.test(text));
+        assert.ok(text.includes('---'));
+    });
+});
+
+describe('countEvocabilityHits', () => {
+    it('counts haikus that leak the banned word', () => {
+        const haikus = [
+            'Copper glints below',
+            'Silent ridge at dusk',
+            'Ore-bright copper rain',
+        ];
+        assert.equal(countEvocabilityHits(haikus, 'copper'), 2);
+    });
+
+    it('is case-insensitive and handles empty input', () => {
+        assert.equal(countEvocabilityHits(['COPPER veins'], 'copper'), 1);
+        assert.equal(countEvocabilityHits([], 'copper'), 0);
+        assert.equal(countEvocabilityHits(null, 'copper'), 0);
     });
 });
 

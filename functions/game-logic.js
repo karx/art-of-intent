@@ -122,8 +122,9 @@ export function promptHitsBlacklist(prompt, blacklistWords) {
  * @param {{ wordsMatched: string[] }} zeroShot
  * @param {{ allMatched: string[] }} oneShot - cumulative across both probes
  * @param {Record<string, { embeddabilityCount?: number }> | null} dictionaryHaikus
+ * @param {Record<string, { evocabilityCount?: number }> | null} [evocability]
  */
-export function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus) {
+export function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus, evocability = null) {
     return Object.fromEntries(targetWords.map(word => {
         const matchedZeroShot = zeroShot.wordsMatched.includes(word);
         const matchedOneShot  = oneShot.allMatched.includes(word);
@@ -134,8 +135,44 @@ export function deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryH
             ? dictEntry.embeddabilityCount / 10
             : null;
 
-        return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore }];
+        const evoEntry = evocability?.[word];
+        const evocabilityScore = evoEntry?.evocabilityCount != null
+            ? evoEntry.evocabilityCount / 10
+            : null;
+
+        return [word, { difficulty, matchedZeroShot, matchedOneShot, embeddabilityScore, evocabilityScore }];
     }));
+}
+
+/**
+ * System instruction for the evocability probe: haikus about a category
+ * without naming the target word. Accidental inclusions measure how tightly
+ * the word is bound to its category (true difficulty signal for players).
+ *
+ * @param {string} word
+ * @param {string} category
+ */
+export function buildEvocabilityInstruction(word, category) {
+    return `You are a haiku poet. Write exactly 10 different haikus about the theme of "${category}".
+Do NOT use the word "${word}" in any haiku.
+Each haiku must follow the strict 5-7-5 syllable pattern.
+Each haiku should explore a different scene within that theme.
+Output ONLY the haikus, separated by the delimiter "---" on its own line.
+No numbering, no titles, no commentary.`;
+}
+
+/**
+ * Count how many haikus accidentally include the target word despite the ban.
+ * Higher count → higher evocability (word leaks into category-themed writing).
+ *
+ * @param {string[]} haikus
+ * @param {string} word
+ * @returns {number}
+ */
+export function countEvocabilityHits(haikus, word) {
+    if (!Array.isArray(haikus) || !word) return 0;
+    const lower = word.toLowerCase();
+    return haikus.filter((h) => String(h).toLowerCase().includes(lower)).length;
 }
 
 /**
@@ -201,4 +238,85 @@ export function isValidArchiveDate(dateKey, todayKey) {
         && parsed.getUTCMonth() === m - 1
         && parsed.getUTCDate() === d;
     return roundTrips && dateKey < todayKey;
+}
+
+/**
+ * Leaderboard efficiency score. Lower is better.
+ * Only victories score; losses and cheat runs are null.
+ * Server-side copy of frontend/src/lib/scoring.ts — authoritative for audit.
+ *
+ * @param {{ won: boolean, cheated: boolean, attempts: number, totalTokens: number }} input
+ * @returns {number | null}
+ */
+export function computeEfficiencyScore({ won, cheated, attempts, totalTokens }) {
+    if (!won || cheated) return null;
+    return attempts * 10 + Math.floor(totalTokens / 10);
+}
+
+/**
+ * Recompute authoritative session fields from attemptsData + match state.
+ * Returns { corrections, reasons }. corrections is null when nothing to fix
+ * (caller should skip the write). When present, corrections always includes
+ * scoreAudited: true so the UI/leaderboard can tell an audited doc from a
+ * client-written one.
+ *
+ * @param {object | null} sessionDoc - raw Firestore session document data
+ * @returns {{ corrections: object | null, reasons: string[] }}
+ */
+export function auditSession(sessionDoc) {
+    if (!sessionDoc || sessionDoc.status === 'in_progress' || !Array.isArray(sessionDoc.attemptsData)) {
+        return { corrections: null, reasons: [] };
+    }
+
+    const attemptsData = sessionDoc.attemptsData;
+    const expectedAttempts = attemptsData.length;
+    const expectedTotalTokens = attemptsData.reduce(
+        (sum, a) => sum + (Number(a?.totalTokens) || 0),
+        0
+    );
+
+    const targetWords = Array.isArray(sessionDoc.targetWords) ? sessionDoc.targetWords : [];
+    const matchedWords = Array.isArray(sessionDoc.matchedWords) ? sessionDoc.matchedWords : [];
+    const expectedIsWin = targetWords.length > 0
+        && targetWords.every((w) => matchedWords.includes(w));
+    const expectedResult = expectedIsWin ? 'victory' : 'defeat';
+    const cheated = !!sessionDoc.cheated;
+
+    const expectedScore = computeEfficiencyScore({
+        won: expectedIsWin,
+        cheated,
+        attempts: expectedAttempts,
+        totalTokens: expectedTotalTokens,
+    });
+
+    const corrections = {};
+    const reasons = [];
+
+    if (sessionDoc.attempts !== expectedAttempts) {
+        corrections.attempts = expectedAttempts;
+        reasons.push('attempts');
+    }
+    if (sessionDoc.totalTokens !== expectedTotalTokens) {
+        corrections.totalTokens = expectedTotalTokens;
+        reasons.push('totalTokens');
+    }
+    if (sessionDoc.isWin !== expectedIsWin) {
+        corrections.isWin = expectedIsWin;
+        reasons.push('isWin');
+    }
+    if (sessionDoc.result !== expectedResult) {
+        corrections.result = expectedResult;
+        reasons.push('result');
+    }
+    if (sessionDoc.efficiencyScore !== expectedScore) {
+        corrections.efficiencyScore = expectedScore;
+        reasons.push('efficiencyScore');
+    }
+
+    if (reasons.length === 0) {
+        return { corrections: null, reasons: [] };
+    }
+
+    corrections.scoreAudited = true;
+    return { corrections, reasons };
 }

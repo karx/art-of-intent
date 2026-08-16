@@ -16,6 +16,8 @@ export interface ShareCardData {
 	creepThreshold: number;
 	cheated?: boolean;
 	efficiencyScore?: number | null;
+	/** Optional You-vs-Arty comparison line; omitted from card when null/undefined */
+	youVsArty?: string | null;
 	responseTrail: {
 		number: number;
 		prompt: string;
@@ -63,6 +65,7 @@ export function generateShareCardSVG(data: ShareCardData): string {
 		date = new Date().toLocaleDateString('en-CA'),
 		cheated = false,
 		efficiencyScore = null,
+		youVsArty = null,
 	} = data;
 
 	const c = {
@@ -212,7 +215,9 @@ export function generateShareCardSVG(data: ShareCardData): string {
   <rect y="${bodyBot}" width="${width}" height="${footerH}" fill="${c.bgAlt}"/>
   ${cheated ? `
   <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:12px;fill:${c.gold};letter-spacing:1px;opacity:0.8;">\u2746 CHEAT SESSION \u00b7 NOT ON LEADERBOARD</text>
-  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:13px;fill:${c.dim};">The masters winked back. Play fair tomorrow?</text>` : `
+  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:13px;fill:${c.dim};">${youVsArty ? xe(trunc(youVsArty, 72)) : 'The masters winked back. Play fair tomorrow?'}</text>` : youVsArty ? `
+  <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:11px;fill:${c.cyan};letter-spacing:0.5px;">YOU VS ARTY</text>
+  <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:12px;fill:${c.dim};">${xe(trunc(youVsArty, 78))}</text>` : `
   <text x="${leftPad}" y="${bodyBot + 26}" style="font-size:12px;fill:${c.dim};letter-spacing:1px;">DAILY CHALLENGE \u00b7 PLAY FREE</text>
   <text x="${leftPad}" y="${bodyBot + 50}" style="font-size:14px;fill:${c.dim};">Can you guide Arty better?</text>`}
   <text x="${width - leftPad}" y="${bodyBot + 44}" style="font-size:18px;font-weight:bold;fill:${c.cyan};text-anchor:end;letter-spacing:1px;">art-of-intent.netlify.app</text>
