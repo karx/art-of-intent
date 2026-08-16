@@ -110,8 +110,22 @@ Encode with `btoa(JSON.stringify(payload))` â†’ ~80 chars. Stays under URL 
 - **Streak counter** â€” âœ… BUILT on `kaaro/fable-loop` (2026-07-07), see `docs/projects/STREAK_COUNTER.md`.
 - **Word hint** â€” âœ… BUILT on `kaaro/fable-loop` (2026-07-07). Category reveals after 3 attempts; needs `firebase deploy --only functions` for `targetCategories` to appear in new dailyWords docs. Decision note in `docs/areas/DAILY_WORDS_SYSTEM.md`.
 - **Creep animation** â€” âœ… BUILT on `kaaro/fable-loop` (2026-07-07). Counter flashes on any rise, words section shakes when an increase lands at 75+; `prefers-reduced-motion` disables both. Thresholds live in `frontend/src/lib/creep.ts`.
-- **Practice mode** â€” random words, no leaderboard, unlimited attempts.
+- **Practice mode** — ✅ SHIPPED. Archive-date replay via `?practice=1`; server validates past `YYYY-MM-DD` (`isValidArchiveDate`); no sessions/streak/leaderboard. See `docs/projects/PRACTICE_MODE.md`.
 
 ---
 
+## 4. Next Five (audit / training log / you-vs-arty / evocability / docs) — ✅ BUILT on `kaaro/grok-goes-burr` (2026-07-19)
+
+> **Status:** Pipeline closed — see `docs/projects/NEXT_FIVE.md` and crystallization
+> `docs/crystallized/NEXT_FIVE_SPRINT.md`.
+>
+> 1. **auditSession** — pure recompute from `attemptsData` + nightly `auditDailySessions` (00:30 UTC). Sweep-not-trigger decision.
+> 2. **Training Log** — post-game `ARTY LEARNS` tab from `dailyWords.aiEvaluation`; difficulty badges on target chips.
+> 3. **You vs Arty** — share text + share card footer line when evaluation exists.
+> 4. **Evocability probes** — 3 extra midnight calls; `evocabilityScore` next to embeddability; budget 7 → 10.
+> 5. **Doc refresh** — this file + AI_EVALUATION area + crystallization.
+
+**Deploy gate:** `firebase deploy --only functions` required for audit + evocability (frontend-only pieces ship with hosting).
+
+---
 

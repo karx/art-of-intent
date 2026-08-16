@@ -29,8 +29,10 @@ How data flows from player interactions into Firestore, and how it is read back.
 | `seed` | number | Deterministic RNG seed for word selection |
 | `targetWords` | string[] | 3 words the player must get Arty to say |
 | `blacklistWords` | string[] | 5–7 words the player must avoid |
+| `targetCategories` | string[] | Parallel to targetWords — pool categories (hints + evocability) |
 | `dictionaryHaikus` | object | 10 haikus per target word, generated after word selection |
-| `aiEvaluation` | object | Zero-shot + one-shot difficulty probes |
+| `evocability` | object | Per-word category haikus without the word; `evocabilityCount` leaks |
+| `aiEvaluation` | object | Zero-shot + one-shot probes; `wordDifficulty` includes embed/evocability scores |
 | `createdAt` | timestamp | |
 | `version` | string | |
 
@@ -78,6 +80,8 @@ Partial / in-progress games are **not** saved. Only authenticated users are save
 | `matchedWordsCount` | number | |
 | `efficiencyScore` | number \| null | `attempts × 10 + floor(totalTokens / 10)`. `null` for defeats and cheat sessions |
 | `attemptsData` | object[] | One entry per trail item (see below) |
+| `scoreAudited` | boolean | Set by nightly `auditDailySessions` when a correction was written |
+| `auditedAt` | timestamp | Server timestamp of the audit write |
 | `isPublic` | boolean | Always `true` |
 | `createdAt` | timestamp | |
 | `updatedAt` | timestamp | |

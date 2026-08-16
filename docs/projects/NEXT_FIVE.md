@@ -9,13 +9,17 @@ tags:
 description: "Batch pipeline for the next five items, stacked on kaaro/fable-loop. Server-side score audit (nightly sweep), full Training Log post-game tab, You-vs-Arty share line, evocability probe batch, and backlog doc refresh."
 date: 2026-07-19
 layer: L1-Instance
-maturity: SEED
+maturity: EVERGREEN
 para: Pipeline
+status: closed
 ---
 
 # Pipeline — Next Five
 
-**Branch:** stacked on `kaaro/fable-loop` (user decision 2026-07-19; merge to main still gates production).
+> **CLOSED 2026-07-19** — implementation complete on `kaaro/grok-goes-burr`.
+> Crystallization: `docs/crystallized/NEXT_FIVE_SPRINT.md`.
+
+**Branch:** `kaaro/grok-goes-burr` (stacked lineage from `kaaro/fable-loop`; merge to main still gates production).
 **Gate:** every functions change here is inert until `firebase deploy --only functions`.
 
 ## Grounding (verified in code 2026-07-19)
