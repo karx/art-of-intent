@@ -481,3 +481,23 @@ trackEvent('daily_words_generated', {
    - Word pools in different languages
    - Auto-detect user language
    - Consistent difficulty across languages
+
+---
+
+## Decision Log
+
+### 2026-07-07 — targetCategories shipped in the dailyWords doc
+
+`generateWordsForDate` now writes `targetCategories` (the category each
+target word was drawn from, parallel to `targetWords`) so the client can
+reveal `[category]` hints on unmatched words after 3 attempts
+(`frontend/src/lib/hints.ts`).
+
+- **Considered:** a callable that reveals hints server-side after
+  verifying attempt count. Rejected — `dailyWords` is already public-read
+  and contains the target words themselves, so categories add zero
+  attack surface; a callable adds latency and a function for no security
+  gain.
+- **Rollout:** docs generated before this change lack the field; the
+  client treats missing categories as "no hints" (tested). Requires
+  `firebase deploy --only functions` before hints appear.

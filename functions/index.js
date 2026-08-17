@@ -6,6 +6,7 @@
  * - saveUserSettings:    Encrypt + store user's AI provider settings (callable).
  * - generateDailyWords:  Generate daily target/blacklist words (scheduled).
  * - forceUpdateDailyWords: Admin-only regeneration (callable).
+ * - auditDailySessions:  Nightly recompute of session scores (scheduled).
  */
 
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
@@ -22,6 +23,10 @@ import {
     promptHitsBlacklist,
     deriveWordDifficulty,
     mapProviderError,
+    isValidArchiveDate,
+    auditSession,
+    buildEvocabilityInstruction,
+    countEvocabilityHits,
 } from './game-logic.js';
 
 // Initialize Firebase Admin
@@ -196,7 +201,7 @@ export const artyGenerateHaiku = onCall({
     memory: '256MiB',
     cors: true
 }, async (request) => {
-    const {userPrompt, sessionId} = request.data;
+    const {userPrompt, sessionId, gameDate} = request.data;
 
     // Validate authentication
     if (!request.auth) {
@@ -212,9 +217,16 @@ export const artyGenerateHaiku = onCall({
         throw new HttpsError('invalid-argument', 'userPrompt must be 500 characters or less');
     }
 
+    // Practice mode: replay an archived day. The client only selects which
+    // past date — words and system prompt still load server-side below.
+    const todayKey = new Date().toISOString().split('T')[0];
+    if (gameDate !== undefined && !isValidArchiveDate(gameDate, todayKey)) {
+        throw new HttpsError('invalid-argument', 'gameDate must be a past date in YYYY-MM-DD format');
+    }
+
     try {
-        // ── Load today's daily words from Firestore (server-side, tamper-proof) ──
-        const dateKey = new Date().toISOString().split('T')[0];
+        // ── Load the day's words from Firestore (server-side, tamper-proof) ──
+        const dateKey = gameDate ?? todayKey;
         const dailyDoc = await db.collection('dailyWords').doc(dateKey).get();
         if (!dailyDoc.exists) {
             logger.error('Daily words not found for date', {dateKey});
@@ -557,8 +569,9 @@ Write a new prompt targeting the missing words. The same rules apply — be indi
  * and write aiEvaluation to Firestore. Non-fatal — errors caught by caller.
  *
  * @param {Object} dictionaryHaikus - already-generated dict data for embeddability scores
+ * @param {Object|null} [evocability] - per-word evocability probe results
  */
-async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus) {
+async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus, evocability = null) {
     const gameSystem = buildSystemInstruction(targetWords, blacklistWords);
     const model = (apiUrl.match(/models\/([^:]+)/) || [])[1] || 'unknown';
 
@@ -566,7 +579,7 @@ async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, api
     const zeroShot = await runZeroShotProbe(targetWords, blacklistWords, gameSystem, apiKey, apiUrl);
     const oneShot  = await runOneShotProbe(targetWords, blacklistWords, gameSystem, zeroShot, apiKey, apiUrl);
 
-    const wordDifficulty = deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus);
+    const wordDifficulty = deriveWordDifficulty(targetWords, zeroShot, oneShot, dictionaryHaikus, evocability);
     const converged = oneShot.allMatched.length === targetWords.length;
     const hardestWord = targetWords.find(w => wordDifficulty[w]?.difficulty === 'high') || null;
 
@@ -597,6 +610,69 @@ async function runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, api
         converged,
         totalTokens:   aiEvaluation.summary.totalTokens,
     });
+}
+
+/**
+ * Evocability probe for one word: 10 haikus about its category without naming it.
+ * Accidental inclusions (evocabilityCount) are the true-difficulty signal.
+ * 1 API call per word.
+ */
+async function generateEvocabilityForWord(word, category, apiKey, apiUrl) {
+    const systemInstruction = buildEvocabilityInstruction(word, category);
+    const { text, tokensUsed } = await callGemini(
+        systemInstruction,
+        `Write 10 haikus about "${category}". Do not use the word "${word}".`,
+        apiKey,
+        apiUrl
+    );
+
+    const haikus = text
+        .split(/^---$/m)
+        .map((h) => h.trim())
+        .filter((h) => h.length > 0)
+        .slice(0, 10);
+
+    const evocabilityCount = countEvocabilityHits(haikus, word);
+    return { haikus, tokensUsed, evocabilityCount, category };
+}
+
+/**
+ * Run evocability probes for all target words (3 API calls).
+ * Non-fatal per word — continues on individual failures.
+ * Stores `evocability` map on the dailyWords doc.
+ *
+ * @returns {Record<string, { haikus, tokensUsed, evocabilityCount, category }>}
+ */
+async function generateEvocabilityProbes(targetWords, categories, dateKey, docRef, apiKey, apiUrl) {
+    const evocability = {};
+
+    for (let i = 0; i < targetWords.length; i++) {
+        const word = targetWords[i];
+        const category = categories[i] || 'nature';
+        try {
+            const result = await generateEvocabilityForWord(word, category, apiKey, apiUrl);
+            evocability[word] = {
+                haikus: result.haikus,
+                tokensUsed: result.tokensUsed,
+                evocabilityCount: result.evocabilityCount,
+                category: result.category,
+                generatedAt: FieldValue.serverTimestamp(),
+            };
+            logger.info('Evocability probe generated', {
+                dateKey, word, category, evocabilityCount: result.evocabilityCount,
+            });
+        } catch (err) {
+            logger.error('Evocability probe failed for word (non-fatal)', {
+                dateKey, word, category, error: err.message,
+            });
+        }
+    }
+
+    if (Object.keys(evocability).length > 0) {
+        await docRef.update({ evocability });
+    }
+
+    return evocability;
 }
 
 /**
@@ -645,6 +721,7 @@ async function generateWordsForDate(dateKey) {
         date: dateKey,
         seed,
         targetWords,
+        targetCategories: selectedCategories,
         blacklistWords,
         createdAt: FieldValue.serverTimestamp(),
         version: '1.0',
@@ -665,9 +742,24 @@ async function generateWordsForDate(dateKey) {
         logger.error('Dictionary haiku generation failed (non-fatal)', { error: e.message });
     }
 
-    // Step 2: zero-shot + one-shot probes (4 API calls).
+    // Step 2: evocability probes (3 API calls) — category haikus without the word.
+    // True-difficulty signal deferred from v2 design; non-fatal like dictionary haikus.
+    let evocability = {};
     try {
-        await runAIEvaluation(targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl, dictionaryHaikus);
+        evocability = await generateEvocabilityProbes(
+            targetWords, selectedCategories, dateKey, docRef, apiKey, apiUrl
+        );
+        logger.info('Evocability probes stored', { dateKey, words: Object.keys(evocability) });
+    } catch (e) {
+        logger.error('Evocability probes failed (non-fatal)', { error: e.message });
+    }
+
+    // Step 3: zero-shot + one-shot probes (4 API calls). Budget: 3 + 3 + 4 = 10/night.
+    try {
+        await runAIEvaluation(
+            targetWords, blacklistWords, dateKey, docRef, apiKey, apiUrl,
+            dictionaryHaikus, evocability
+        );
     } catch (e) {
         logger.error('AI evaluation failed (non-fatal)', { error: e.message });
     }
@@ -745,4 +837,78 @@ export const forceUpdateDailyWords = onCall({
         logger.error('forceUpdateDailyWords failed', { error: error.message, stack: error.stack });
         throw new HttpsError('internal', `Failed to generate words: ${error.message}`);
     }
+});
+
+/**
+ * Nightly score audit for the previous UTC day.
+ *
+ * Recomputes attempts / totalTokens / efficiencyScore / isWin / result from
+ * attemptsData (server-authoritative). Writes only when something is wrong,
+ * and stamps scoreAudited: true so audited docs are visible.
+ *
+ * Decision (2026-07-19): scheduled sweep, not onWrite — cheaper/simpler;
+ * accepted trade-off: a tampered score can sit on the leaderboard until ~00:30 UTC.
+ *
+ * Runs at 00:30 UTC, after generateDailyWords (00:00 UTC).
+ */
+export const auditDailySessions = onSchedule({
+    schedule: '30 0 * * *',
+    timeZone: 'UTC',
+    memory: '256MiB',
+    timeoutSeconds: 300
+}, async () => {
+    const now = new Date();
+    const yesterday = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - 1
+    ));
+    const dateKey = yesterday.toISOString().split('T')[0];
+
+    logger.info('auditDailySessions starting', { dateKey });
+
+    const snapshot = await db.collection('sessions')
+        .where('gameDate', '==', dateKey)
+        .get();
+
+    let scanned = 0;
+    let corrected = 0;
+    let skipped = 0;
+    const BATCH_SIZE = 400;
+    let batch = db.batch();
+    let batchCount = 0;
+
+    for (const docSnap of snapshot.docs) {
+        scanned++;
+        const { corrections, reasons } = auditSession(docSnap.data());
+        if (!corrections) {
+            skipped++;
+            continue;
+        }
+
+        batch.update(docSnap.ref, {
+            ...corrections,
+            auditedAt: FieldValue.serverTimestamp(),
+        });
+        batchCount++;
+        corrected++;
+
+        logger.info('session corrected', {
+            sessionId: docSnap.id,
+            reasons,
+            corrections,
+        });
+
+        if (batchCount >= BATCH_SIZE) {
+            await batch.commit();
+            batch = db.batch();
+            batchCount = 0;
+        }
+    }
+
+    if (batchCount > 0) {
+        await batch.commit();
+    }
+
+    logger.info('auditDailySessions complete', { dateKey, scanned, corrected, skipped });
 });

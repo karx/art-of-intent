@@ -17,3 +17,19 @@ export function calculateEfficiency(totalTokens: number, attempts: number): numb
 	if (attempts === 0) return 0;
 	return Math.round((totalTokens / attempts) * 10) / 10;
 }
+
+export interface ScoreInput {
+	won: boolean;
+	cheated: boolean;
+	attempts: number;
+	totalTokens: number;
+}
+
+/**
+ * Leaderboard efficiency score. Lower is better.
+ * Only victories score; losses and cheat runs are null.
+ */
+export function computeEfficiencyScore({ won, cheated, attempts, totalTokens }: ScoreInput): number | null {
+	if (!won || cheated) return null;
+	return attempts * 10 + Math.floor(totalTokens / 10);
+}

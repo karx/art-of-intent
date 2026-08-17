@@ -53,14 +53,14 @@ export function mapCallableError(err: any): Error {
 	}
 }
 
-export async function callArtyAPI(userPrompt: string, sessionId: string): Promise<HaikuResponse> {
+export async function callArtyAPI(userPrompt: string, sessionId: string, gameDate?: string): Promise<HaikuResponse> {
 	const artyGenerateHaiku = httpsCallable<
-		{ userPrompt: string; sessionId: string },
+		{ userPrompt: string; sessionId: string; gameDate?: string },
 		{ success: boolean; data: HaikuResponse }
 	>(functions, 'artyGenerateHaiku');
 
 	try {
-		const result = await artyGenerateHaiku({ userPrompt, sessionId });
+		const result = await artyGenerateHaiku(gameDate ? { userPrompt, sessionId, gameDate } : { userPrompt, sessionId });
 		if (!result.data.success) throw new Error('Failed to generate haiku');
 		return result.data.data;
 	} catch (err: any) {

@@ -1,7 +1,12 @@
 # AI Evaluation — Design & Methodology
 
-> Status: v2 design (replacing original full-game-simulation approach)
-> Scope: Cloud Function logic + Training Log UI
+> Status: v2 **implemented** (2026-07-19). Zero-shot + one-shot probes, Training Log UI, evocability batch.
+> Scope: Cloud Function logic + Training Log UI + score audit
+>
+> **Decisions**
+> - Score audit is a **nightly sweep** (`auditDailySessions` at 00:30 UTC), not an onWrite trigger — cheaper/simpler;
+>   accepted trade-off: a tampered score can sit on the leaderboard until the sweep.
+> - Evocability probes shipped in Next Five pipeline; midnight budget is **10 calls** (was 7).
 
 ---
 
@@ -156,15 +161,16 @@ aiEvaluation: {
 | Full game simulation — up to 5 rounds × 2 | up to 10 |
 | **Total** | **up to 19** |
 
-### Proposed (v2) — 7 calls at midnight
+### v2 (shipped) — 7 calls, then +3 evocability = 10
 
 | Step | Calls | Notes |
 |---|---|---|
-| Dictionary haikus — 3 words × 1 | 3 | unchanged — UI value |
+| Dictionary haikus — 3 words × 1 | 3 | embeddability + UI dictionary |
+| Evocability probes — 3 words × 1 | 3 | category haikus without the word |
 | Zero-shot probe — generate + evaluate | 2 | single combined prompt for all 3 words |
 | One-shot probe — generate + evaluate | 2 | with feedback from zero-shot result |
-| Word difficulty | 0 | derived from probe results |
-| **Total** | **7** | 63% reduction |
+| Word difficulty | 0 | derived from probe results + scores |
+| **Total** | **10** | evocability added in Next Five pipeline |
 
 ---
 
@@ -192,10 +198,10 @@ Each haiku must follow the strict 5-7-5 syllable pattern.
 **Correct labelling:** rename `wordCount` to `embeddabilityCount` in Firestore to prevent
 misinterpretation as a difficulty metric.
 
-**Future option (if evocability signal is needed):**
-A separate "indirect" prompt batch — "write haikus about [word's category] without using
-the word" — would give a true evocability score. This adds 3 more API calls. Defer until
-there is a clear UI use case.
+**Evocability (shipped 2026-07-19):**
+Nightly "indirect" prompt batch — "write haikus about [word's category] without using
+the word" — stores `evocability` on `dailyWords` and `evocabilityScore` on each
+`wordDifficulty` entry (count of accidental word leaks / 10). Non-fatal per word.
 
 ---
 
@@ -291,10 +297,23 @@ before exposing it to players.
 
 ---
 
+## Implementation status (UI)
+
+Training Log is live in `+page.svelte` (post-game tab **ARTY LEARNS**) with pure mapping in
+`frontend/src/lib/training-log.ts`. Share surfaces can append a **You vs Arty** line via
+`buildYouVsArtyLine()` when `aiEvaluation.summary` exists.
+
+## Score audit
+
+`auditSession(sessionDoc)` in `functions/game-logic.js` recomputes attempts / totalTokens /
+efficiencyScore / isWin / result from `attemptsData`. Nightly `auditDailySessions` (00:30 UTC)
+writes only when something is wrong and stamps `scoreAudited: true`.
+
 ## Future Work
 
-- [ ] Evocability prompt batch (3 extra calls) for true word difficulty signal
+- [x] Evocability prompt batch (3 extra calls) for true word difficulty signal
 - [ ] Model comparison: flash-lite vs. pro on same daily words (via admin trigger)
 - [ ] Aggregate difficulty across days: which word categories are hardest
 - [ ] Player vs. AI efficiency chart over time (requires session data accumulation)
 - [ ] Multi-run averaging: run 3 zero-shot probes, use median — more reliable signal
+- [ ] Surface evocabilityScore in the Training Log UI (data is stored; UI still probe-based)

@@ -1,15 +1,22 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 	import { db } from '$lib/firebase';
 	import { authState, signInGoogle, signInAnon } from '$lib/stores/auth.svelte';
 	import { callArtyAPI } from '$lib/api';
 	import { gameState, applyAttemptResult } from '$lib/stores/game.svelte';
-	import { getRating, calculateEfficiency } from '$lib/scoring';
+	import { getRating, calculateEfficiency, computeEfficiencyScore } from '$lib/scoring';
 	import { generateShareCardSVG, shareCard, downloadCard, previewCard, type ShareCardData } from '$lib/share-card';
 	import remarksData from '$lib/arty-remarks.json';
 	import { sound } from '$lib/sound';
 	import { detectCheatCode, type CheatCode } from '$lib/cheat-codes';
+	import { buildResultPayload, decodeResult, generateResultUrl, type ResultPayload } from '$lib/result-url';
+	import { buildShareText as composeShareText } from '$lib/share-text';
+	import { recordPlayedToday, currentStreak } from '$lib/stores/streak.svelte';
+	import { revealedHints } from '$lib/hints';
+	import { creepSeverity, creepFeedback } from '$lib/creep';
 	import { PromptPurify, type PurifyResult } from '$lib/prompt-purify';
+	import { buildTrainingLog, buildYouVsArtyLine, type AIEvaluation } from '$lib/training-log';
 
 	// ── Types ─────────────────────────────────────────────────────────────────
 	interface TrailEntry {
@@ -37,6 +44,10 @@
 	let error        = $state('');
 	let trail        = $state<TrailEntry[]>([]);
 	let thinking     = $state(false);
+	/** From dailyWords.aiEvaluation — powers the post-game Training Log. */
+	let aiEvaluation = $state<AIEvaluation | null>(null);
+	/** Post-game trail panel tab: player's trail vs Arty's training log. */
+	let postGameTab  = $state<'trail' | 'training'>('trail');
 	let thinkingRemark = $state('contemplating...');
 	let trailEnd: HTMLElement | undefined;  // scroll anchor
 
@@ -93,16 +104,56 @@
 
 	// ── Derived ───────────────────────────────────────────────────────────────
 	const efficiency = $derived(calculateEfficiency(gameState.totalTokens, gameState.attempts));
+	const hints = $derived(revealedHints({
+		attempts:     gameState.attempts,
+		targetWords:  gameState.targetWords,
+		matchedWords: gameState.matchedWords,
+		categories:   gameState.targetCategories,
+	}));
 	const rating     = $derived(getRating(efficiency));
 	const today      = new Date().toISOString().split('T')[0];
-	const creepClass = $derived(
-		gameState.creepLevel >= 75 ? 'creep-critical' :
-		gameState.creepLevel >= 50 ? 'creep-high'     :
-		gameState.creepLevel >= 25 ? 'creep-medium'   : 'creep-low'
+	const creepClass = $derived(`creep-${creepSeverity(gameState.creepLevel)}`);
+	const trainingLog = $derived(buildTrainingLog({
+		date:           gameState.currentDate ?? today,
+		aiEvaluation,
+		humanAttempts:  gameState.attempts,
+		humanTokens:    gameState.totalTokens,
+		targetWords:    gameState.targetWords,
+	}));
+	const difficultyByWord = $derived(
+		Object.fromEntries((trainingLog?.difficultyBadges ?? []).map((b) => [b.word, b])) as
+			Record<string, { word: string; difficulty: string; label: string }>
 	);
+	const youVsArtyLine = $derived(buildYouVsArtyLine({
+		humanAttempts: gameState.attempts,
+		humanTokens:   gameState.totalTokens,
+		summary:       aiEvaluation?.summary,
+	}));
+
+	// Transient animation cue when creep rises (flash) or goes critical (shake)
+	let creepAnim = $state<'flash' | 'shake' | null>(null);
+	let creepAnimTimer: ReturnType<typeof setTimeout> | null = null;
+	function triggerCreepFeedback(prev: number, next: number) {
+		const cue = creepFeedback(prev, next);
+		if (!cue) return;
+		creepAnim = null; // restart the CSS animation if one is mid-flight
+		if (creepAnimTimer) clearTimeout(creepAnimTimer);
+		requestAnimationFrame(() => { creepAnim = cue; });
+		creepAnimTimer = setTimeout(() => { creepAnim = null; }, 600);
+	}
+
+	// ── Practice mode (?practice) — replay a random archived puzzle ───────────
+	// The server validates the date and loads that day's words itself; the
+	// client never supplies words. No sessions, streaks, or leaderboard.
+	const practiceMode = browser && new URLSearchParams(location.search).has('practice');
+	function randomArchiveDate(): string {
+		const d = new Date();
+		d.setUTCDate(d.getUTCDate() - (1 + Math.floor(Math.random() * 60)));
+		return d.toISOString().split('T')[0];
+	}
 
 	// ── localStorage persistence ───────────────────────────────────────────────
-	const LS_KEY = `aoi_game_${today}`;
+	const LS_KEY = practiceMode ? 'aoi_practice' : `aoi_game_${today}`;
 
 	function saveToStorage() {
 		try {
@@ -116,9 +167,11 @@
 				cheated:       gameState.cheated,
 				sessionId:     gameState.sessionId,
 				targetWords:   gameState.targetWords,
+				targetCategories: gameState.targetCategories,
 				blacklistWords:gameState.blacklistWords,
 				currentDate:   gameState.currentDate,
 				trail,
+				aiEvaluation,
 			}));
 		} catch { /* storage full — non-fatal */ }
 	}
@@ -137,13 +190,21 @@
 			gameState.wonGame        = saved.wonGame       ?? false;
 			gameState.cheated        = saved.cheated       ?? false;
 			gameState.sessionId      = saved.sessionId     ?? null;
-			gameState.targetWords    = saved.targetWords   ?? [];
-			gameState.blacklistWords = saved.blacklistWords ?? [];
+			gameState.targetWords      = saved.targetWords      ?? [];
+			gameState.targetCategories = saved.targetCategories ?? [];
+			gameState.blacklistWords   = saved.blacklistWords   ?? [];
 			gameState.currentDate    = saved.currentDate   ?? today;
 			trail                    = saved.trail         ?? [];
+			aiEvaluation             = saved.aiEvaluation  ?? null;
 			return true;
 		} catch { return false; }
 	}
+
+	// ── Streak — count today once the game completes (idempotent) ────────────
+	// Practice games don't count: the streak rewards the daily ritual.
+	$effect(() => {
+		if (!practiceMode && gameState.gameOver && gameState.attempts > 0) recordPlayedToday(today);
+	});
 
 	// ── Scroll new trail items into view ──────────────────────────────────────
 	$effect(() => {
@@ -164,19 +225,41 @@
 	});
 
 	async function initGame() {
-		if (loadFromStorage() && gameState.targetWords.length > 0) { error = ''; return; }
+		// Practice always starts fresh — never restore a saved game
+		if (!practiceMode && loadFromStorage() && gameState.targetWords.length > 0) {
+			error = '';
+			// Older local saves lack aiEvaluation — backfill without resetting the game
+			if (!aiEvaluation && gameState.currentDate) {
+				try {
+					const snap = await getDoc(doc(db, 'dailyWords', gameState.currentDate));
+					if (snap.exists()) {
+						aiEvaluation = (snap.data().aiEvaluation as AIEvaluation | undefined) ?? null;
+						saveToStorage();
+					}
+				} catch { /* non-fatal */ }
+			}
+			return;
+		}
 		await loadDailyWords();
 	}
 
 	async function loadDailyWords() {
 		try {
-			const snap = await getDoc(doc(db, 'dailyWords', today));
+			let date = practiceMode ? randomArchiveDate() : today;
+			let snap = await getDoc(doc(db, 'dailyWords', date));
+			// Archive gaps happen (scheduler misses) — re-roll a few times
+			for (let i = 0; practiceMode && !snap.exists() && i < 4; i++) {
+				date = randomArchiveDate();
+				snap = await getDoc(doc(db, 'dailyWords', date));
+			}
 			if (!snap.exists()) { error = "Today's words aren't ready yet. Try refreshing."; return; }
 			const data = snap.data();
-			gameState.targetWords    = data.targetWords    ?? [];
-			gameState.blacklistWords = data.blacklistWords ?? [];
-			gameState.currentDate    = today;
+			gameState.targetWords      = data.targetWords      ?? [];
+			gameState.targetCategories = data.targetCategories ?? [];
+			gameState.blacklistWords   = data.blacklistWords   ?? [];
+			gameState.currentDate    = date;
 			gameState.sessionId      = crypto.randomUUID();
+			aiEvaluation             = (data.aiEvaluation as AIEvaluation | undefined) ?? null;
 			error = '';
 			saveToStorage();
 			saveSessionStart();
@@ -276,6 +359,7 @@
 
 			gameState.attempts++;
 			gameState.creepLevel = newCreep;
+			triggerCreepFeedback(prevCreep, newCreep);
 			if (creepMaxed) { gameState.gameOver = true; gameState.wonGame = false; sound.playDefeat(); }
 			trail  = [...trail, entry];
 			prompt = '';
@@ -291,7 +375,11 @@
 		startThinking();
 
 		try {
-			const resp         = await callArtyAPI(text, gameState.sessionId ?? '');
+			const resp         = await callArtyAPI(
+				text,
+				gameState.sessionId ?? '',
+				practiceMode ? gameState.currentDate ?? undefined : undefined,
+			);
 			stopThinking();
 			const responseText = resp.responseText;
 			const respLower    = responseText.toLowerCase();
@@ -306,9 +394,11 @@
 			const creepIncrease = blacklistHits.length * gameState.creepPerViolation;
 			const newCreep      = Math.min(gameState.creepLevel + creepIncrease, gameState.creepThreshold);
 
+			const prevCreepLevel = gameState.creepLevel;
 			const next = applyAttemptResult(gameState, { tokens, newMatches, blacklistViolations: blacklistHits.length });
 			Object.assign(gameState, next);
 			gameState.matchedWords = next.matchedWords;
+			triggerCreepFeedback(prevCreepLevel, next.creepLevel);
 
 			// Audio feedback
 			if (next.wonGame)          sound.playVictory();
@@ -376,6 +466,7 @@
 
 	/** Gap 2 — record a session as in_progress at game start so abandoned games are visible. */
 	async function saveSessionStart() {
+		if (practiceMode) return; // practice is ephemeral — no Firestore footprint
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 		try {
@@ -403,6 +494,7 @@
 
 	/** Gap 3 — lightweight event log for errors and key player actions. */
 	async function logEvent(type: string, data: Record<string, unknown> = {}) {
+		if (practiceMode) return;
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 		const event = { type, ts: new Date().toISOString(), ...data };
@@ -421,13 +513,17 @@
 
 	// ── Firestore session save ────────────────────────────────────────────────
 	async function saveSessionToFirestore() {
+		if (practiceMode) return; // practice never touches sessions or the leaderboard
 		const user = authState.user;
 		if (!user || !gameState.sessionId) return;
 
 		const isVictory = gameState.wonGame;
-		const efficiencyScore = gameState.cheated
-			? null
-			: (isVictory ? gameState.attempts * 10 + Math.floor(gameState.totalTokens / 10) : null);
+		const efficiencyScore = computeEfficiencyScore({
+			won: isVictory,
+			cheated: gameState.cheated,
+			attempts: gameState.attempts,
+			totalTokens: gameState.totalTokens,
+		});
 
 		const attemptsData = trail.map(e => ({
 				attemptNumber: e.number,
@@ -491,6 +587,7 @@
 			creepThreshold: gameState.creepThreshold,
 			cheated:        gameState.cheated,
 			efficiencyScore: gameState.cheated ? null : efficiency,
+			youVsArty:      youVsArtyLine,
 			responseTrail: trail
 				.filter(e => !e.violation)
 				.map(e => ({
@@ -505,14 +602,15 @@
 	}
 
 	function buildShareText(): string {
-		const best = trail
-			.filter(e => !e.violation && e.newMatches.length > 0)
-			.sort((a, b) => b.newMatches.length - a.newMatches.length)[0];
-		const hint = best?.haiku?.trim().split('\n')[0];
-		const haikuHint = hint ? `\n"${hint}…"` : '';
-		if (gameState.wonGame)
-			return `🎯 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words in ${gameState.attempts} attempts${haikuHint}\n\nCan you beat it? → https://art-of-intent.netlify.app`;
-		return `🎮 Art of Intent — ${gameState.matchedWords.size}/${gameState.targetWords.length} words. This haiku bot is tricky!${haikuHint}\n\nTry today's puzzle → https://art-of-intent.netlify.app`;
+		return composeShareText({
+			won:      gameState.wonGame,
+			matched:  gameState.matchedWords.size,
+			total:    gameState.targetWords.length,
+			attempts: gameState.attempts,
+			trail,
+			resultUrl: gameState.gameOver ? buildResultUrl() : undefined,
+			youVsArty: youVsArtyLine,
+		});
 	}
 
 	async function handlePreview() {
@@ -534,6 +632,38 @@
 			showToast('Score copied!', 'success');
 		} catch { showToast('Could not copy', 'error'); }
 	}
+
+	// ── Result URL (#r= hash) ─────────────────────────────────────────────────
+	let sharedResult = $state<ResultPayload | null>(null);
+	if (browser) {
+		const hashToken = location.hash.match(/^#r=(.+)$/);
+		if (hashToken) sharedResult = decodeResult(hashToken[1]);
+	}
+
+	function dismissSharedResult() {
+		history.replaceState(null, '', location.pathname + location.search);
+		sharedResult = null;
+	}
+
+	function buildResultUrl(): string {
+		return generateResultUrl(buildResultPayload({
+			date:         gameState.currentDate ?? today, // game date, not wall clock — tabs cross midnight
+			targetWords:  gameState.targetWords,
+			matchedWords: gameState.matchedWords,
+			attempts:     gameState.attempts,
+			totalTokens:  gameState.totalTokens,
+			won:          gameState.wonGame,
+			cheated:      gameState.cheated,
+		}));
+	}
+
+	async function copyResultLink() {
+		try {
+			await navigator.clipboard.writeText(buildResultUrl());
+			showToast('Result link copied!', 'success');
+			logEvent('share', { outcome: 'link-copied' });
+		} catch { showToast('Could not copy link', 'error'); }
+	}
 </script>
 
 <svelte:head>
@@ -549,16 +679,48 @@
 
 <div class="container main-content">
 
+{#if sharedResult}
+	<!-- ── Read-only shared result (#r= hash) ────────────────────────────── -->
+	<section class="shared-result" aria-label="Shared result">
+		<div class="game-over-panel {sharedResult.r === 'W' ? 'game-over-panel--win' : 'game-over-panel--loss'}">
+			<div class="shared-result-date">SHARED RESULT · {sharedResult.d}</div>
+			<div class="game-over-title">
+				{sharedResult.c ? '✦ CHEAT RUN' : sharedResult.r === 'W' ? '✦ VICTORY' : '✦ DARKNESS WINS'}
+			</div>
+			<div class="shared-result-words">
+				{#each sharedResult.w as bit}
+					<span class={bit ? 'text-success' : 'text-dim'}>{bit ? '★' : '☆'}</span>
+				{/each}
+				<span class="shared-result-count">{sharedResult.m}/{sharedResult.n} words</span>
+			</div>
+			<div class="game-over-stats">
+				<span>{sharedResult.a} att</span>
+				<span>·</span>
+				<span>{sharedResult.t} tok</span>
+				{#if sharedResult.s !== null}
+					<span>·</span>
+					<span>score {sharedResult.s}</span>
+				{/if}
+			</div>
+			<div class="game-over-actions">
+				<button class="btn-primary" onclick={dismissSharedResult}>Play Today's Puzzle</button>
+			</div>
+			<div class="game-over-cta">Someone sent you their result. Think you can do better?</div>
+		</div>
+	</section>
+{:else}
+
 	<!-- ── Word display (sticky) ─────────────────────────────────────────── -->
-	<section class="game-words-section" aria-label="Today's words">
+	<section class="game-words-section" class:creep-shake={creepAnim === 'shake'} aria-label="Today's words">
 		<div class="words-container">
 
 			<div class="words-group target-group">
 				<h3>TARGET</h3>
 				<div class="word-list">
-					{#each gameState.targetWords as word}
-						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''}">
-							{word}
+					{#each gameState.targetWords as word, i}
+						{@const diff = gameState.gameOver ? difficultyByWord[word] : null}
+						<span class="word-badge {gameState.matchedWords.has(word) ? 'found' : ''} {diff ? `diff-${diff.difficulty}` : ''}">
+							{word}{#if gameState.matchedWords.has(word)}<span class="sr-only"> (found)</span>{/if}{#if hints[i]}<span class="word-hint" title="Hint — the category this word came from"> [{hints[i]}]</span>{/if}{#if diff}<span class="diff-badge" title="Arty's probe difficulty">{diff.label}</span>{/if}
 						</span>
 					{/each}
 				</div>
@@ -578,19 +740,105 @@
 		</div>
 
 		<div class="score-compact">
+			{#if practiceMode}
+				<span class="practice-badge" title="Practice — an archived puzzle; no leaderboard, no streak">PRACTICE{#if gameState.currentDate}&nbsp;· {gameState.currentDate}{/if}</span>
+			{/if}
 			<span>ATT <strong>{gameState.attempts}</strong>/10</span>
 			<span>TOK <strong>{gameState.totalTokens}</strong></span>
 			<span>MAT <strong>{gameState.matchedWords.size}/{gameState.targetWords.length}</strong></span>
-			<span>CREEP <strong class="creep-indicator {creepClass}">{gameState.creepLevel}</strong>/100</span>
+			<span>CREEP <strong class="creep-indicator {creepClass}" class:creep-flash={creepAnim !== null}>{gameState.creepLevel}</strong>/100</span>
 			{#if gameState.attempts > 0}
 				<span class="text-{rating.color}">{efficiency} tok/att {rating.stars}</span>
 			{/if}
 		</div>
 	</section>
 
-	<!-- ── Response trail ────────────────────────────────────────────────── -->
+	<!-- ── Response trail / Training Log ─────────────────────────────────── -->
 	<section class="response-trail" aria-label="Response trail">
-		<div class="trail-container">
+		{#if gameState.gameOver && trainingLog}
+			<div class="trail-tabs" role="tablist" aria-label="Post-game panels">
+				<button
+					type="button"
+					role="tab"
+					class="trail-tab"
+					class:trail-tab--active={postGameTab === 'trail'}
+					aria-selected={postGameTab === 'trail'}
+					onclick={() => (postGameTab = 'trail')}
+				>TRAIL</button>
+				<button
+					type="button"
+					role="tab"
+					class="trail-tab"
+					class:trail-tab--active={postGameTab === 'training'}
+					aria-selected={postGameTab === 'training'}
+					onclick={() => (postGameTab = 'training')}
+				>ARTY LEARNS</button>
+			</div>
+		{/if}
+
+		{#if gameState.gameOver && trainingLog && postGameTab === 'training'}
+			<div class="training-log" role="tabpanel" aria-label="Arty training log">
+				<div class="training-log-header">
+					ARTY LEARNS // {trainingLog.date}
+				</div>
+				<div class="training-log-compare">
+					<div class="tl-row">
+						<span class="tl-label">HUMAN</span>
+						<span>{trainingLog.human.attempts} attempts · {trainingLog.human.tokens} tokens</span>
+					</div>
+					<div class="tl-row">
+						<span class="tl-label">AI</span>
+						<span>{trainingLog.ai.probes} probes · {trainingLog.ai.tokens} tokens · {trainingLog.ai.statusLabel}</span>
+					</div>
+				</div>
+
+				{#each trainingLog.steps as step}
+					<div class="trail-item trail-item--training">
+						<div class="trail-header">
+							<span>{step.label}</span>
+							<span>{step.tokensUsed} tok</span>
+						</div>
+						<div class="tl-subtitle">{step.subtitle}</div>
+						<div class="trail-prompt">{step.prompt}</div>
+						<div class="trail-response">{step.response}</div>
+						<div class="tl-reward">
+							<span class="tl-reward-icon">◈</span>
+							<span class="tl-reward-label">REWARD</span>
+							{#if step.wordsMatched.length > 0}
+								{#each step.wordsMatched as w}
+									<span class="match-word found">+{w}</span>
+								{/each}
+							{:else}
+								<span class="text-dim">none</span>
+							{/if}
+							<span class="tl-score">({step.scoreAfter} of {step.targetCount})</span>
+						</div>
+						{#if step.blacklistHit}
+							<div class="violation-warning">
+								<div class="violation-header">blacklist hit on probe prompt</div>
+							</div>
+						{/if}
+					</div>
+				{/each}
+
+				<div class="training-log-summary">
+					<div class="tl-row">
+						<span class="tl-label">LEARNING SIGNAL</span>
+						<span class="tl-signal">{trainingLog.learningSignal}</span>
+					</div>
+					<div class="tl-row">
+						<span class="tl-label">HARDEST WORD</span>
+						<span>{trainingLog.hardestWordNote}</span>
+					</div>
+				</div>
+
+				<div class="training-log-explainer">
+					<div class="tl-explainer-title">WHAT HAPPENED?</div>
+					<p>{trainingLog.explainer}</p>
+				</div>
+			</div>
+		{:else}
+		<div class="trail-container" role="log" aria-live="polite" aria-relevant="additions">
 
 			{#if trail.length === 0 && !thinking}
 				{#if !authState.ready}
@@ -748,7 +996,7 @@
 
 			<!-- Arty thinking -->
 			{#if thinking}
-				<div class="trail-item trail-item--thinking">
+				<div class="trail-item trail-item--thinking" aria-hidden="true">
 					<div class="thinking-header">
 						<span class="thinking-label">ARTY</span>
 						<span class="loading" aria-hidden="true"></span>
@@ -759,7 +1007,7 @@
 
 			<!-- Error -->
 			{#if error}
-				<div class="trail-error-inline">
+				<div class="trail-error-inline" role="alert">
 					<span>⚠</span> {error}
 				</div>
 			{/if}
@@ -768,11 +1016,12 @@
 			<div bind:this={trailEnd}></div>
 
 		</div>
+		{/if}
 	</section>
 
 	<!-- ── Game-over panel ───────────────────────────────────────────────── -->
 	{#if gameState.gameOver}
-		<div class="game-over-panel {gameState.wonGame ? 'game-over-panel--win' : 'game-over-panel--loss'}">
+		<div class="game-over-panel {gameState.wonGame ? 'game-over-panel--win' : 'game-over-panel--loss'}" role="status">
 			<div class="game-over-title">
 				{gameState.wonGame ? '✦ VICTORY' : '✦ DARKNESS WINS'}
 			</div>
@@ -791,8 +1040,20 @@
 					{'share' in navigator ? 'Share Card' : 'Save Card'}
 				</button>
 				<button class="btn-secondary" onclick={copyText}>Copy Text</button>
+				<button class="btn-secondary" onclick={copyResultLink}>Copy Link</button>
+				{#if practiceMode}
+					<button class="btn-primary" onclick={() => location.reload()}>New Practice Puzzle</button>
+				{:else}
+					<button class="btn-secondary" onclick={() => location.assign('/?practice=1')}>Practice</button>
+				{/if}
 			</div>
-			<div class="game-over-cta">Come back tomorrow for a new challenge.</div>
+			<div class="game-over-cta">
+				{#if practiceMode}Practice round — nothing was ranked or recorded. The daily puzzle awaits.
+				{:else if currentStreak(today) > 1}Day {currentStreak(today)} 🔥 — come back tomorrow to keep the streak alive.
+				{:else}Come back tomorrow for a new challenge — and start a streak. 🔥
+				{/if}
+				{#if !practiceMode}<a class="wall-link" href="/wall">See today's haiku wall →</a>{/if}
+			</div>
 		</div>
 	{/if}
 
@@ -838,6 +1099,8 @@
 		</div>
 	{/if}
 
+{/if}
+
 </div>
 
 <!-- Toast notification -->
@@ -847,6 +1110,86 @@
 
 <style>
 	/* ── Bits not in the global theme ────────────────────────────────────── */
+
+	/* ── Screen-reader-only text ─────────────────────────────────────────── */
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	/* ── Creep feedback animations ───────────────────────────────────────── */
+	@keyframes creep-flash-kf {
+		0%, 100% { color: inherit; text-shadow: none; }
+		50%      { color: var(--error-color); text-shadow: 0 0 6px var(--error-color); }
+	}
+	.creep-flash {
+		animation: creep-flash-kf 240ms ease 2;
+	}
+	@keyframes creep-shake-kf {
+		0%, 100% { transform: translateX(0); }
+		20%      { transform: translateX(-4px); }
+		40%      { transform: translateX(4px); }
+		60%      { transform: translateX(-3px); }
+		80%      { transform: translateX(3px); }
+	}
+	.creep-shake {
+		animation: creep-shake-kf 240ms ease;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.creep-flash, .creep-shake { animation: none; }
+	}
+
+	/* ── Wall link in game-over CTA ──────────────────────────────────────── */
+	.wall-link {
+		display: block;
+		margin-top: var(--spacing-sm, 8px);
+		color: var(--info-color);
+		text-decoration: none;
+	}
+	.wall-link:hover { text-decoration: underline; }
+
+	/* ── Practice badge ──────────────────────────────────────────────────── */
+	.practice-badge {
+		font-size: 10px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--warning-color);
+		border: 1px solid var(--warning-color);
+		padding: 1px 6px;
+		white-space: nowrap;
+	}
+
+	/* ── Word hint (category reveal) ─────────────────────────────────────── */
+	.word-hint {
+		font-size: 10px;
+		letter-spacing: 0.08em;
+		color: var(--warning-color);
+	}
+
+	/* ── Shared result (#r=) read-only view ─────────────────────────────── */
+	.shared-result-date {
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-dim);
+	}
+	.shared-result-words {
+		font-size: 18px;
+		letter-spacing: 0.15em;
+	}
+	.shared-result-count {
+		font-size: 12px;
+		letter-spacing: normal;
+		color: var(--text-primary);
+		margin-left: var(--spacing-sm, 8px);
+	}
 
 	/* ── Cheat code trail item ───────────────────────────────────────────── */
 	:global(.trail-item--cheat) {
@@ -1118,4 +1461,119 @@
 		color: var(--text-dim);
 		letter-spacing: 0.3px;
 	}
+
+	/* ── Post-game tabs (TRAIL | ARTY LEARNS) ─────────────────────────────── */
+	.trail-tabs {
+		display: flex;
+		gap: 0;
+		border-bottom: 1px solid var(--border-color);
+		margin-bottom: var(--spacing-sm, 8px);
+	}
+	.trail-tab {
+		flex: 1;
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		color: var(--text-dim);
+		font-family: inherit;
+		font-size: 11px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		padding: 8px 12px;
+		cursor: pointer;
+		transition: color 0.15s ease, border-color 0.15s ease;
+	}
+	.trail-tab:hover { color: var(--text-primary); }
+	.trail-tab--active {
+		color: var(--info-color);
+		border-bottom-color: var(--info-color);
+	}
+
+	/* ── Training Log ────────────────────────────────────────────────────── */
+	.training-log {
+		padding: var(--spacing-sm, 8px) 0 var(--spacing-md, 16px);
+	}
+	.training-log-header {
+		font-size: 12px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--info-color);
+		margin-bottom: var(--spacing-sm, 8px);
+		padding-bottom: 6px;
+		border-bottom: 1px solid var(--border-color);
+	}
+	.training-log-compare,
+	.training-log-summary {
+		font-size: 12px;
+		margin-bottom: var(--spacing-md, 16px);
+	}
+	.tl-row {
+		display: flex;
+		gap: var(--spacing-sm, 8px);
+		padding: 3px 0;
+		flex-wrap: wrap;
+	}
+	.tl-label {
+		min-width: 9.5em;
+		color: var(--warning-color);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		font-size: 11px;
+	}
+	.tl-signal {
+		color: var(--success-color);
+	}
+	.tl-subtitle {
+		font-size: 11px;
+		color: var(--text-dim);
+		margin: 2px 0 6px;
+	}
+	.tl-reward {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+		margin-top: 6px;
+		font-size: 12px;
+	}
+	.tl-reward-icon { color: var(--info-color); }
+	.tl-reward-label {
+		color: var(--text-dim);
+		letter-spacing: 0.08em;
+		font-size: 11px;
+	}
+	.tl-score { color: var(--text-dim); font-size: 11px; }
+	:global(.trail-item--training) {
+		border-left-color: var(--info-color);
+	}
+	.training-log-explainer {
+		margin-top: var(--spacing-md, 16px);
+		padding: var(--spacing-sm, 8px);
+		border: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+	}
+	.tl-explainer-title {
+		font-size: 10px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--warning-color);
+		margin-bottom: 6px;
+	}
+	.training-log-explainer p {
+		margin: 0;
+		font-size: 12px;
+		line-height: 1.55;
+		color: var(--text-primary);
+	}
+
+	/* Difficulty badges on target words (post-game only) */
+	.diff-badge {
+		font-size: 9px;
+		letter-spacing: 0.06em;
+		margin-left: 2px;
+		opacity: 0.85;
+	}
+	.word-badge.diff-low .diff-badge    { color: var(--success-color); }
+	.word-badge.diff-medium .diff-badge { color: var(--warning-color); }
+	.word-badge.diff-high .diff-badge   { color: var(--error-color); }
 </style>

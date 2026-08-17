@@ -50,8 +50,8 @@ jobs:
         run: npm ci
         working-directory: functions
 
-      - name: Gateway & crypto tests
-        run: node --test test/gateway.test.js test/crypto.test.js
+      - name: Functions tests
+        run: node --test test/game-logic.test.js test/gateway.test.js test/crypto.test.js
         working-directory: functions
 
   build:

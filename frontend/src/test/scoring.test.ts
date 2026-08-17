@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getRating, calculateEfficiency } from '$lib/scoring';
+import { getRating, calculateEfficiency, computeEfficiencyScore } from '$lib/scoring';
 
 describe('getRating', () => {
 	it('excellent below 40 tokens/attempt', () => {
@@ -33,5 +33,24 @@ describe('calculateEfficiency', () => {
 
 	it('rounds to one decimal place', () => {
 		expect(calculateEfficiency(100, 3)).toBe(33.3);
+	});
+});
+
+describe('computeEfficiencyScore', () => {
+	it('victory: attempts*10 + floor(tokens/10)', () => {
+		// The worked example from docs/future-work.md — 12 attempts, 11419 tokens → 1261
+		expect(computeEfficiencyScore({ won: true, cheated: false, attempts: 12, totalTokens: 11419 })).toBe(1261);
+	});
+
+	it('floors the token component', () => {
+		expect(computeEfficiencyScore({ won: true, cheated: false, attempts: 1, totalTokens: 19 })).toBe(11);
+	});
+
+	it('loss scores null', () => {
+		expect(computeEfficiencyScore({ won: false, cheated: false, attempts: 5, totalTokens: 500 })).toBeNull();
+	});
+
+	it('cheated scores null even on a win', () => {
+		expect(computeEfficiencyScore({ won: true, cheated: true, attempts: 5, totalTokens: 500 })).toBeNull();
 	});
 });
