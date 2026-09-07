@@ -3,18 +3,24 @@
  *
  * Functions:
  * - artyGenerateHaiku:   Generate haiku via AI Gateway (callable). Supports BYOM.
- * - saveUserSettings:    Encrypt + store user's AI provider settings (callable).
+ * - saveUserSettings:    Encrypt + store a user's per-product AI provider settings (callable).
+ * - gatewayCall:         Generic AI Gateway entry point for any Kaaro product (callable).
  * - generateDailyWords:  Generate daily target/blacklist words (scheduled).
  * - forceUpdateDailyWords: Admin-only regeneration (callable).
+ * - exportGatewayTraces: Daily JSONL export of gateway_logs to Cloud Storage (scheduled).
  */
 
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
 import {onSchedule} from 'firebase-functions/v2/scheduler';
 import {initializeApp} from 'firebase-admin/app';
 import {getFirestore, FieldValue} from 'firebase-admin/firestore';
+import {getStorage} from 'firebase-admin/storage';
 import logger from 'firebase-functions/logger';
 import {routeToProvider} from './gateway/index.js';
-import {encryptApiKey, decryptApiKey} from './crypto.js';
+import {resolveProviderConfig} from './gateway/resolve-config.js';
+import {logGatewayCall} from './gateway/logger.js';
+import {exportDayTraces} from './gateway/trace-export.js';
+import {encryptApiKey} from './crypto.js';
 import {
     buildSystemInstruction,
     defaultEndpointFor,
@@ -23,6 +29,13 @@ import {
     deriveWordDifficulty,
     mapProviderError,
 } from './game-logic.js';
+
+// Product id for this app's own BYOM settings/gateway calls — see
+// userSettings/{uid}/products/{productId} and docs/projects/AI_GATEWAY_ENHANCED.md.
+const ART_OF_INTENT_PRODUCT = 'art-of-intent';
+// Any Kaaro product calling the shared gatewayCall endpoint identifies itself
+// with an id matching this pattern (used as a Firestore doc id + log field).
+const PRODUCT_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 // Initialize Firebase Admin
 initializeApp({
@@ -122,6 +135,9 @@ const VALID_PROVIDERS = ['gemini', 'openai', 'anthropic', 'custom'];
  *     apiKey:   string,          // plaintext — encrypted server-side
  *     endpoint: string?,         // optional override; defaults to provider default
  *     model:    string?,         // optional model override
+ *     product:  string?,         // which Kaaro product these settings apply to;
+ *                                // defaults to this app. Stored at
+ *                                // userSettings/{uid}/products/{product}.
  *   }
  *
  * To clear custom settings (revert to built-in Gemini):
@@ -137,11 +153,18 @@ export const saveUserSettings = onCall({
         throw new HttpsError('unauthenticated', 'Must be authenticated to save settings');
     }
 
-    const { provider, apiKey, endpoint, model } = request.data ?? {};
+    const { provider, apiKey, endpoint, model, product = ART_OF_INTENT_PRODUCT } = request.data ?? {};
+
+    if (typeof product !== 'string' || !PRODUCT_ID_RE.test(product)) {
+        throw new HttpsError('invalid-argument', 'product must be lowercase letters, digits, and hyphens');
+    }
+
+    const productDocRef = db.collection('userSettings').doc(request.auth.uid)
+        .collection('products').doc(product);
 
     // Clearing settings
     if (provider === null || provider === undefined) {
-        await db.collection('userSettings').doc(request.auth.uid).delete();
+        await productDocRef.delete();
         return { success: true, cleared: true };
     }
 
@@ -174,9 +197,9 @@ export const saveUserSettings = onCall({
     };
     if (model) doc.aiModel = model;
 
-    await db.collection('userSettings').doc(request.auth.uid).set(doc, { merge: true });
+    await productDocRef.set(doc, { merge: true });
 
-    logger.info('saveUserSettings_ok', { uid: request.auth.uid, provider });
+    logger.info('saveUserSettings_ok', { uid: request.auth.uid, provider, product });
     return { success: true };
 });
 
@@ -229,27 +252,21 @@ export const artyGenerateHaiku = onCall({
         let provider = 'gemini';
         let providerConfig;
 
-        const userSettingsDoc = await db.collection('userSettings').doc(request.auth.uid).get();
-        if (userSettingsDoc.exists) {
-            const settings = userSettingsDoc.data();
-            const encKey = process.env.GATEWAY_ENCRYPTION_KEY;
-            if (settings.aiProvider && settings.encryptedApiKey && encKey) {
-                try {
-                    const apiKey = await decryptApiKey(settings.encryptedApiKey, encKey);
-                    provider = settings.aiProvider;
-                    providerConfig = {
-                        endpoint: settings.aiEndpoint || defaultEndpointFor(provider),
-                        apiKey,
-                        model: settings.aiModel,
-                    };
-                } catch (decryptErr) {
-                    // Decryption failure (e.g. key rotation) — log and fall back gracefully
-                    logger.warn('artyGenerateHaiku_byom_decrypt_failed', {
-                        uid: request.auth.uid,
-                        error: decryptErr.message,
-                    });
-                }
+        try {
+            const resolved = await resolveProviderConfig(
+                db, request.auth.uid, ART_OF_INTENT_PRODUCT,
+                process.env.GATEWAY_ENCRYPTION_KEY, defaultEndpointFor
+            );
+            if (resolved) {
+                provider = resolved.provider;
+                providerConfig = resolved.providerConfig;
             }
+        } catch (decryptErr) {
+            // Decryption failure (e.g. key rotation) — log and fall back gracefully
+            logger.warn('artyGenerateHaiku_byom_decrypt_failed', {
+                uid: request.auth.uid,
+                error: decryptErr.message,
+            });
         }
 
         // Fall back to built-in Gemini key
@@ -299,6 +316,16 @@ export const artyGenerateHaiku = onCall({
                 latencyMs,
             });
 
+            void logGatewayCall(db, {
+                product: ART_OF_INTENT_PRODUCT,
+                provider,
+                model: providerConfig?.model,
+                uid: request.auth.uid,
+                sessionId,
+                latencyMs,
+                error: providerMessage || providerErr.message,
+            });
+
             const details = { provider, providerStatus, retryAfterSeconds };
             // Include provider message for BYOM so the client can surface actionable errors
             if (provider !== 'gemini' && providerMessage) details.providerMessage = providerMessage;
@@ -326,6 +353,18 @@ export const artyGenerateHaiku = onCall({
             provider,
             latencyMs,
             responseLength: responseText.length,
+            inputTokens: gatewayResult.inputTokens,
+            outputTokens: gatewayResult.outputTokens,
+            finishReason,
+        });
+
+        void logGatewayCall(db, {
+            product: ART_OF_INTENT_PRODUCT,
+            provider,
+            model: providerConfig?.model,
+            uid: request.auth.uid,
+            sessionId,
+            latencyMs,
             inputTokens: gatewayResult.inputTokens,
             outputTokens: gatewayResult.outputTokens,
             finishReason,
@@ -373,6 +412,129 @@ export const artyGenerateHaiku = onCall({
 
         throw new HttpsError('internal', 'Unexpected error. Please try again.');
     }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// gatewayCall — generic AI Gateway entry point for any Kaaro product
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generic pass-through gateway call: uid + product → decrypt that product's
+ * stored BYOM key → route to provider → log → return.
+ *
+ * Unlike artyGenerateHaiku, this has no game-specific logic (no dailyWords
+ * lookup, no server-built system prompt) and does NOT fall back to a
+ * built-in key — the caller must have saved their own BYOM settings for
+ * `product` via saveUserSettings first. This is what makes it safe for any
+ * Kaaro product to call with its own prompts.
+ *
+ * Request data:
+ *   {
+ *     product:      string,   // e.g. 'kaaroViewer' — identifies which
+ *                              // userSettings/{uid}/products/{product} to use
+ *     systemPrompt: string,
+ *     userPrompt:   string,
+ *     sessionId:    string?,
+ *   }
+ */
+export const gatewayCall = onCall({
+    maxInstances: 10,
+    timeoutSeconds: 30,
+    memory: '256MiB',
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated to call the gateway');
+    }
+
+    const { product, systemPrompt, userPrompt, sessionId } = request.data ?? {};
+
+    if (typeof product !== 'string' || !PRODUCT_ID_RE.test(product)) {
+        throw new HttpsError('invalid-argument', 'product must be lowercase letters, digits, and hyphens');
+    }
+    if (typeof systemPrompt !== 'string' || systemPrompt.length === 0) {
+        throw new HttpsError('invalid-argument', 'systemPrompt is required');
+    }
+    if (systemPrompt.length > 20000) {
+        throw new HttpsError('invalid-argument', 'systemPrompt must be 20000 characters or less');
+    }
+    if (typeof userPrompt !== 'string' || userPrompt.length === 0) {
+        throw new HttpsError('invalid-argument', 'userPrompt is required');
+    }
+    if (userPrompt.length > 8000) {
+        throw new HttpsError('invalid-argument', 'userPrompt must be 8000 characters or less');
+    }
+
+    let resolved;
+    try {
+        resolved = await resolveProviderConfig(
+            db, request.auth.uid, product,
+            process.env.GATEWAY_ENCRYPTION_KEY, defaultEndpointFor
+        );
+    } catch (decryptErr) {
+        logger.warn('gatewayCall_byom_decrypt_failed', {
+            uid: request.auth.uid, product, error: decryptErr.message,
+        });
+        resolved = null;
+    }
+
+    if (!resolved) {
+        throw new HttpsError('failed-precondition',
+            'No AI provider configured for this product. Save your BYOM settings first.');
+    }
+
+    const { provider, providerConfig } = resolved;
+    const callStart = Date.now();
+
+    let gatewayResult;
+    try {
+        gatewayResult = await routeToProvider(provider, systemPrompt, userPrompt, providerConfig);
+    } catch (providerErr) {
+        const latencyMs = Date.now() - callStart;
+        const httpStatus = providerErr.httpStatus || 0;
+        const providerMessage = providerErr.providerMessage || providerErr.message || '';
+        const retryMatch = providerMessage.match(/retry in ([\d.]+)s/i);
+        const retryAfterSeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : null;
+
+        logger.error('gatewayCall_error', {
+            sessionId, userId: request.auth.uid, product, provider, httpStatus, providerMessage, latencyMs,
+        });
+
+        void logGatewayCall(db, {
+            product, provider, model: providerConfig.model,
+            uid: request.auth.uid, sessionId, latencyMs,
+            error: providerMessage || providerErr.message,
+        });
+
+        const { code, message } = mapProviderError(httpStatus, { providerMessage, provider, retryAfterSeconds });
+        throw new HttpsError(code, message, { provider, retryAfterSeconds });
+    }
+
+    const latencyMs = Date.now() - callStart;
+
+    logger.info('gatewayCall_success', {
+        sessionId, userId: request.auth.uid, product, provider, latencyMs,
+        inputTokens: gatewayResult.inputTokens, outputTokens: gatewayResult.outputTokens,
+    });
+
+    void logGatewayCall(db, {
+        product, provider, model: providerConfig.model,
+        uid: request.auth.uid, sessionId, latencyMs,
+        inputTokens: gatewayResult.inputTokens,
+        outputTokens: gatewayResult.outputTokens,
+        finishReason: gatewayResult.finishReason,
+    });
+
+    return {
+        success: true,
+        data: {
+            text: gatewayResult.text,
+            inputTokens: gatewayResult.inputTokens,
+            outputTokens: gatewayResult.outputTokens,
+            finishReason: gatewayResult.finishReason,
+            provider,
+        },
+    };
 });
 
 /**
@@ -700,6 +862,29 @@ export const generateDailyWords = onSchedule({
         await generateWordsForDate(dateKey);
     } catch (error) {
         logger.error('Error generating daily words', { error: error.message, stack: error.stack });
+        throw error;
+    }
+});
+
+/**
+ * Export the previous day's gateway_logs to a JSONL file in Cloud Storage
+ * (gateway-traces/{YYYY-MM-DD}.jsonl). Firestore stays the live/queryable
+ * source of truth; this gives the same data a file-based archival form for
+ * grep-based cost audits across products.
+ */
+export const exportGatewayTraces = onSchedule({
+    schedule: '15 0 * * *',
+    timeZone: 'UTC',
+    memory: '256MiB',
+    timeoutSeconds: 120,
+}, async () => {
+    const dateKey = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    try {
+        const bucket = getStorage().bucket();
+        const result = await exportDayTraces(db, bucket, dateKey);
+        logger.info('exportGatewayTraces_ok', result);
+    } catch (error) {
+        logger.error('exportGatewayTraces_failed', { dateKey, error: error.message });
         throw error;
     }
 });

@@ -124,6 +124,20 @@ service cloud.firestore {
     // Encrypted API keys — owner read/write only; Cloud Functions bypass rules
     match /userSettings/{userId} {
       allow read, write: if isOwner(userId);
+
+      // Per-product settings — userSettings/{userId}/products/{productId}.
+      // Lets multiple Kaaro products (art-of-intent, kaaroViewer, ...) each
+      // store their own provider/key under one uid without colliding.
+      match /products/{productId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Gateway call traceability (any product, written by Cloud Functions only).
+    // Owner-read so BYOM settings pages can show "today's estimated spend".
+    match /gateway_logs/{logId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
   }
 }

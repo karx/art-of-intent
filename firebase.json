@@ -9,6 +9,9 @@
     "indexes": "firestore.indexes.json",
     "database": "alpha"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": {
     "public": "frontend/build",
     "ignore": [

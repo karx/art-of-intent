@@ -1,0 +1,11 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // gateway-traces/{date}.jsonl — written only by Cloud Functions (Admin SDK
+    // bypasses these rules). No client read/write; the trace files are an
+    // internal archival/cost-audit artifact, not user-facing.
+    match /gateway-traces/{fileName} {
+      allow read, write: if false;
+    }
+  }
+}
